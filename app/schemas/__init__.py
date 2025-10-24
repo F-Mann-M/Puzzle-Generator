@@ -1,0 +1,1 @@
+from app.schemas.puzzle_schema import PuzzleCreate, PuzzleResponse

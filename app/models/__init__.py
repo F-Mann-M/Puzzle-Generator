@@ -1,0 +1,1 @@
+from app.models.puzzle_model import Puzzle
