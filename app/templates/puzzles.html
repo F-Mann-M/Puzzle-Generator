@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Puzzles{% endblock %}
+
+{% block content %}
+<h2>All Puzzles</h2>
+
+<table>
+    <tr>
+        <th>Name</th>
+        <th>Model</th>
+        <th>Game Mode</th>
+        <th>Enemies</th>
+        <th>Players</th>
+        <th>Actions</th>
+    </tr>
+    {% for puzzle in puzzles %}
+    <tr>
+        <td>{{ puzzle.name }}</td>
+        <td>{{ puzzle.model }}</td>
+        <td>{{ puzzle.game_mode }}</td>
+        <td>{{ puzzle.enemy_count }}</td>
+        <td>{{ puzzle.player_unit_count }}</td>
+        <td><a href="/puzzles/{{ puzzle.id }}"><button>View</button></a>
+        <form action="/puzzles/delete/{{ puzzle.id }}/" method="post"><button type="submit">Delete</button></form></td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

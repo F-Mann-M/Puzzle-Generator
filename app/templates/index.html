@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<h1>Welcome to the Puzzle Generator</h1>
+<p>Create, view, and manage game puzzles easily.</p>
+
+<div class="actions">
+    <a href="/puzzles/create-puzzle" class="btn">Create Puzzle</a>
+    <a href="/puzzles" class="btn">View All Puzzles</a>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Puzzle Details{% endblock %}
+
+{% block content %}
+<h2>Puzzle Details</h2>
+
+<ul>
+    <li><strong>Name:</strong> {{ puzzle.name }}</li>
+    <li><strong>ID:</strong> {{ puzzle.id }}</li>
+    <li><strong>Model:</strong> {{ puzzle.model }}</li>
+    <li><strong>Game Mode:</strong> {{ puzzle.game_mode }}</li>
+    <li><strong>Enemy Count:</strong> {{ puzzle.enemy_count }}</li>
+    <li><strong>Player Unit Count:</strong> {{ puzzle.player_unit_count }}</li>
+    <li><strong>Coins:</strong> {{ puzzle.coins }}</li>
+    <li><strong>Created At:</strong> {{ puzzle.created_at }}</li>
+</ul>
+
+<a href="/puzzles">← Back to list</a>
+{% endblock %}

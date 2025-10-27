@@ -6,6 +6,7 @@ from datetime import datetime
 
 # Data sent by user/AI
 class PuzzleCreate(BaseModel):
+    name: str
     model: str
     enemy_count: int
     player_unit_count: int
@@ -20,3 +21,5 @@ class PuzzleResponse(PuzzleCreate):
 
     class Config:
         orm_mode = True # read directly form SQLAlchemy objects (Pydantic)
+
+

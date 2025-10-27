@@ -23,6 +23,7 @@ class PuzzleServices:
     # get all puzzle
     def get_all_puzzle(
         self,
+        name: Optional[str] = None,
         game_mode: Optional[str] = None, # default None if no filter is selected
         model: Optional[str] = None,
         sort_by: Optional[str] = None,
@@ -31,6 +32,8 @@ class PuzzleServices:
         """Fetch puzzle with filter"""
         query = self.db.query(models.Puzzle)
 
+        if name:
+            query = query.filter(models.Puzzle.name == name)
         if game_mode:
             query = query.filter(models.Puzzle.game_mode == game_mode)
         if model:
@@ -48,7 +51,7 @@ class PuzzleServices:
     # get one puzzle by id
     def get_puzzle_by_id(self, puzzle_id):
         """Fetch puzzle by id"""
-        puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id)
+        puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
         if not puzzle:
             raise HTTPException(status_code=404, detail="Puzzle not found")
         return puzzle
@@ -61,7 +64,7 @@ class PuzzleServices:
         if puzzle:
             self.db.delete(puzzle)
             self.db.commit()
-        return {"detail": "Puzzle deleted"}
+
 
     # update puzzle
 
