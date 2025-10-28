@@ -35,5 +35,20 @@
 </ul>
 {% endfor %}
 
+<h3>Nodes</h3>
+{% for node in puzzle.nodes %}
+<ul>
+    <li><strong>Index {{ node.node_index }}: </strong> x: {{ node.x_position }}, y: {{ node.y_position }}</li>
+</ul>
+{% endfor %}
+
+<h3>Edges</h3>
+{% for edge in puzzle.edges %}
+<ul>
+    <li><strong>Index {{ edge.edge_index }}: </strong> start-node: {{ edge.start_node_id }}, end-node: {{ edge.end_node_id }}</li>
+</ul>
+{% endfor %}
+
+
 <a href="/puzzles">← Back to list</a>
 {% endblock %}

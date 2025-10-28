@@ -55,9 +55,9 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         y_key = f"node_{i}_y"
         if x_key in puzzle_config and y_key in puzzle_config:
             nodes.append({
-                "index": i,
-                "x": int(puzzle_config[x_key]),
-                "y": int(puzzle_config[y_key])
+                "node_index": i,
+                "x_position": int(puzzle_config[x_key]),
+                "y_position": int(puzzle_config[y_key])
             })
 
     # Build edges

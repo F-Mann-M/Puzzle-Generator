@@ -52,7 +52,7 @@ class PuzzleServices:
                 )
                 self.db.add(node)
                 self.db.flush()  # assign node.id
-                node_map[node_data.index] = node.id
+                node_map[node_data.node_index] = node.id
 
         # Create edges (using the node_map for foreign keys)
         if puzzle_data.edges:
