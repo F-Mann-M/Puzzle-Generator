@@ -16,5 +16,24 @@
     <li><strong>Created At:</strong> {{ puzzle.created_at }}</li>
 </ul>
 
+<h3>Related Enemy Units</h3>
+{% for unit in puzzle.units %}
+<ul>
+    {% if unit.faction == "enemy" %}
+    <li><strong>Unit:</strong> {{ unit.unit_type }}</li>
+    <li><strong>Movement:</strong> {{ unit.movement }}</li>
+    {% endif%}
+</ul>
+{% endfor %}
+
+<h3>Related Player Units</h3>
+{% for unit in puzzle.units %}
+<ul>
+    {% if unit.faction == "player" %}
+    <li><strong>Unit:</strong> {{ unit.unit_type }}</li>
+    {% endif%}
+</ul>
+{% endfor %}
+
 <a href="/puzzles">← Back to list</a>
 {% endblock %}

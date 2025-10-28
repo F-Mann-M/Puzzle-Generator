@@ -1,7 +1,7 @@
 from app import models
 from typing import List, Optional
 from fastapi import HTTPException
-
+from sqlalchemy.orm import joinedload
 from app.schemas import PuzzleCreate
 
 
@@ -12,8 +12,30 @@ class PuzzleServices:
 
     # create puzzle
     def create_puzzle(self, puzzle_data: PuzzleCreate):
-        """Insert new puzzle to DB table puzzles"""
-        db_puzzle = models.Puzzle(**puzzle_data.model_dump())  # converts Pydantic object (Puzzle model) into a dict and unpacks dict into keyword arguments
+        """Insert new puzzle to DB table puzzles and its related units"""
+        db_puzzle = models.Puzzle(
+            name=puzzle_data.name,
+            model=puzzle_data.model,
+            enemy_count=puzzle_data.enemy_count,
+            player_unit_count=puzzle_data.player_unit_count,
+            game_mode=puzzle_data.game_mode,
+            node_count=puzzle_data.node_count,
+            coins=puzzle_data.coins,
+        )
+
+        # Create units and store in units table
+        if puzzle_data.units:
+            units = [
+                models.Unit(
+                    unit_type = data.unit_type,
+                    movement = data.movement,
+                    faction = data.faction
+                )
+            for data in puzzle_data.units]
+
+            db_puzzle.units = units
+
+
         self.db.add(db_puzzle)
         self.db.commit()
         self.db.refresh(db_puzzle)
@@ -51,7 +73,9 @@ class PuzzleServices:
     # get one puzzle by id
     def get_puzzle_by_id(self, puzzle_id):
         """Fetch puzzle by id"""
-        puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
+        puzzle = (self.db.query(models.Puzzle)
+                  .options(joinedload(models.Puzzle.units)) # gets related units form units table
+                  .filter(models.Puzzle.id == puzzle_id).first())
         if not puzzle:
             raise HTTPException(status_code=404, detail="Puzzle not found")
         return puzzle

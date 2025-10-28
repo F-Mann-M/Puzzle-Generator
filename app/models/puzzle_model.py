@@ -4,6 +4,7 @@ from app.database import Base
 from uuid import uuid4
 from sqlalchemy.dialects.postgresql import UUID
 
+
 class Puzzle(Base):
     __tablename__ = "puzzles"
 
@@ -20,5 +21,6 @@ class Puzzle(Base):
 
     # relationship: one puzzle < many units
     units = relationship("Unit", back_populates="puzzle", cascade="all, delete-orphan")
+    nodes = relationship("Node", back_populates="puzzle", cascade="all, delete-orphan")
 
 

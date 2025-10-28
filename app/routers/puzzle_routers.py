@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pyexpat.errors import messages
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -25,31 +24,73 @@ async def show_create_puzzle(request: Request):
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
 # create a puzzle (POST)
-@router.post("/", response_class=HTMLResponse)
-async def create_puzzle(
-        db: Session = Depends(get_db),
-        name: str = Form(...),
-        model: str = Form(...),
-        enemy_count: int = Form(...),
-        player_unit_count: int = Form(...),
-        game_mode: str = Form(...),
-        node_count: int = Form(...),
-        turns: int = Form(...),
+# @router.post("/", response_class=HTMLResponse)
+# async def create_puzzle(
+#         db: Session = Depends(get_db),
+#         name: str = Form(...),
+#         model: str = Form(...),
+#         enemy_count: int = Form(...),
+#         player_unit_count: int = Form(...),
+#         game_mode: str = Form(...),
+#         node_count: int = Form(...),
+#         turns: int = Form(...),
+#
+# ):
+#     """Create a new puzzle entry"""
+#     service_create = PuzzleServices(db)
+#     puzzle_data = schemas.PuzzleCreate(
+#         name = name,
+#         model = model,
+#         enemy_count= enemy_count,
+#         player_unit_count= player_unit_count,
+#         game_mode= game_mode,
+#         node_count= node_count,
+#         coins= turns # dummy. this will be changed
+#     )
+#     puzzle = service_create.create_puzzle(puzzle_data)
+#     return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
 
-):
-    """Create a new puzzle entry"""
-    service_create = PuzzleServices(db)
+@router.post("/", response_class=HTMLResponse)
+async def create_puzzle(request: Request, db: Session = Depends(get_db)):
+    # get data from form and store in dict
+    form_content = await request.form()
+    puzzle_config = dict(form_content)
+    print(form_content)
+
+    # Build units
+    units =[]
+    for key, value in puzzle_config.items():
+        if key.startswith("unit_enemy_") and key.endswith("_type"):
+            unit_id = key.split("_")[2] # isolates unit number
+            units.append({
+                "faction": "enemy",
+                "unit_type": value, # Grunt, Brute
+                "movement": puzzle_config.get(f"unit_enemy_{unit_id}_movement")
+            })
+        elif key.startswith("unit_player_") and key.endswith("_type"):
+            unit_id = key.split("_")[2]
+            units.append({
+                "faction": "player",
+                "unit_type": value,
+                "movement": puzzle_config.get(f"unit_player_{unit_id}_movement")
+            })
+
     puzzle_data = schemas.PuzzleCreate(
-        name = name,
-        model = model,
-        enemy_count= enemy_count,
-        player_unit_count= player_unit_count,
-        game_mode= game_mode,
-        node_count= node_count,
-        coins= turns # dummy. this will be changed
+        name=puzzle_config["name"],
+        model=puzzle_config["model"],
+        enemy_count=int(puzzle_config["enemy_count"]),
+        player_unit_count=int(puzzle_config["player_unit_count"]),
+        game_mode=puzzle_config["game_mode"],
+        node_count=int(puzzle_config["node_count"]),
+        coins=int(puzzle_config["turns"]),
+        units=units # adds list of units
     )
-    puzzle = service_create.create_puzzle(puzzle_data)
+
+    # save using your service
+    services = PuzzleServices(db)
+    puzzle = services.create_puzzle(puzzle_data)
     return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
+
 
 
 # get a list of puzzle (GET)
@@ -76,15 +117,6 @@ async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(ge
     services = PuzzleServices(db)
     puzzle = services.get_puzzle_by_id(puzzle_id)
     return templates.TemplateResponse("puzzle-details.html", {"request": request, "puzzle": puzzle})
-
-
-# delete puzzle with post to avoid Java-Script
-@router.post("/delete/{puzzle_id}/", status_code=204)
-async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
-    """Delete a puzzle"""
-    services = PuzzleServices(db)
-    services.delete_puzzle(puzzle_id)
-    return RedirectResponse(url="/puzzles", status_code=303)
 
 
 # API Delete Request - currently not in use
