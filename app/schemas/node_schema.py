@@ -2,16 +2,13 @@ from pydantic import BaseModel
 from uuid import UUID
 
 
-class NodeBase(BaseModel):
+class NodeCreate(BaseModel):
     node_index: int
     x_position: int
     y_position: int
 
-class NodeCreate(NodeBase):
-    """schema used when creating nodes after ID is generated"""
-    pass
 
-class NodeResponse(NodeBase):
+class NodeResponse(NodeCreate):
     id: UUID
 
     class Config:

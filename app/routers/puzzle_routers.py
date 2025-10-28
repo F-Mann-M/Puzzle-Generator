@@ -1,15 +1,15 @@
 # import moduls/libraries
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from pathlib import Path
 
 # import form project
 from app.database import get_db
-from app import models, schemas
+from app import schemas
 from app.services import PuzzleServices
 
 
@@ -23,41 +23,13 @@ router = APIRouter()
 async def show_create_puzzle(request: Request):
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
-# create a puzzle (POST)
-# @router.post("/", response_class=HTMLResponse)
-# async def create_puzzle(
-#         db: Session = Depends(get_db),
-#         name: str = Form(...),
-#         model: str = Form(...),
-#         enemy_count: int = Form(...),
-#         player_unit_count: int = Form(...),
-#         game_mode: str = Form(...),
-#         node_count: int = Form(...),
-#         turns: int = Form(...),
-#
-# ):
-#     """Create a new puzzle entry"""
-#     service_create = PuzzleServices(db)
-#     puzzle_data = schemas.PuzzleCreate(
-#         name = name,
-#         model = model,
-#         enemy_count= enemy_count,
-#         player_unit_count= player_unit_count,
-#         game_mode= game_mode,
-#         node_count= node_count,
-#         coins= turns # dummy. this will be changed
-#     )
-#     puzzle = service_create.create_puzzle(puzzle_data)
-#     return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
-
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     # get data from form and store in dict
     form_content = await request.form()
     puzzle_config = dict(form_content)
-    print(form_content)
 
-    # Build units
+    # Build units and nodes
     units =[]
     for key, value in puzzle_config.items():
         if key.startswith("unit_enemy_") and key.endswith("_type"):
@@ -75,6 +47,36 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
                 "movement": puzzle_config.get(f"unit_player_{unit_id}_movement")
             })
 
+    # Build nodes
+    nodes = []
+    node_count = int(puzzle_config.get("node_count", 0))
+    for i in range(node_count):
+        x_key = f"node_{i}_x"
+        y_key = f"node_{i}_y"
+        if x_key in puzzle_config and y_key in puzzle_config:
+            nodes.append({
+                "index": i,
+                "x": int(puzzle_config[x_key]),
+                "y": int(puzzle_config[y_key])
+            })
+
+    # Build edges
+    edges = []
+    edge_count = int(puzzle_config.get("edge_count", 0))
+    for i in range(edge_count):
+        start_key = f"edge_{i}_start"
+        end_key = f"edge_{i}_end"
+        if start_key in puzzle_config and end_key in puzzle_config:
+            edges.append({
+                "edge_index": i,
+                "start_node": int(puzzle_config[start_key]),
+                "end_node": int(puzzle_config[end_key])
+            })
+
+    # Build paths
+
+
+
     puzzle_data = schemas.PuzzleCreate(
         name=puzzle_config["name"],
         model=puzzle_config["model"],
@@ -82,8 +84,12 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         player_unit_count=int(puzzle_config["player_unit_count"]),
         game_mode=puzzle_config["game_mode"],
         node_count=int(puzzle_config["node_count"]),
-        coins=int(puzzle_config["turns"]),
-        units=units # adds list of units
+        edge_count=int(puzzle_config["edge_count"]),
+        coins=int(puzzle_config["coins"]),
+        turns=int(puzzle_config["turns"]),
+        units=units, # adds list of units
+        nodes=nodes, # add list of nodes
+        edges=edges
     )
 
     # save using your service
@@ -126,6 +132,3 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     services = PuzzleServices(db)
     services.delete_puzzle(puzzle_id)
     return {"detail": f"Puzzle {puzzle_id} deleted"}
-
-# update puzzle
-    # update puzzle and all related databases (nodes, units, edges)

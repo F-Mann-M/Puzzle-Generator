@@ -16,3 +16,7 @@ class Node(Base):
 
     # Back-reference to parent puzzle
     puzzle = relationship("Puzzle", back_populates="nodes")
+
+    start_edges = relationship("Edge", foreign_keys="[Edge.start_node_id]", back_populates="start_node")
+    end_edges = relationship("Edge", foreign_keys="[Edge.end_node_id]", back_populates="end_node")
+    # path = relationship("Path") # Relationship Path many-to-one Node
