@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Puzzle{% endblock %}
+
+{% block content %}
+<h2>Generate a New Puzzle</h2>
+
+<form action="/puzzles/" method="post">
+
+    <label for="name">Name:</label>
+    <input id="name" type="text" name="name" required><br><br>
+
+    <label for="model">Model:</label>
+    <select id="model"  name="model" required>
+        <option value="">-- Select LLM Model --</option>
+        <option value="GPT 5 mini">GPT 5 mini</option>
+        <option value="GPT 5 mini">GPT 4 mini</option>
+        <option value="GPT 5 mini">Gemini</option>
+        <option value="GPT 5 mini">Groq</option>
+    </select><br><br>
+
+    <label for="enemy_count">Enemy Count:</label>
+    <input id="enemy_count" type="number" name="enemy_count" required>
+    <div id="enemy-units"></div><br><br>
+
+    <label for="player_unit_count">Player Unit Count:</label>
+    <input id="player_unit_count" type="number" name="player_unit_count" required>
+    <div id="player-units"></div><br><br>
+
+    <label for="game_mode">Game Mode:</label>
+    <select name="game_mode" id="game_mode" required>
+        <option value="">-- Select Game Mode --</option>
+        <option value="Skirmish">Skirmish</option>
+        <option value="Safe travel">Safe travel</option>
+        <option value="Plunder">Plunder</option>
+    </select><br><br>
+
+    <label for="node_count">Node Count:</label>
+    <input id="node_count" type="number" name="node_count" required>
+
+    <label for="turns">Max Turns:</label>
+    <input id="turns" type="number" name="turns"><br><br>
+
+
+    <button type="submit">Generate Puzzle</button>
+    <!-- Text input for LLM to give extra rules/ ideas -->
+</form>
+
+{% endblock %}
