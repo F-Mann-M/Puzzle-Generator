@@ -23,6 +23,7 @@ router = APIRouter()
 async def show_create_puzzle(request: Request):
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
+# Create puzzle by you own
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     # get data from form and store in dict
@@ -75,8 +76,6 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
 
     # Build paths
 
-
-
     puzzle_data = schemas.PuzzleCreate(
         name=puzzle_config["name"],
         model=puzzle_config["model"],
@@ -98,6 +97,16 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
 
 
+# load puzzle generator
+@router.get("/generate-puzzle", response_class=HTMLResponse)
+async def show_generate_puzzle(request: Request):
+    return templates.TemplateResponse("generate-puzzle.html", {"request": request})
+
+# create puzzle
+@router.post("/generate-puzzle", response_class=HTMLResponse)
+async def generate_puzzle(request: Request):
+    form_content = await request.form()
+    puzzle_config = dict(form_content)
 
 # get a list of puzzle (GET)
 @router.get("/")
@@ -132,3 +141,4 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     services = PuzzleServices(db)
     services.delete_puzzle(puzzle_id)
     return {"detail": f"Puzzle {puzzle_id} deleted"}
+

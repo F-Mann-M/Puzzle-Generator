@@ -1,166 +1,200 @@
+// =======================
+// Containers
+// =======================
 const enemyContainer = document.getElementById("enemy-units");
 const playerContainer = document.getElementById("player-units");
+const nodesContainer = document.getElementById("nodes-container");
+const edgesContainer = document.getElementById("edges-container");
+
+const enemyCountInput = document.getElementById("enemy_count");
+const playerCountInput = document.getElementById("player_unit_count");
+const nodeCountInput = document.getElementById("node_count");
+const edgeCountInput = document.getElementById("edge_count");
+const turnsInput = document.getElementById("turns");
+
+let currentNodeCount = 0;
+let maxTurns = parseInt(turnsInput?.value || 3);
+
+// =======================
+// Updates
+// =======================
+turnsInput?.addEventListener("input", e => maxTurns = parseInt(e.target.value) || 3);
+nodeCountInput.addEventListener("input", handleNodeChange);
+edgeCountInput.addEventListener("input", handleEdgeChange);
+enemyCountInput.addEventListener("input", handleEnemyChange);
+playerCountInput.addEventListener("input", handlePlayerChange);
+
+// =======================
+// Nodes
+// =======================
+function handleNodeChange(e) {
+  currentNodeCount = parseInt(e.target.value) || 0;
+  nodesContainer.innerHTML = "";
+  for (let i = 1; i <= currentNodeCount; i++) {
+    nodesContainer.innerHTML += `
+      <div class="node-row">
+        <label>Node ${i}:</label>
+        <input type="number" name="node_${i}_x" placeholder="x" required>
+        <input type="number" name="node_${i}_y" placeholder="y" required>
+      </div>
+    `;
+  }
+  refreshEdgeDropdowns();
+}
+
+// =======================
+// Edges
+// =======================
+function handleEdgeChange(e) {
+  const edgeCount = parseInt(e.target.value) || 0;
+  edgesContainer.innerHTML = "";
+  for (let i = 1; i <= edgeCount; i++) {
+    edgesContainer.innerHTML += `
+      <div class="edge-row">
+        <label>Edge ${i}:</label>
+        <select name="edge_${i}_start" required></select>
+        →
+        <select name="edge_${i}_end" required></select>
+      </div>
+    `;
+  }
+  refreshEdgeDropdowns();
+}
+
+function refreshEdgeDropdowns() {
+  const nodeOptions = Array.from({ length: currentNodeCount }, (_, i) => `<option value="${i + 1}">Node ${i + 1}</option>`).join("");
+  edgesContainer.querySelectorAll("select").forEach(sel => sel.innerHTML = nodeOptions);
+}
+
+// =======================
+// Build edge list dynamically (connections)
+// =======================
+function getEdgeList() {
+  const edges = [];
+  edgesContainer.querySelectorAll(".edge-row").forEach(row => {
+    const start = parseInt(row.querySelector(`[name$='_start']`).value);
+    const end = parseInt(row.querySelector(`[name$='_end']`).value);
+    if (!isNaN(start) && !isNaN(end)) edges.push([start, end]);
+  });
+  return edges;
+}
+
+// =======================
+// Unit creation
+// =======================
+function handleEnemyChange(e) {
+  const count = parseInt(e.target.value) || 0;
+  enemyContainer.innerHTML = "<h3>Enemy Units</h3>";
+  for (let i = 0; i < count; i++) {
+    enemyContainer.insertAdjacentHTML("beforeend", createUnitRow(i, "enemy"));
+    initUnitPath("enemy", i);
+  }
+}
+
+function handlePlayerChange(e) {
+  const count = parseInt(e.target.value) || 0;
+  playerContainer.innerHTML = "<h3>Player Units</h3>";
+  for (let i = 0; i < count; i++) {
+    playerContainer.insertAdjacentHTML("beforeend", createUnitRow(i, "player"));
+    initUnitPath("player", i);
+  }
+}
 
 function createUnitRow(index, faction) {
-    // Player and enemy unit type options
-    const playerTypes = ["Swordman", "Nun", "Archer", "Peasant"];
-    const enemyTypes = ["Grunt", "Brute", "Archer"];
+  const types = faction === "enemy"
+    ? ["Grunt", "Brute", "Archer"]
+    : ["Swordman", "Nun", "Archer", "Peasant"];
+  const typeOptions = types.map(t => `<option value="${t}">${t}</option>`).join("");
 
-    // Build type options based on faction
-    const types = faction === "player" ? playerTypes : enemyTypes;
-    const typeOptions = types.map(type => `<option value="${type}">${type}</option>`).join("");
-
-    // Movement select only for enemies
-    const movementSelect = faction === "enemy" ? `
-    <select name="unit_${faction}_${index}_movement" required>
-<!--      <option value="">&#45;&#45; Movement &#45;&#45;</option>-->
-      <option value="Static">Static</option>
-      <option value="One Way">One Way</option>
-      <option value="Loop">Loop</option>
-    </select>` : "";
-
-    // Combine into a single row
-    return `
-    <div class="unit-row">
+  return `
+    <div class="unit-row" id="${faction}-unit-${index}">
       <label>${faction} ${index + 1}:</label>
       <select name="unit_${faction}_${index}_type" required>
         <option value="">-- Type --</option>
         ${typeOptions}
       </select>
-      ${movementSelect}
-    </div>`;
-}
-
-// Enemy unit count input listener
-document.getElementById("enemy_count").addEventListener("input", (e) => {
-    const count = parseInt(e.target.value) || 0;
-    enemyContainer.innerHTML = "";
-    for (let i = 0; i < count; i++) {
-        enemyContainer.innerHTML += createUnitRow(i, "enemy");
-    }
-});
-
-// Player unit count input listener
-document.getElementById("player_unit_count").addEventListener("input", (e) => {
-    const count = parseInt(e.target.value) || 0;
-    playerContainer.innerHTML = "";
-    for (let i = 0; i < count; i++) {
-        playerContainer.innerHTML += createUnitRow(i, "player");
-    }
-});
-
-
-
-// =======================
-// Dynamic Nodes & Edges
-// =======================
-
-// Containers
-const nodesContainer = document.getElementById("nodes-container");
-const edgesContainer = document.getElementById("edges-container");
-
-// Inputs
-const nodeCountInput = document.getElementById("node_count");
-const edgeCountInput = document.getElementById("edge_count");
-
-// Track current node count for edge dropdowns
-let currentNodeCount = 0;
-
-// =======================
-// Node Logic
-// =======================
-nodeCountInput.addEventListener("input", (e) => {
-  currentNodeCount = parseInt(e.target.value) || 0;
-  nodesContainer.innerHTML = "";
-
-  // Generate node input rows
-  for (let i = 0; i < currentNodeCount; i++) {
-    nodesContainer.innerHTML += createNodeRow(i);
-  }
-
-  // Update edges dropdowns so they match current nodes
-  refreshEdgeDropdowns();
-});
-
-// Create a single node input row
-function createNodeRow(index) {
-  return `
-    <div class="node-row">
-      <label>Node ${index}:</label>
-      <input type="number" name="node_${index}_x" placeholder="x" required>
-      <input type="number" name="node_${index}_y" placeholder="y" required>
+      <div id="${faction}-unit-${index}-path" class="path-container"></div>
     </div>
   `;
 }
 
 // =======================
-// Edge Logic
+// Path logic (One Way)
 // =======================
-edgeCountInput.addEventListener("input", (e) => {
-  const edgeCount = parseInt(e.target.value) || 0;
-  edgesContainer.innerHTML = "";
+function initUnitPath(faction, index) {
+  const pathContainer = document.getElementById(`${faction}-unit-${index}-path`);
+  pathContainer.innerHTML = "";
 
-  // Generate edge rows
-  for (let i = 0; i < edgeCount; i++) {
-    edgesContainer.innerHTML += createEdgeRow(i);
-  }
+  const label = document.createElement("label");
+  label.textContent = "Path:";
 
-  // Fill dropdowns with current node list
-  refreshEdgeDropdowns();
-});
+  const startSelect = document.createElement("select");
+  startSelect.name = `unit_${faction}_${index}_path_0`;
+  startSelect.required = true;
+  startSelect.innerHTML = buildNodeOptions(true);
 
-// Build a single edge row (with placeholder selects)
-function createEdgeRow(index) {
-  return `
-    <div class="edge-row">
-      <label>Edge ${index}:</label>
-      <select name="edge_${index}_start" required></select>
-      →
-      <select name="edge_${index}_end" required></select>
-    </div>
-  `;
-}
-
-// =======================
-// Dropdown Refresh Logic
-// =======================
-function refreshEdgeDropdowns() {
-  const nodeOptions = buildNodeOptions();
-  const allEdgeSelects = edgesContainer.querySelectorAll("select");
-
-  // Update all start/end dropdowns with the same node list
-  allEdgeSelects.forEach(select => {
-    select.innerHTML = nodeOptions;
+  startSelect.addEventListener("change", e => {
+    const edges = getEdgeList();
+    addNextPathDropdown(faction, index, 1, parseInt(e.target.value), edges);
   });
+
+  pathContainer.appendChild(label);
+  pathContainer.appendChild(startSelect);
 }
 
-// Build dropdown options — Node 0, Node 1, Node 2, ...
-function buildNodeOptions() {
-  let options = "";
-  for (let i = 0; i < currentNodeCount; i++) {
-    options += `<option value="${i}">Node ${i}</option>`;
-  }
-  return options;
-}
+function addNextPathDropdown(faction, index, step, fromNode, edges) {
+  const pathContainer = document.getElementById(`${faction}-unit-${index}-path`);
+  Array.from(pathContainer.querySelectorAll(`select[name^='unit_${faction}_${index}_path_']`))
+    .slice(step)
+    .forEach(el => el.remove());
 
+  const connected = getConnectedNodes(fromNode, edges);
+  if (connected.length === 0) return;
 
+  const select = document.createElement("select");
+  select.name = `unit_${faction}_${index}_path_${step}`;
+  select.required = true;
+  select.innerHTML = `<option value="">-- Next Node --</option>` +
+    connected.map(n => `<option value="${n}">Node ${n}</option>`).join("");
 
-
-
-// DELETE puzzle
-async function deletePuzzle(event, puzzleId) {
-    event.preventDefault(); // prevent form from reloading page
-
-    if (!confirm("Are you sure you want to delete this puzzle?")) return;
-
-    const response = await fetch(`/puzzles/${puzzleId}`, {method: "DELETE"});
-
-    if (response.ok) {
-        // remove deleted row from page or reload
-
-        window.location.reload();
-        alert("Puzzle deleted!");
-    } else {
-        alert("Error deleting puzzle");
+  select.addEventListener("change", e => {
+    if (step < maxTurns) {
+      addNextPathDropdown(faction, index, step + 1, parseInt(e.target.value), edges);
     }
+  });
+
+  pathContainer.appendChild(select);
+}
+
+// =======================
+// Helpers
+// =======================
+function getConnectedNodes(nodeId, edges) {
+  const connected = [];
+  for (const [a, b] of edges) {
+    if (a === nodeId) connected.push(b);
+    else if (b === nodeId) connected.push(a);
+  }
+  return connected;
+}
+
+function buildNodeOptions(includePlaceholder = false) {
+  const opts = Array.from({ length: currentNodeCount }, (_, i) => `<option value="${i + 1}">Node ${i + 1}</option>`).join("");
+  return includePlaceholder ? `<option value="">-- Select Node --</option>${opts}` : opts;
+}
+
+// =======================
+// Delete puzzle (unchanged)
+// =======================
+async function deletePuzzle(event, puzzleId) {
+  event.preventDefault();
+  if (!confirm("Are you sure you want to delete this puzzle?")) return;
+
+  const response = await fetch(`/puzzles/${puzzleId}`, { method: "DELETE" });
+  if (response.ok) {
+    window.location.reload();
+    alert("Puzzle deleted!");
+  } else {
+    alert("Error deleting puzzle");
+  }
 }
