@@ -27,14 +27,13 @@ class PuzzleServices:
             turns=puzzle_data.turns,
         )
         self.db.add(db_puzzle)
-        self.db.flush()  # ensures puzzle.id is available for relationships
+        self.db.flush()
 
         # Create and link units
         if puzzle_data.units:
             for data in puzzle_data.units:
                 unit = models.Unit(
                     unit_type=data.unit_type,
-                    movement=data.movement,
                     faction=data.faction,
                     puzzle_id=db_puzzle.id
                 )
@@ -53,6 +52,7 @@ class PuzzleServices:
                 self.db.add(node)
                 self.db.flush()  # assign node.id
                 node_map[node_data.node_index] = node.id
+
 
         # Create edges (using the node_map for foreign keys)
         if puzzle_data.edges:

@@ -5,8 +5,9 @@ from uuid import UUID
 
 class UnitBase(BaseModel):
     unit_type: str
-    movement: Optional[str] = None
+    path: Optional[str] = None
     faction: str
+    puzzle_id: UUID
 
 class UnitCreate(UnitBase):
     """schema used when creating units after ID is generated"""

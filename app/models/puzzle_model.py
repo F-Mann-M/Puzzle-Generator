@@ -21,7 +21,8 @@ class Puzzle(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # relationship: one puzzle < many units
+
+    # relationship: many objects one puzzle
     units = relationship("Unit", back_populates="puzzle", cascade="all, delete-orphan")
     nodes = relationship("Node", back_populates="puzzle", cascade="all, delete-orphan")
     edges = relationship("Edge", back_populates="puzzle", cascade="all, delete-orphan")

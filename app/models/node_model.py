@@ -14,9 +14,10 @@ class Node(Base):
     y_position = Column(Integer, nullable=False)
     puzzle_id = Column(UUID(as_uuid=True), ForeignKey("puzzles.id"), nullable=False)
 
-    # Back-reference to parent puzzle
+    # Relationship
     puzzle = relationship("Puzzle", back_populates="nodes")
 
     start_edges = relationship("Edge", foreign_keys="[Edge.start_node_id]", back_populates="start_node")
     end_edges = relationship("Edge", foreign_keys="[Edge.end_node_id]", back_populates="end_node")
-    # path = relationship("Path") # Relationship Path many-to-one Node
+
+    path_node = relationship("PathNode", back_populates="node") # Relationship Path many-to-one Node

@@ -30,51 +30,72 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     form_content = await request.form()
     puzzle_config = dict(form_content)
 
-    # Build units and nodes
-    units =[]
-    for key, value in puzzle_config.items():
-        if key.startswith("unit_enemy_") and key.endswith("_type"):
-            unit_id = key.split("_")[2] # isolates unit number
-            units.append({
+    units = []
+
+    # Get Enemy Units
+    enemy_count = int(puzzle_config.get("enemy_count", 0))
+    for i in range(enemy_count):
+        unit_type = puzzle_config.get(f"unit_enemy_{i}_type")
+
+        path_nodes = []
+        j = 0
+        while f"unit_enemy_{i}_path_{j}" in puzzle_config:
+            path_nodes.append(puzzle_config.get(f"unit_enemy_{i}_path_{j}"))
+            j += 1
+
+        units.append(
+            {
                 "faction": "enemy",
-                "unit_type": value, # Grunt, Brute
-                "movement": puzzle_config.get(f"unit_enemy_{unit_id}_movement")
-            })
-        elif key.startswith("unit_player_") and key.endswith("_type"):
-            unit_id = key.split("_")[2]
-            units.append({
+                "unit_type": unit_type,
+                "path": path_nodes
+            }
+        )
+
+    # Player Units
+    player_count = int(puzzle_config.get("player_unit_count", 0))
+    for i in range(player_count):
+        unit_type = puzzle_config.get(f"unit_player_{i}_type")
+
+        path_nodes = []
+        j = 0
+        while f"unit_player_{i}_path_{j}" in puzzle_config:
+            path_nodes.append(puzzle_config.get(f"unit_player_{i}_path_{j}"))
+            j += 1
+
+        units.append(
+            {
                 "faction": "player",
-                "unit_type": value,
-                "movement": puzzle_config.get(f"unit_player_{unit_id}_movement")
-            })
+                "unit_type": unit_type,
+                "path": path_nodes
+            }
+        )
 
     # Build nodes
-    nodes = []
     node_count = int(puzzle_config.get("node_count", 0))
-    for i in range(node_count):
-        x_key = f"node_{i}_x"
-        y_key = f"node_{i}_y"
-        if x_key in puzzle_config and y_key in puzzle_config:
-            nodes.append({
-                "node_index": i,
-                "x_position": int(puzzle_config[x_key]),
-                "y_position": int(puzzle_config[y_key])
-            })
+    nodes = [
+        {
+            "node_index": i,
+            "x_position": (int(puzzle_config.get(f"node_{i + 1}_x"))),
+            "y_position": (int(puzzle_config.get(f"node_{i + 1}_y")))
+        }
+        for i in range(node_count)
+    ]
 
-    # Build edges
-    edges = []
+    # Get Edges
     edge_count = int(puzzle_config.get("edge_count", 0))
-    for i in range(edge_count):
-        start_key = f"edge_{i}_start"
-        end_key = f"edge_{i}_end"
-        if start_key in puzzle_config and end_key in puzzle_config:
-            edges.append({
-                "edge_index": i,
-                "start_node": int(puzzle_config[start_key]),
-                "end_node": int(puzzle_config[end_key])
-            })
+    edges = [
+        {
+            "edge_index": i,
+            "start_node": (int(puzzle_config.get(f"edge_{i + 1}_start")))-1,
+            "end_node": (int(puzzle_config.get(f"edge_{i + 1}_end")))-1
+        }
+        for i in range(edge_count)
+    ]
 
-    # Build paths
+    print("units: ", units)
+    print("nodes: ", nodes)
+    print("Eges: ", edges)# create units
+
 
     puzzle_data = schemas.PuzzleCreate(
         name=puzzle_config["name"],
@@ -91,7 +112,6 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         edges=edges
     )
 
-    # save using your service
     services = PuzzleServices(db)
     puzzle = services.create_puzzle(puzzle_data)
     return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
@@ -102,7 +122,7 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
 async def show_generate_puzzle(request: Request):
     return templates.TemplateResponse("generate-puzzle.html", {"request": request})
 
-# create puzzle
+# Generate puzzle (LLM Endpoint)
 @router.post("/generate-puzzle", response_class=HTMLResponse)
 async def generate_puzzle(request: Request):
     form_content = await request.form()
@@ -134,7 +154,7 @@ async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(ge
     return templates.TemplateResponse("puzzle-details.html", {"request": request, "puzzle": puzzle})
 
 
-# API Delete Request - currently not in use
+# API Delete Request
 @router.delete("/{puzzle_id}", status_code=200)
 async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     """Delete a puzzle"""
