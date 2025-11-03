@@ -30,6 +30,6 @@ class PuzzleResponse(PuzzleCreate):
 
 
     class Config:
-        orm_mode = True # read directly form SQLAlchemy objects (Pydantic)
-
+        # orm_mode = True # read directly form SQLAlchemy objects (Pydantic)
+        from_attributes = True
 

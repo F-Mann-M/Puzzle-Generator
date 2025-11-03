@@ -70,5 +70,14 @@
 {% endfor %}
 </ul>
 
+<!-- Puzzle Visualization -->
+<h1>{{ puzzle.name }}</h1>
+<div class="p-4">
+  <h2 class="text-lg font-bold mb-2">Puzzle Visualization</h2>
+  <iframe src="/puzzles/visualization/{{ puzzle.id }}"
+          style="width:100%; height:650px; border:none;">
+  </iframe>
+</div>
+
 <a href="/puzzles">← Back to list</a>
 {% endblock %}
