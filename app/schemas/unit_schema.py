@@ -3,17 +3,13 @@ from pydantic import BaseModel
 from uuid import UUID
 
 
-class UnitBase(BaseModel):
+class UnitCreate(BaseModel):
     unit_type: str
-    path: Optional[str] = None
     faction: str
     puzzle_id: UUID
+    path_nodes: list[int] # node indexes
 
-class UnitCreate(UnitBase):
-    """schema used when creating units after ID is generated"""
-    pass
-
-class UnitResponse(UnitBase):
+class UnitResponse(UnitCreate):
     id: UUID
 
     class Config:

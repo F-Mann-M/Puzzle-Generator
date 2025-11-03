@@ -12,7 +12,6 @@ class Unit(Base):
     unit_type = Column(String, nullable=False)  # Grunt, Brute, Archer
     faction = Column(String, nullable=False)  # 'enemy' or 'player'
     puzzle_id = Column(UUID(as_uuid=True), ForeignKey("puzzles.id"), nullable=False)
-    path_id = Column(UUID(as_uuid=True), ForeignKey("paths.id", ondelete="CASCADE")) # onedelete: delete child when no parent (Database)
 
     # Relationships
     puzzle = relationship("Puzzle", back_populates="units")

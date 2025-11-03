@@ -2,8 +2,9 @@ from app import models
 from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
+from uuid import uuid4
 
-from app.schemas import PuzzleCreate
+from app.schemas import PuzzleCreate, NodeCreate, EdgeCreate, UnitCreate
 
 
 class PuzzleServices:
@@ -15,7 +16,9 @@ class PuzzleServices:
     # create puzzle
     def create_puzzle(self, puzzle_data: PuzzleCreate):
         """Insert new puzzle to DB table puzzles and its related units"""
-        db_puzzle = models.Puzzle(
+
+        puzzle = models.Puzzle(
+            id=uuid4(),
             name=puzzle_data.name,
             model=puzzle_data.model,
             enemy_count=puzzle_data.enemy_count,
@@ -26,53 +29,86 @@ class PuzzleServices:
             coins=puzzle_data.coins,
             turns=puzzle_data.turns,
         )
-        self.db.add(db_puzzle)
+        self.db.add(puzzle)
         self.db.flush()
+        return puzzle.id
 
-        # Create and link units
-        if puzzle_data.units:
-            for data in puzzle_data.units:
-                unit = models.Unit(
-                    unit_type=data.unit_type,
-                    faction=data.faction,
-                    puzzle_id=db_puzzle.id
-                )
-                self.db.add(unit)
 
-        # Create nodes (and build index → id map)
+    def create_nodes(self, nodes: list[NodeCreate]):
+        """ Create nodes, build and return index → id map. Used to build edges"""
         node_map = {}
-        if puzzle_data.nodes:
-            for node_data in puzzle_data.nodes:
-                node = models.Node(
-                    node_index=node_data.node_index,
-                    x_position=node_data.x_position,
-                    y_position=node_data.y_position,
-                    puzzle_id=db_puzzle.id
+        for node_data in nodes:
+            node = models.Node(
+                id=uuid4(),
+                node_index=node_data.node_index,
+                x_position=node_data.x_position,
+                y_position=node_data.y_position,
+                puzzle_id=node_data.puzzle_id
+            )
+            self.db.add(node)
+            self.db.flush()
+            node_map[node_data.node_index] = node.id
+        return node_map
+
+
+    def create_edges(self, edges: list[EdgeCreate]):
+        for edge_data in edges:
+            edge = models.Edge(
+                id=uuid4(),
+                edge_index=edge_data.edge_index,
+                start_node_id=edge_data.start_node_id,
+                end_node_id=edge_data.end_node_id,
+                puzzle_id=edge_data.puzzle_id
+            )
+            self.db.add(edge)
+            self.db.flush()
+            return edge.id
+
+
+
+    def create_units_with_path(self, puzzle_id, units: list[UnitCreate]):
+
+        for unit_data in units:
+            # Create Unit
+            unit = models.Unit(
+                id=uuid4(),
+                unit_type=unit_data.unit_type,
+                faction=unit_data.faction,
+                puzzle_id=puzzle_id,
+            )
+            self.db.add(unit)
+            self.db.flush()
+
+            # Create path
+            path = models.Path(unit_id=unit.id
+            )
+            self.db.add(path)
+            self.db.flush()
+
+            # Create path_node
+            for index, n_index in enumerate(unit_data.path_nodes):
+                node = (
+                    self.db.query(models.Node)
+                    .filter(
+                        models.Node.puzzle_id == puzzle_id,
+                        models.Node.node_index == n_index
+                    )
+                    .first()
                 )
-                self.db.add(node)
-                self.db.flush()  # assign node.id
-                node_map[node_data.node_index] = node.id
-
-
-        # Create edges (using the node_map for foreign keys)
-        if puzzle_data.edges:
-            for edge_data in puzzle_data.edges:
-                start_id = node_map.get(edge_data.start_node)
-                end_id = node_map.get(edge_data.end_node)
-                if not start_id or not end_id:
-                    raise ValueError(f"Invalid edge: node index not found for edge {edge_data.edge_index}")
-                edge = models.Edge(
-                    edge_index=edge_data.edge_index,
-                    start_node_id=start_id,
-                    end_node_id=end_id,
-                    puzzle_id=db_puzzle.id
+                path_node = models.PathNode(
+                    id=uuid4(),
+                    path_id=path.id,
+                    node_id=node.id,
+                    order_index=index
                 )
-                self.db.add(edge)
+                self.db.add(path_node)
+                self.db.flush()
 
+
+    def commit_all(self):
         # Commit all
         self.db.commit()
-        self.db.refresh(db_puzzle)
-        return db_puzzle
+
 
     # get all puzzle
     def get_all_puzzle(

@@ -27,8 +27,11 @@ async def show_create_puzzle(request: Request):
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     # get data from form and store in dict
+    services = PuzzleServices(db)
     form_content = await request.form()
     puzzle_config = dict(form_content)
+
+    print("From Content: ", puzzle_config) # for debugging
 
     units = []
 
@@ -40,14 +43,14 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         path_nodes = []
         j = 0
         while f"unit_enemy_{i}_path_{j}" in puzzle_config:
-            path_nodes.append(puzzle_config.get(f"unit_enemy_{i}_path_{j}"))
+            path_nodes.append(int(puzzle_config.get(f"unit_enemy_{i}_path_{j}"))-1)
             j += 1
 
         units.append(
             {
                 "faction": "enemy",
                 "unit_type": unit_type,
-                "path": path_nodes
+                "path_nodes": path_nodes
             }
         )
 
@@ -59,18 +62,18 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         path_nodes = []
         j = 0
         while f"unit_player_{i}_path_{j}" in puzzle_config:
-            path_nodes.append(puzzle_config.get(f"unit_player_{i}_path_{j}"))
+            path_nodes.append((int(puzzle_config.get(f"unit_player_{i}_path_{j}"))-1))
             j += 1
 
         units.append(
             {
                 "faction": "player",
                 "unit_type": unit_type,
-                "path": path_nodes
+                "path_nodes": path_nodes
             }
         )
 
-    # Build nodes
+    # Get Nodes
     node_count = int(puzzle_config.get("node_count", 0))
     nodes = [
         {
@@ -92,11 +95,12 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         for i in range(edge_count)
     ]
 
+    #### for debugging ###
     print("units: ", units)
     print("nodes: ", nodes)
-    print("Eges: ", edges)# create units
+    print("Eges: ", edges)
 
-
+    # Create Puzzle
     puzzle_data = schemas.PuzzleCreate(
         name=puzzle_config["name"],
         model=puzzle_config["model"],
@@ -107,14 +111,58 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         edge_count=int(puzzle_config["edge_count"]),
         coins=int(puzzle_config["coins"]),
         turns=int(puzzle_config["turns"]),
-        units=units, # adds list of units
-        nodes=nodes, # add list of nodes
-        edges=edges
     )
+    puzzle_id = services.create_puzzle(puzzle_data)
 
-    services = PuzzleServices(db)
-    puzzle = services.create_puzzle(puzzle_data)
-    return RedirectResponse(url=f"/puzzles/{puzzle.id}", status_code=303)
+    # Create Nodes
+    node_data = []
+    for node in nodes:
+       node_data.append(
+           schemas.NodeCreate(
+               node_index=node.get("node_index"),
+               x_position=node.get("x_position"),
+               y_position=node.get("y_position"),
+               puzzle_id=puzzle_id
+            )
+       )
+    node_map = services.create_nodes(node_data)
+
+
+    # Create Edges
+    edge_data = []
+    for edge in edges:
+        start_uuid = node_map.get(edge.get("start_node"))
+        end_uuid = node_map.get(edge.get("end_node"))
+        edge_data.append(
+            schemas.EdgeCreate(
+                edge_index=edge.get("edge_index"),
+                start_node_id=start_uuid,
+                end_node_id=end_uuid,
+                puzzle_id=puzzle_id
+            )
+        )
+    services.create_edges(edge_data)
+
+    # for debugging
+    print("units dict path nodes: ", [unit.get("path_nodes") for unit in units])
+
+    # Create Units with path
+    unit_data = []
+    for unit in units:
+        unit_data.append(
+            schemas.UnitCreate(
+                faction=unit.get("faction"),
+                unit_type=unit.get("unit_type"),
+                path_nodes=unit.get("path_nodes"),
+                puzzle_id=puzzle_id
+        ))
+
+    services.create_units_with_path(puzzle_id, unit_data)
+
+    # Commit all
+    services.commit_all()
+
+    return RedirectResponse(url=f"/puzzles/{puzzle_id}", status_code=303)
 
 
 # load puzzle generator

@@ -1,15 +1,13 @@
+from typing import Optional
 from pydantic import BaseModel
 from uuid import UUID
 
 
-class NodeCreate(BaseModel):
-    node_index: int
-    x_position: int
-    y_position: int
+class PathCreate(BaseModel):
+    unit_id: UUID
     puzzle_id: UUID
 
-
-class NodeResponse(NodeCreate):
+class UnitResponse(PathCreate):
     id: UUID
 
     class Config:
