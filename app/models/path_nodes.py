@@ -11,6 +11,7 @@ class PathNode(Base):
     path_id = Column(UUID(as_uuid=True), ForeignKey("paths.id", ondelete="CASCADE")) # if there is no path with id, delete this PathNode
     node_id = Column(UUID(as_uuid=True), ForeignKey("nodes.id"))
     order_index = Column(Integer, nullable=False)
+    node_index = Column(Integer) # for visualization in puzzle details
 
     # Relationship
     path = relationship("Path", back_populates="path_node")

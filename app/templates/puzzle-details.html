@@ -17,23 +17,43 @@
 </ul>
 
 <h3>Related Enemy Units</h3>
-{% for unit in puzzle.units %}
 <ul>
-    {% if unit.faction == "enemy" %}
-    <li><strong>Unit:</strong> {{ unit.unit_type }}</li>
-    <li><strong>Movement:</strong> {{ unit.movement }}</li>
-    {% endif%}
+    {% for unit in puzzle.units %}
+        {% if unit.faction == "player" %}
+            <li>
+                <strong>Unit:</strong> {{ unit.unit_type }}
+                <ul>
+                    {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
+
+                        <li>
+                            <strong>PathNode {{ path_node.order_index }}:</strong>
+                            {{ path_node.node_index }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endif %}
+    {% endfor %}
 </ul>
-{% endfor %}
 
 <h3>Related Player Units</h3>
-{% for unit in puzzle.units %}
 <ul>
-    {% if unit.faction == "player" %}
-    <li><strong>Unit:</strong> {{ unit.unit_type }}</li>
-    {% endif%}
+    {% for unit in puzzle.units %}
+        {% if unit.faction == "enemy" %}
+            <li>
+                <strong>Unit:</strong> {{ unit.unit_type }}
+                <ul>
+                    {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
+                        <li>
+                            <strong>PathNode {{ path_node.node_index }}:</strong>
+                            {{ path_node.order_index }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endif %}
+    {% endfor %}
 </ul>
-{% endfor %}
 
 <h3>Nodes</h3>
 <ul>

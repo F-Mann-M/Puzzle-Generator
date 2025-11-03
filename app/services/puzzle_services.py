@@ -33,7 +33,6 @@ class PuzzleServices:
         self.db.flush()
         return puzzle.id
 
-
     def create_nodes(self, nodes: list[NodeCreate]):
         """ Create nodes, build and return index → id map. Used to build edges"""
         node_map = {}
@@ -50,7 +49,6 @@ class PuzzleServices:
             node_map[node_data.node_index] = node.id
         return node_map
 
-
     def create_edges(self, edges: list[EdgeCreate]):
         for edge_data in edges:
             edge = models.Edge(
@@ -63,8 +61,6 @@ class PuzzleServices:
             self.db.add(edge)
             self.db.flush()
             return edge.id
-
-
 
     def create_units_with_path(self, puzzle_id, units: list[UnitCreate]):
 
@@ -81,7 +77,7 @@ class PuzzleServices:
 
             # Create path
             path = models.Path(unit_id=unit.id
-            )
+                               )
             self.db.add(path)
             self.db.flush()
 
@@ -99,16 +95,15 @@ class PuzzleServices:
                     id=uuid4(),
                     path_id=path.id,
                     node_id=node.id,
-                    order_index=index
+                    order_index=index,
+                    node_index=n_index
                 )
                 self.db.add(path_node)
                 self.db.flush()
 
-
     def commit_all(self):
         # Commit all
         self.db.commit()
-
 
     # get all puzzle
     def get_all_puzzle(
@@ -122,13 +117,13 @@ class PuzzleServices:
         """Fetch puzzle with filter"""
         query = self.db.query(models.Puzzle)
 
+        # filter not implemented to front-end yet
         if name:
             query = query.filter(models.Puzzle.name == name)
         if game_mode:
             query = query.filter(models.Puzzle.game_mode == game_mode)
         if model:
             query = query.filter(models.Puzzle.model == model)
-
         if sort_by:
             sort_column = getattr(models.Puzzle, sort_by, None)
             if sort_column:
@@ -141,7 +136,9 @@ class PuzzleServices:
     def get_puzzle_by_id(self, puzzle_id):
         """Fetch puzzle by id"""
         puzzle = (self.db.query(models.Puzzle)
-                  .options(joinedload(models.Puzzle.units))  # gets related units form units table
+                  .options(joinedload(models.Puzzle.units) # gets related units form units table
+                           .joinedload(models.Unit.path) # with paths
+                           .joinedload(models.Path.path_node))
                   .options(joinedload(models.Puzzle.nodes))  # get related nodes
                   .options(joinedload(models.Puzzle.edges))  # get related edges
                   .filter(models.Puzzle.id == puzzle_id).first())
