@@ -60,7 +60,7 @@ class PuzzleServices:
             )
             self.db.add(edge)
             self.db.flush()
-            return edge.id
+
 
     def create_units_with_path(self, puzzle_id, units: list[UnitCreate]):
 

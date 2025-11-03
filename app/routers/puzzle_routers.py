@@ -143,7 +143,9 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         )
     services.create_edges(edge_data)
 
+
     # for debugging
+    print("Edge data: ", [edge.edge_index for edge in edge_data])
     print("units dict path nodes: ", [unit.get("path_nodes") for unit in units])
 
     # Create Units with path

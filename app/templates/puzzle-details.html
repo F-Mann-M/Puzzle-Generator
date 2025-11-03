@@ -57,7 +57,7 @@
 
 <h3>Nodes</h3>
 <ul>
-    {% for node in puzzle.nodes %}
+    {% for node in puzzle.nodes | sort(attribute="node_index")%}
     <li><strong>Index {{ node.node_index }}: </strong> x: {{ node.x_position }}, y: {{ node.y_position }}</li>
     {% endfor %}
 </ul>
@@ -65,7 +65,7 @@
 
 <h3>Edges</h3>
 <ul>
-{% for edge in puzzle.edges %}
+{% for edge in puzzle.edges | sort(attribute="edge_index")%}
     <li><strong>Index {{ edge.edge_index }}: </strong> start-node: {{ edge.start_node_id }}, end-node: {{ edge.end_node_id }}</li>
 {% endfor %}
 </ul>
