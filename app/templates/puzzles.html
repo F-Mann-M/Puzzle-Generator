@@ -21,10 +21,13 @@
         <td>{{ puzzle.game_mode }}</td>
         <td>{{ puzzle.enemy_count }}</td>
         <td>{{ puzzle.player_unit_count }}</td>
-        <td><a href="/puzzles/{{ puzzle.id }}"><button>View</button></a>
+        <td>
+            <a href="/puzzles/{{ puzzle.id }}"><button>View</button></a>
+            <a href="/puzzles/{{ puzzle.id }}/update"><button>Edit</button></a>
             <form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
                 <button type="submit">Delete</button>
             </form>
+
     </tr>
     {% endfor %}
 </table>

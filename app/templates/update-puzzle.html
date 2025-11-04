@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Edit Puzzle: {{ puzzle.name }}</h1>
+
+<!-- Puzzle metadata -->
+<form id="edit-puzzle-form">
+  <label>Name:</label>
+  <input type="text" name="name" value="{{ puzzle.name }}" required>
+  <!-- Add any other puzzle-level settings -->
+</form>
+
+<hr>
+
+<!-- Node + Edge editing -->
+<div id="node-editor">
+  <h3>Nodes</h3>
+  <!-- A table or grid of existing nodes -->
+  <!-- e.g. each node row editable (x, y) -->
+</div>
+
+<div id="edge-editor">
+  <h3>Edges</h3>
+  <!-- Similar editable list -->
+</div>
+
+<hr>
+
+<!-- Buttons -->
+<div class="controls">
+  <button id="refresh-btn" type="button"> Refresh Preview</button>
+  <button id="save-btn" type="submit"> Save Changes</button>
+</div>
+
+<hr>
+
+<!-- Visualization -->
+
+
+{% endblock %}

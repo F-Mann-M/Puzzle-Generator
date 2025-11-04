@@ -27,7 +27,7 @@ class PuzzleServices:
             node_count=puzzle_data.node_count,
             edge_count=puzzle_data.edge_count,
             coins=puzzle_data.coins,
-            turns=puzzle_data.turns,
+            # turns=puzzle_data.turns,
         )
         self.db.add(puzzle)
         self.db.flush()
@@ -155,3 +155,6 @@ class PuzzleServices:
             self.db.commit()
 
     # update puzzle
+    def update_puzzle(self, puzzle_id, updated_data):
+        puzzle = self.get_puzzle_by_id(puzzle_id)
+

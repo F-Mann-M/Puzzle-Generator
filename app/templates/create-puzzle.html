@@ -10,22 +10,22 @@
     <label for="name">Name:</label>
     <input id="name" type="text" name="name" required><br><br>
 
-    <label for="model">Model:</label>
-    <select id="model"  name="model" required>
-        <option value="">-- Select LLM Model --</option>
-        <option value="GPT-4o">GPT-4o</option>
-        <option value="GPT-5">GPT-5</option>
-        <option value="GPT 5 mini">Gemini</option>
-        <option value="GPT 5 mini">Groq</option>
-    </select><br><br>
+<!--    <label for="model">Model:</label>-->
+<!--    <select id="model"  name="model" required>-->
+<!--        <option value="">&#45;&#45; Select LLM Model &#45;&#45;</option>-->
+<!--        <option value="GPT-4o">GPT-4o</option>-->
+<!--        <option value="GPT-5">GPT-5</option>-->
+<!--        <option value="GPT 5 mini">Gemini</option>-->
+<!--        <option value="GPT 5 mini">Groq</option>-->
+<!--    </select><br><br>-->
 
     <!-- Basic game setup -->
     <label for="game_mode">Game Mode:</label>
     <select name="game_mode" id="game_mode" required>
         <option value="">-- Select Game Mode --</option>
         <option value="Skirmish">Skirmish</option>
-        <option value="Safe travel">Safe travel</option>
-        <option value="Plunder">Plunder</option>
+<!--        <option value="Safe travel">Safe travel</option>-->
+<!--        <option value="Plunder">Plunder</option>-->
     </select><br><br>
 
     <label for="node_count">Node Count:</label>
@@ -36,8 +36,8 @@
     <input id="edge_count" type="number" name="edge_count" required>
     <div id="edges-container"></div><br><br>
 
-    <label for="turns">Max Turns:</label>
-    <input id="turns" type="number" name="turns"><br><br>
+<!--    <label for="turns">Max Turns:</label>-->
+<!--    <input id="turns" type="number" name="turns"><br><br>-->
 
     <label for="coins">Max Coins:</label>
     <input id="coins" type="number" name="coins"><br><br>
@@ -52,14 +52,9 @@
     <div id="player-units"></div><br><br>
 
 
-    <button type="submit">Generate Puzzle</button>
+    <button type="submit">Create Puzzle</button>
     <!-- Text input for LLM to give extra rules/ ideas -->
 </form>
-
-
-<ul>
-    <li>Path: Start and path nodes per unit</li> <!-- add node with index -->
-</ul>
 
 
 {% endblock %}

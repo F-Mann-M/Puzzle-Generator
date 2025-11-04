@@ -19,39 +19,39 @@
 <h3>Related Enemy Units</h3>
 <ul>
     {% for unit in puzzle.units %}
-        {% if unit.faction == "player" %}
-            <li>
-                <strong>Unit:</strong> {{ unit.unit_type }}
-                <ul>
-                    {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
+    {% if unit.faction == "player" %}
+    <li>
+        <strong>Unit:</strong> {{ unit.unit_type }}
+        <ul>
+            {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
 
-                        <li>
-                            <strong>PathNode {{ path_node.order_index }}:</strong>
-                            {{ path_node.node_index }}
-                        </li>
-                    {% endfor %}
-                </ul>
+            <li>
+                <strong>PathNode {{ path_node.order_index }}:</strong>
+                {{ path_node.node_index }}
             </li>
-        {% endif %}
+            {% endfor %}
+        </ul>
+    </li>
+    {% endif %}
     {% endfor %}
 </ul>
 
 <h3>Related Player Units</h3>
 <ul>
     {% for unit in puzzle.units %}
-        {% if unit.faction == "enemy" %}
+    {% if unit.faction == "enemy" %}
+    <li>
+        <strong>Unit:</strong> {{ unit.unit_type }}
+        <ul>
+            {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
             <li>
-                <strong>Unit:</strong> {{ unit.unit_type }}
-                <ul>
-                    {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
-                        <li>
-                            <strong>PathNode {{ path_node.node_index }}:</strong>
-                            {{ path_node.order_index }}
-                        </li>
-                    {% endfor %}
-                </ul>
+                <strong>PathNode {{ path_node.node_index }}:</strong>
+                {{ path_node.order_index }}
             </li>
-        {% endif %}
+            {% endfor %}
+        </ul>
+    </li>
+    {% endif %}
     {% endfor %}
 </ul>
 
@@ -65,19 +65,27 @@
 
 <h3>Edges</h3>
 <ul>
-{% for edge in puzzle.edges | sort(attribute="edge_index")%}
-    <li><strong>Index {{ edge.edge_index }}: </strong> start-node: {{ edge.start_node_id }}, end-node: {{ edge.end_node_id }}</li>
-{% endfor %}
+    {% for edge in puzzle.edges | sort(attribute="edge_index")%}
+    <li><strong>Index {{ edge.edge_index }}: </strong> start-node: {{ edge.start_node_id }}, end-node: {{
+        edge.end_node_id }}
+    </li>
+    {% endfor %}
 </ul>
 
 <!-- Puzzle Visualization -->
-<h1>{{ puzzle.name }}</h1>
 <div class="p-4">
-  <h2 class="text-lg font-bold mb-2">Puzzle Visualization</h2>
-  <iframe src="/puzzles/visualization/{{ puzzle.id }}"
-          style="width:100%; height:650px; border:none;">
-  </iframe>
+    <h2 class="text-lg font-bold mb-2">Puzzle Visualization</h2>
+    <iframe src="/puzzles/{{ puzzle.id }}/visualization"
+            style="width:100%; height:650px; border:none;">
+    </iframe>
 </div>
+
+
+<form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
+    <button type="submit">Delete</button>
+</form>
+<a href="/puzzles/{{ puzzle.id }}/update"><button>Edit</button></a>
+</form><br><br>
 
 <a href="/puzzles">← Back to list</a>
 {% endblock %}

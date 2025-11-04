@@ -102,8 +102,8 @@ function handlePlayerChange(e) {
 
 function createUnitRow(index, faction) {
   const types = faction === "enemy"
-    ? ["Grunt", "Brute", "Archer"]
-    : ["Swordman", "Nun", "Archer", "Peasant"];
+    ? ["Grunt"]
+    : ["Swordman"];
   const typeOptions = types.map(t => `<option value="${t}">${t}</option>`).join("");
 
   return `
@@ -197,4 +197,44 @@ async function deletePuzzle(event, puzzleId) {
   } else {
     alert("Error deleting puzzle");
   }
+}
+
+// EDIT PUZZLE
+
+// When user clicks refresh, re-render visualization
+document.getElementById("refresh-btn").addEventListener("click", () => {
+  // Gather form data
+  const data = collectPuzzleData();
+  // Call backend preview endpoint
+  fetch(`/puzzles/preview`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  })
+  .then(r => r.text())
+  .then(html => {
+    document.getElementById("puzzle-visualization").innerHTML = html;
+  });
+});
+
+// When user saves changes
+document.getElementById("save-btn").addEventListener("click", (e) => {
+  e.preventDefault();
+  const data = collectPuzzleData();
+  fetch(`/puzzles/${puzzleId}`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  }).then(() => alert("Puzzle updated!"));
+});
+
+function collectPuzzleData() {
+  // extract values from form and table inputs
+  return {
+    name: document.querySelector('[name="name"]').value,
+    enemy_count: Number(document.querySelector('[name="enemy_count"]').value),
+    player_unit_count: Number(document.querySelector('[name="player_unit_count"]').value),
+    turns: Number(document.querySelector('[name="turns"]').value),
+    // plus nodes, edges, etc.
+  };
 }
