@@ -18,11 +18,19 @@ let maxTurns = parseInt(turnsInput?.value || 3);
 // =======================
 // Updates
 // =======================
-turnsInput?.addEventListener("input", e => maxTurns = parseInt(e.target.value) || 3);
-nodeCountInput.addEventListener("input", handleNodeChange);
-edgeCountInput.addEventListener("input", handleEdgeChange);
-enemyCountInput.addEventListener("input", handleEnemyChange);
-playerCountInput.addEventListener("input", handlePlayerChange);
+// Only attach create-page handlers when those elements/containers exist
+if (nodesContainer && nodeCountInput) {
+  nodeCountInput.addEventListener("input", handleNodeChange);
+}
+if (edgesContainer && edgeCountInput) {
+  edgeCountInput.addEventListener("input", handleEdgeChange);
+}
+if (enemyContainer && enemyCountInput) {
+  enemyCountInput.addEventListener("input", handleEnemyChange);
+}
+if (playerContainer && playerCountInput) {
+  playerCountInput.addEventListener("input", handlePlayerChange);
+}
 
 // =======================
 // Nodes
@@ -30,7 +38,14 @@ playerCountInput.addEventListener("input", handlePlayerChange);
 function handleNodeChange(e) {
   currentNodeCount = parseInt(e.target.value) || 0;
   nodesContainer.innerHTML = "";
-  for (let i = 1; i <= currentNodeCount; i++) {
+
+  // if user selects 0, clear list and stop
+  if (currentNodeCount <= 0) {
+    refreshEdgeDropdowns();
+    return;
+  }
+
+  for (let i = 0; i < currentNodeCount; i++) {
     nodesContainer.innerHTML += `
       <div class="node-row">
         <label>Node ${i}:</label>
@@ -48,7 +63,8 @@ function handleNodeChange(e) {
 function handleEdgeChange(e) {
   const edgeCount = parseInt(e.target.value) || 0;
   edgesContainer.innerHTML = "";
-  for (let i = 1; i <= edgeCount; i++) {
+
+  for (let i = 0; i < edgeCount; i++) {
     edgesContainer.innerHTML += `
       <div class="edge-row">
         <label>Edge ${i}:</label>
@@ -62,8 +78,12 @@ function handleEdgeChange(e) {
 }
 
 function refreshEdgeDropdowns() {
-  const nodeOptions = Array.from({ length: currentNodeCount }, (_, i) => `<option value="${i + 1}">Node ${i + 1}</option>`).join("");
-  edgesContainer.querySelectorAll("select").forEach(sel => sel.innerHTML = nodeOptions);
+  const nodeOptions = Array.from(
+    { length: currentNodeCount },
+    (_, i) => `<option value="${i}">Node ${i}</option>`
+  ).join("");
+
+  edgesContainer.querySelectorAll("select").forEach(sel => (sel.innerHTML = nodeOptions));
 }
 
 // =======================
@@ -101,14 +121,12 @@ function handlePlayerChange(e) {
 }
 
 function createUnitRow(index, faction) {
-  const types = faction === "enemy"
-    ? ["Grunt"]
-    : ["Swordman"];
+  const types = faction === "enemy" ? ["Grunt"] : ["Swordman"];
   const typeOptions = types.map(t => `<option value="${t}">${t}</option>`).join("");
 
   return `
     <div class="unit-row" id="${faction}-unit-${index}">
-      <label>${faction} ${index + 1}:</label>
+      <label>${faction} ${index}:</label>
       <select name="unit_${faction}_${index}_type" required>
         <option value="">-- Type --</option>
         ${typeOptions}
@@ -130,7 +148,7 @@ function initUnitPath(faction, index) {
 
   const startSelect = document.createElement("select");
   startSelect.name = `unit_${faction}_${index}_path_0`;
-  startSelect.required = true;
+  startSelect.required = false;
   startSelect.innerHTML = buildNodeOptions(true);
 
   startSelect.addEventListener("change", e => {
@@ -144,7 +162,9 @@ function initUnitPath(faction, index) {
 
 function addNextPathDropdown(faction, index, step, fromNode, edges) {
   const pathContainer = document.getElementById(`${faction}-unit-${index}-path`);
-  Array.from(pathContainer.querySelectorAll(`select[name^='unit_${faction}_${index}_path_']`))
+  Array.from(
+    pathContainer.querySelectorAll(`select[name^='unit_${faction}_${index}_path_']`)
+  )
     .slice(step)
     .forEach(el => el.remove());
 
@@ -153,8 +173,9 @@ function addNextPathDropdown(faction, index, step, fromNode, edges) {
 
   const select = document.createElement("select");
   select.name = `unit_${faction}_${index}_path_${step}`;
-  select.required = true;
-  select.innerHTML = `<option value="">-- Next Node --</option>` +
+  select.required = false;
+  select.innerHTML =
+    `<option value="">-- Next Node --</option>` +
     connected.map(n => `<option value="${n}">Node ${n}</option>`).join("");
 
   select.addEventListener("change", e => {
@@ -179,8 +200,13 @@ function getConnectedNodes(nodeId, edges) {
 }
 
 function buildNodeOptions(includePlaceholder = false) {
-  const opts = Array.from({ length: currentNodeCount }, (_, i) => `<option value="${i + 1}">Node ${i + 1}</option>`).join("");
-  return includePlaceholder ? `<option value="">-- Select Node --</option>${opts}` : opts;
+  const opts = Array.from(
+    { length: currentNodeCount },
+    (_, i) => `<option value="${i}">Node ${i}</option>`
+  ).join("");
+  return includePlaceholder
+    ? `<option value="">-- Select Node --</option>${opts}`
+    : opts;
 }
 
 // =======================
@@ -199,42 +225,114 @@ async function deletePuzzle(event, puzzleId) {
   }
 }
 
-// EDIT PUZZLE
+// // =======================
+// // Edit puzzle (unchanged behavior)
+// // =======================
+// document.getElementById("refresh-btn")?.addEventListener("click", () => {
+//   const data = collectPuzzleData();
+//   fetch(`/puzzles/preview`, {
+//     method: "POST",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify(data)
+//   })
+//     .then(r => r.text())
+//     .then(html => {
+//       document.getElementById("puzzle-visualization").innerHTML = html;
+//     });
+// });
+//
+// document.getElementById("save-btn")?.addEventListener("click", e => {
+//   e.preventDefault();
+//   const data = collectPuzzleData();
+//   fetch(`/puzzles/${puzzleId}`, {
+//     method: "PUT",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify(data)
+//   }).then(() => alert("Puzzle updated!"));
+// });
+//
+// function collectPuzzleData() {
+//   return {
+//     name: document.querySelector('[name="name"]').value,
+//     enemy_count: Number(document.querySelector('[name="enemy_count"]').value),
+//     player_unit_count: Number(document.querySelector('[name="player_unit_count"]').value),
+//     turns: Number(document.querySelector('[name="turns"]').value)
+//   };
+// }
 
-// When user clicks refresh, re-render visualization
-document.getElementById("refresh-btn").addEventListener("click", () => {
-  // Gather form data
-  const data = collectPuzzleData();
-  // Call backend preview endpoint
-  fetch(`/puzzles/preview`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(data)
-  })
-  .then(r => r.text())
-  .then(html => {
-    document.getElementById("puzzle-visualization").innerHTML = html;
+
+// =======================
+// Generate Puzzle Page – Unit Type dropdowns (uses -generate IDs)
+// =======================
+document.addEventListener("DOMContentLoaded", () => {
+  // Only run on the generate page
+  const generateForm = document.querySelector('form[action="/puzzles/generate"]');
+  if (!generateForm) return;
+
+  console.log("✅ Generate puzzle script active");
+
+  const enemyContainerGen  = document.getElementById("enemy-units-generate");
+  const playerContainerGen = document.getElementById("player-units-generate");
+
+  const enemyCountInputGen = document.getElementById("enemy_count");
+  const playerCountInputGen = document.getElementById("player_unit_count");
+
+  // --- Enemy dropdowns ---
+enemyCountInputGen?.addEventListener("input", e => {
+  const count = parseInt(e.target.value) || 0;
+  enemyContainerGen.innerHTML = "";
+  if (count <= 0) return;
+
+  for (let i = 0; i < count; i++) {
+    enemyContainerGen.insertAdjacentHTML(
+      "beforeend",
+      `
+      <div class="enemy-type-row">
+        <label>Enemy ${i}:</label>
+
+        <!-- Enemy Type -->
+        <select name="enemy_type_${i}" required>
+          <option value="">-- Select Type --</option>
+          <option value="Grunt">Grunt</option>
+<!--          <option value="Brute">Brute</option>-->
+<!--          <option value="Archer">Archer</option>-->
+        </select>
+
+        <!-- Enemy Movement -->
+        <select name="enemy_movement_${i}" required>
+          <option value="Static" selected>Static</option>
+          <option value="Move">Move</option>
+<!--          <option value="Loop">Loop</option>-->
+        </select>
+      </div>
+      `
+    );
+  }
+});
+
+
+  // --- Player dropdowns ---
+  playerCountInputGen?.addEventListener("input", e => {
+    const count = parseInt(e.target.value) || 0;
+    playerContainerGen.innerHTML = "";
+    if (count <= 0) return;
+
+    for (let i = 0; i < count; i++) {
+      playerContainerGen.insertAdjacentHTML(
+        "beforeend",
+        `
+        <div class="player-type-row">
+          <label>Player Unit ${i}:</label>
+          <select name="player_type_${i}" required>
+            <option value="">-- Select Type --</option>
+            <option value="Swordman">Swordman</option>
+            <option value="Nun">Nun</option>
+            <option value="Archer">Archer</option>
+            <option value="Peasant">Peasant</option>
+          </select>
+        </div>
+        `
+      );
+    }
   });
 });
-
-// When user saves changes
-document.getElementById("save-btn").addEventListener("click", (e) => {
-  e.preventDefault();
-  const data = collectPuzzleData();
-  fetch(`/puzzles/${puzzleId}`, {
-    method: "PUT",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(data)
-  }).then(() => alert("Puzzle updated!"));
-});
-
-function collectPuzzleData() {
-  // extract values from form and table inputs
-  return {
-    name: document.querySelector('[name="name"]').value,
-    enemy_count: Number(document.querySelector('[name="enemy_count"]').value),
-    player_unit_count: Number(document.querySelector('[name="player_unit_count"]').value),
-    turns: Number(document.querySelector('[name="turns"]').value),
-    // plus nodes, edges, etc.
-  };
-}

@@ -3,7 +3,7 @@ from typing import Optional, Any, List
 from uuid import UUID
 from datetime import datetime
 
-from app.schemas.unit_schema import UnitCreate
+from app.schemas.unit_schema import UnitCreate, UnitGenerate
 from app.schemas.node_schema import NodeCreate
 from app.schemas.edge_schema import EdgeCreate
 
@@ -22,11 +22,12 @@ class PuzzleCreate(BaseModel):
 class PuzzleGenerate(BaseModel):
     name: str
     model: str
-    enemy_count: int
-    player_unit_count: int
     game_mode: str
     node_count: Optional[int]
-    Terns: Optional[int]
+    turns: Optional[int]
+    enemy_count: int
+    player_unit_count: int
+    units: list[dict]
 
 
 # Data returns by API

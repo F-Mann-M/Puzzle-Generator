@@ -33,6 +33,7 @@ class PuzzleServices:
         self.db.flush()
         return puzzle.id
 
+
     def create_nodes(self, nodes: list[NodeCreate]):
         """ Create nodes, build and return index → id map. Used to build edges"""
         node_map = {}
@@ -48,6 +49,7 @@ class PuzzleServices:
             self.db.flush()
             node_map[node_data.node_index] = node.id
         return node_map
+
 
     def create_edges(self, edges: list[EdgeCreate]):
         for edge_data in edges:
@@ -101,9 +103,11 @@ class PuzzleServices:
                 self.db.add(path_node)
                 self.db.flush()
 
+
     def commit_all(self):
         # Commit all
         self.db.commit()
+
 
     # get all puzzle
     def get_all_puzzle(
@@ -146,6 +150,7 @@ class PuzzleServices:
             raise HTTPException(status_code=404, detail="Puzzle not found")
         return puzzle
 
+
     # delete one puzzle
     def delete_puzzle(self, puzzle_id):
         """Fetch puzzle by id an delete"""
@@ -154,7 +159,20 @@ class PuzzleServices:
             self.db.delete(puzzle)
             self.db.commit()
 
+
     # update puzzle
     def update_puzzle(self, puzzle_id, updated_data):
         puzzle = self.get_puzzle_by_id(puzzle_id)
 
+
+    # set initial puzzle data form front-end to llm
+    def generate_puzzle(self, puzzle_data):
+        # choose model
+        # get game rules
+        # prompt rules dynamically
+        # give examples
+        # rules to return data
+            # list[nodes] (x,y)
+            # list[units] path
+            #
+        pass

@@ -7,9 +7,17 @@ class PathCreate(BaseModel):
     unit_id: UUID
     puzzle_id: UUID
 
-class UnitResponse(PathCreate):
+class PathRead(BaseModel):
     id: UUID
+    unit_id: UUID
+    puzzle_id: UUID
 
     class Config:
-        # orm_mode = True
         from_attributes = True
+
+# class UnitResponse(PathCreate):
+#     id: UUID
+#
+#     class Config:
+#         # orm_mode = True
+#         from_attributes = True
