@@ -166,14 +166,14 @@ class PuzzleServices:
 
     # generate puzzle
     def generate_puzzle(self, puzzle_data):
-        # llm = puzzle_data.model
+        llm = get_llm(puzzle_data.model)
         # prompt = self.prompts.format("puzzle_generation", **config.dict())
         # puzzle = await llm.generate(prompt)
         # return puzzle
 
         # prompt = self.get_dynamic_prompt(puzzle_data)
         # model_dict = {
-        #     "GPT-4o-mini": self.openai_gpt_4_o_mini,
+        #     "GPT-4o-mini": self.gpt_4_o_mini,
         #     "Gemini Flash 2.5": self.google_gemini_flash_2_5,
         #     "Groq": self.groq_xyz
         #     }

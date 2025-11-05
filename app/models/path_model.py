@@ -1,9 +1,8 @@
-import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy import Column, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
-from app.database import Base
+from app.core.database import Base
 
 class Path(Base):
     __tablename__ = "paths"

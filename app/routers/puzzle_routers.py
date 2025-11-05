@@ -1,19 +1,17 @@
 # import moduls/libraries
-from http.client import HTTPResponse
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID
 from pathlib import Path
 
 # import form project
-from app.database import get_db
+from app.core.database import get_db
 from app import schemas
 from app import models
-from app.schemas import PuzzleGenerate
 from app.services import PuzzleServices
 import plotly.graph_objects as go
 

@@ -2,7 +2,7 @@ from uuid import uuid4
 from sqlalchemy import Column, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.database import Base
+from app.core.database import Base
 
 class PathNode(Base):
     __tablename__ = "path_nodes"
