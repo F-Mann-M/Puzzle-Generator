@@ -27,7 +27,6 @@ class PuzzleServices:
             node_count=puzzle_data.node_count,
             edge_count=puzzle_data.edge_count,
             coins=puzzle_data.coins,
-            # turns=puzzle_data.turns,
         )
         self.db.add(puzzle)
         self.db.flush()
@@ -165,14 +164,45 @@ class PuzzleServices:
         puzzle = self.get_puzzle_by_id(puzzle_id)
 
 
-    # set initial puzzle data form front-end to llm
+    # generate puzzle
     def generate_puzzle(self, puzzle_data):
-        # choose model
+        # llm = puzzle_data.model
+        # prompt = self.prompts.format("puzzle_generation", **config.dict())
+        # puzzle = await llm.generate(prompt)
+        # return puzzle
+
+        # prompt = self.get_dynamic_prompt(puzzle_data)
+        # model_dict = {
+        #     "GPT-4o-mini": self.openai_gpt_4_o_mini,
+        #     "Gemini Flash 2.5": self.google_gemini_flash_2_5,
+        #     "Groq": self.groq_xyz
+        #     }
+        # puzzle =
+        # if puzzle_data.model in model_dict:
+        #    puzzle = model_dict[puzzle_data.model](prompt)
+
+
         # get game rules
         # prompt rules dynamically
         # give examples
+            # get data from database filtered by game mode
         # rules to return data
             # list[nodes] (x,y)
             # list[units] path
             #
         pass
+
+    def get_dynamic_prompt(self, puzzle_data):
+        pass
+
+
+    def openai_gpt_4_o_mini(self, prompt):
+       pass
+
+    def google_gemini_flash_2_5(self, prompt):
+        pass
+
+
+    def groq_xyz(self, prompt):
+        pass
+

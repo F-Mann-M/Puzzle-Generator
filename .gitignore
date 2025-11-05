@@ -211,3 +211,4 @@ __marimo__/
 test.py
 alembic/
 alembic.ini
+exercise/
