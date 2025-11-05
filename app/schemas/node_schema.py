@@ -8,8 +8,14 @@ class NodeCreate(BaseModel):
     y_position: int
     puzzle_id: UUID
 
+# for llm generation
+class NodeGenerate(BaseModel):
+    node_index: int
+    x_position: int
+    y_position: int
 
-class NodeResponse(NodeCreate):
+
+class NodeRead(NodeCreate):
     id: UUID
 
     class Config:

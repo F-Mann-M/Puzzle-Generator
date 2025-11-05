@@ -3,9 +3,8 @@ from typing import Optional, Any, List
 from uuid import UUID
 from datetime import datetime
 
-from app.schemas.unit_schema import UnitCreate, UnitGenerate
-from app.schemas.node_schema import NodeCreate
-from app.schemas.edge_schema import EdgeCreate
+from app.schemas import UnitGenerate, EdgeGenerate, NodeGenerate, UnitRead, EdgeRead, NodeRead
+
 
 # Data sent by user
 class PuzzleCreate(BaseModel):
@@ -17,6 +16,7 @@ class PuzzleCreate(BaseModel):
     node_count: int
     edge_count: int
     coins: Optional[int]
+
 
 # Data sent from user to MML
 class PuzzleGenerate(BaseModel):
@@ -30,10 +30,20 @@ class PuzzleGenerate(BaseModel):
     units: list[dict]
 
 
-# Data returns by API
-class PuzzleResponse(PuzzleCreate):
+class PuzzleLLMResponse(BaseModel):
+    nodes: list[NodeGenerate]
+    edges: list[EdgeGenerate]
+    units: list[UnitGenerate]
+    coins: int
+
+
+
+class PuzzleRead(PuzzleCreate):
     id: UUID
     created_at: datetime
+    nodes: List[NodeRead]
+    edges: List[EdgeRead]
+    coins: Optional[int]
 
 
 class PuzzleUpdate(PuzzleCreate):
@@ -44,6 +54,7 @@ class PuzzleUpdate(PuzzleCreate):
     game_mode: Optional[str]
     node_count: Optional[int]
     edge_count: Optional[int]
+    units: List[UnitRead]
     coins: Optional[int]
     updated_at: datetime
 
@@ -51,17 +62,13 @@ class PuzzleUpdate(PuzzleCreate):
         from_attributes = True # read directly form SQLAlchemy objects (Pydantic)
 
 
-# Get data
-class PuzzleRead(BaseModel):
-    id: UUID
-    name: str
-    model: str
-    enemy_count: int
-    player_unit_count: int
-    #enemy_units: List[UnitRead]
-    game_mode: str
-    #nodes: List[NodeRead]
-    #edges: List[EdgeRead]
-    coins: Optional[int]
 
 
+
+# Data returns by API
+# class PuzzleResponse(PuzzleCreate):
+#     id: UUID
+#     created_at: datetime
+#
+#     class Config:
+#         from_attributes = True  # read directly form SQLAlchemy objects (Pydantic)

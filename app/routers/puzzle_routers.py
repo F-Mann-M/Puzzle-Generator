@@ -117,7 +117,7 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         node_count=int(puzzle_config["node_count"]),
         edge_count=int(puzzle_config["edge_count"]),
         coins=int(puzzle_config["coins"]),
-    )
+     )
     puzzle_id = services.create_puzzle(puzzle_data)
 
     # Create Nodes
