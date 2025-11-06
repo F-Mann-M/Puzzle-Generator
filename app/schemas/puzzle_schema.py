@@ -3,8 +3,9 @@ from typing import Optional, Any, List
 from uuid import UUID
 from datetime import datetime
 
-from app.schemas import UnitGenerate, EdgeGenerate, NodeGenerate, UnitRead, EdgeRead, NodeRead
-
+from app.schemas.unit_schema import UnitGenerate, UnitRead
+from app.schemas.edge_schema import EdgeGenerate, EdgeRead
+from app.schemas.node_schema import NodeRead, NodeGenerate
 
 # Data sent by user
 class PuzzleCreate(BaseModel):
@@ -35,7 +36,6 @@ class PuzzleLLMResponse(BaseModel):
     edges: list[EdgeGenerate]
     units: list[UnitGenerate]
     coins: int
-
 
 
 class PuzzleRead(PuzzleCreate):

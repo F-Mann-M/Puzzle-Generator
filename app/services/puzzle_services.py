@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.schemas import PuzzleCreate, NodeCreate, EdgeCreate, UnitCreate, PuzzleGenerate
 from app.llm import get_llm
+from app.prompts import get_prompt
 
 
 class PuzzleServices:
@@ -166,11 +167,16 @@ class PuzzleServices:
 
 
     # generate puzzle
-    async def generate_puzzle(self, puzzle_data: PuzzleGenerate):
-        llm = get_llm(puzzle_data.model)
-        prompt = prompts.get_prompt(puzzle_data)
+    async def generate_puzzle(self, puzzle_config):
+        llm = get_llm(model=puzzle_config.model)
+        prompt = get_prompt(
+            node_count=puzzle_config.node_count,
+            enemy_count=puzzle_config.player_unit_count,
+            turns=puzzle_config.turns,
+            units=puzzle_config.units,
+        )
         puzzle = await llm.generate(prompt)
-        # return puzzle
+        return puzzle
 
         # prompt = self.get_dynamic_prompt(puzzle_data)
         # model_dict = {

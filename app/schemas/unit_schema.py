@@ -2,8 +2,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 from uuid import UUID
 
-from app.schemas.path_schema import PathRead
-from app.schemas import PathRead, NodeGenerate
+from app.schemas.node_schema import NodeGenerate
+
 
 
 class UnitCreate(BaseModel):
