@@ -10,9 +10,9 @@ class NodeCreate(BaseModel):
 
 # for llm generation
 class NodeGenerate(BaseModel):
-    node_index: int
-    x_position: int
-    y_position: int
+    index: int
+    x: int
+    y: int
 
 
 class NodeRead(NodeCreate):

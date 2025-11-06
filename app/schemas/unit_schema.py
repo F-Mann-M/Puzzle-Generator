@@ -16,8 +16,7 @@ class UnitCreate(BaseModel):
 class UnitGenerate(BaseModel):
     unit_type: str
     faction: str
-    movement: str
-    path: List[NodeGenerate]
+    path: List[int]
 
 
 class UnitRead(BaseModel):

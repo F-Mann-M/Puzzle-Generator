@@ -182,7 +182,6 @@ async def show_generate_puzzle(request: Request):
 # Generate puzzle (LLM Endpoint)
 @router.post("/generate")
 async def generate_puzzle(request: Request, db: Session = Depends(get_db)):
-    services = PuzzleServices(db)
     form_content = await request.form()
     puzzle_config = dict(form_content)
 
@@ -205,20 +204,27 @@ async def generate_puzzle(request: Request, db: Session = Depends(get_db)):
         units.append({"faction": "player", "unit_type": unit_type})
 
 
-    puzzle = schemas.PuzzleGenerate(
-        name=puzzle_config.get("name"),
+    puzzle_config = schemas.PuzzleGenerate(
         model=puzzle_config.get("model"),
         game_mode=puzzle_config.get("game_mode"),
         node_count=puzzle_config.get("node_count"),
+        edge_count=puzzle_config.get("edge_count"),
         turns=int(puzzle_config.get("turns")),
-        player_unit_count=int(puzzle_config.get("player_unit_count")),
-        enemy_count=int(puzzle_config.get("enemy_count")),
         units=units,
     )
-    print("PuzzleGenerate object: ", puzzle) # Debugging
-    puzzle_id = services.generate_puzzle(puzzle)
+    print("PuzzleGenerate object: ", puzzle_config) # Debugging
+
+
+    services = PuzzleServices(db)
+    generated_puzzle = await services.generate_puzzle(puzzle_config)
+
+    print("Generated Puzzle: ", generated_puzzle)
+
+
+    # get generated units, nodes, edges and paths from generated_puzzle
     # units = []
     # nodes = []
+    # edges = []
     # path = []
 
     # puzzle = CreatePuzzle()
@@ -263,7 +269,7 @@ async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(ge
 
 # API Delete Request
 @router.delete("/{puzzle_id}", status_code=200)
-async def delete_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
+async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     """Delete a puzzle"""
     services = PuzzleServices(db)
     services.delete_puzzle(puzzle_id)
@@ -283,7 +289,7 @@ def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(
     response_class=HTMLResponse,
     response_model=None
 )
-def visualize_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
+def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     puzzle = db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
     if not puzzle:
         return HTMLResponse("<h3>Puzzle not found</h3>", status_code=404)

@@ -21,21 +21,22 @@ class PuzzleCreate(BaseModel):
 
 # Data sent from user to MML
 class PuzzleGenerate(BaseModel):
-    name: str
     model: str
     game_mode: str
     node_count: Optional[int]
+    edge_count: Optional[int]
     turns: Optional[int]
-    enemy_count: int
-    player_unit_count: int
+    # enemy_count: int
+    # player_unit_count: int
     units: list[dict]
 
 
 class PuzzleLLMResponse(BaseModel):
-    nodes: list[NodeGenerate]
-    edges: list[EdgeGenerate]
-    units: list[UnitGenerate]
-    coins: int
+    nodes: List[NodeGenerate]
+    edges: List[EdgeGenerate]
+    units: List[UnitGenerate]
+    coins: int | None = 5
+
 
 
 class PuzzleRead(PuzzleCreate):

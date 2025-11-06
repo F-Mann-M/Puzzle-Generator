@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from app.schemas import PuzzleCreate, NodeCreate, EdgeCreate, UnitCreate, PuzzleGenerate
 from app.llm import get_llm
-from app.prompts import get_prompt
+from app.prompts.prompt_manager import get_prompt
 
 
 class PuzzleServices:
@@ -167,49 +167,16 @@ class PuzzleServices:
 
 
     # generate puzzle
-    async def generate_puzzle(self, puzzle_config):
-        llm = get_llm(model=puzzle_config.model)
-        prompt = get_prompt(
+    async def generate_puzzle(self, puzzle_config: PuzzleGenerate):
+        llm = get_llm(puzzle_config.model)
+        prompts = await get_prompt(
+            game_mode=puzzle_config.game_mode,
             node_count=puzzle_config.node_count,
-            enemy_count=puzzle_config.player_unit_count,
+            edge_count=puzzle_config.edge_count,
             turns=puzzle_config.turns,
             units=puzzle_config.units,
         )
-        puzzle = await llm.generate(prompt)
-        return puzzle
 
-        # prompt = self.get_dynamic_prompt(puzzle_data)
-        # model_dict = {
-        #     "GPT-4o-mini": self.gpt_4_o_mini,
-        #     "Gemini Flash 2.5": self.google_gemini_flash_2_5,
-        #     "Groq": self.groq_xyz
-        #     }
-        # puzzle =
-        # if puzzle_data.model in model_dict:
-        #    puzzle = model_dict[puzzle_data.model](prompt)
-
-
-        # get game rules
-        # prompt rules dynamically
-        # give examples
-            # get data from database filtered by game mode
-        # rules to return data
-            # list[nodes] (x,y)
-            # list[units] path
-            #
-        pass
-
-    def get_dynamic_prompt(self, puzzle_data):
-        pass
-
-
-    def openai_gpt_4_o_mini(self, prompt):
-       pass
-
-    def google_gemini_flash_2_5(self, prompt):
-        pass
-
-
-    def groq_xyz(self, prompt):
-        pass
+        puzzle_generated = await llm.generate(prompts)
+        return puzzle_generated
 

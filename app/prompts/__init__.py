@@ -1,1 +1,1 @@
-from prompt_manager import get_prompt
+from app.prompts.prompt_manager import get_prompt

@@ -12,9 +12,9 @@ class EdgeCreate(BaseModel):
 
 # for llm generation
 class EdgeGenerate(BaseModel):
-    edge_index: int
-    start_node_index: NodeGenerate
-    end_node_index: NodeGenerate
+    index: int
+    start: int
+    end: int
 
 
 class EdgeRead(EdgeCreate):
