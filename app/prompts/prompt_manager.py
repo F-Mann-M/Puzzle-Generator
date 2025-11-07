@@ -21,6 +21,9 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
                 "units: List[UnitGenerate], coins: int }. "
                 "Ensure each list is a JSON array ([...]) not an object with numeric keys. "
                 "Return no explanations, only raw JSON."
+                "For the EdgeGenerate schema ONLY use *only* these key names: 'index', 'start', 'end', 'x', 'y'."
+                "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
+                "Each edge’s 'start' and 'end' must correspond to existing node indexes"
             ),
         },
         {
@@ -33,6 +36,7 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
                 "The 'coins' field must be an integer (e.g. 5). "
                 "Edges must connect existing node indexes (0–N). "
                 "Return each list as a JSON array, not an object."
+                "Follow all schema rules strictly"
             ),
         },
     ]

@@ -149,7 +149,6 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
         )
     services.create_edges(edge_data)
 
-
     # for debugging
     print("Edge data: ", [edge.edge_index for edge in edge_data])
     print("units dict path nodes: ", [unit.get("path_nodes") for unit in units])
@@ -204,7 +203,7 @@ async def generate_puzzle(request: Request, db: Session = Depends(get_db)):
         units.append({"faction": "player", "unit_type": unit_type})
 
 
-    puzzle_config = schemas.PuzzleGenerate(
+    puzzle_setup= schemas.PuzzleGenerate(
         model=puzzle_config.get("model"),
         game_mode=puzzle_config.get("game_mode"),
         node_count=puzzle_config.get("node_count"),
@@ -212,33 +211,111 @@ async def generate_puzzle(request: Request, db: Session = Depends(get_db)):
         turns=int(puzzle_config.get("turns")),
         units=units,
     )
-    print("PuzzleGenerate object: ", puzzle_config) # Debugging
+    print("PuzzleGenerate object: ", puzzle_setup) # Debugging
 
-
+    # generate puzzle
     services = PuzzleServices(db)
-    generated_puzzle = await services.generate_puzzle(puzzle_config)
-
-    print("Generated Puzzle: ", generated_puzzle)
+    puzzle_generated = await services.generate_puzzle(puzzle_setup)
 
 
-    # get generated units, nodes, edges and paths from generated_puzzle
-    # units = []
-    # nodes = []
-    # edges = []
-    # path = []
+    # exmple of a generated puzzle
+    """
+    nodes=[
+    NodeGenerate(index=0, x=1, y=1), 
+    NodeGenerate(index=1, x=1, y=3), 
+    NodeGenerate(index=2, x=3, y=1), 
+    NodeGenerate(index=3, x=3, y=3), 
+    NodeGenerate(index=4, x=5, y=1), 
+    NodeGenerate(index=5, x=5, y=3)
+    ] 
+    edges=[
+    EdgeGenerate(index=0, start=0, end=1), 
+    EdgeGenerate(index=1, start=1, end=3), 
+    EdgeGenerate(index=2, start=0, end=2), 
+    EdgeGenerate(index=3, start=2, end=3), 
+    EdgeGenerate(index=4, start=3, end=5), 
+    EdgeGenerate(index=5, start=0, end=4), 
+    EdgeGenerate(index=6, start=4, end=5)
+    ] 
+    units=[
+    UnitGenerate(unit_type='Grunt', faction='enemy', path=[0]), 
+    UnitGenerate(unit_type='Swordman', faction='player', path=[2])
+    ] 
+    coins=5
+    """
 
-    # puzzle = CreatePuzzle()
-    # puzzle_id = services.create_puzzle(puzzle)
-    # node_data = CreateNode()
-    # node_map = services.create_nodes(node_data)
-    # edge_data = CreateEdge()
-    # services.create_edges(edge_data)
-    # unit_data = CreateUnit()
-    # services.create_units_with_path(puzzle_id, unit_data)
-    # services.commit_all()
-    # commit_all
+    # Debugging
+    print("Generated Puzzle: ", puzzle_generated)
+    print("Nodes: ", puzzle_generated.nodes)
+    print("Edges: ", puzzle_generated.edges)
+    print("Units: ", puzzle_generated.units)
 
-    #return RedirectResponse(url=f"/puzzles/{puzzle_id}", status_code=303)
+    # Create Puzzle
+    puzzle = schemas.PuzzleCreate(
+        name=puzzle_config.get("name"),
+        model=puzzle_config.get("model"),
+        enemy_count=int(puzzle_config.get("enemy_count")),
+        player_unit_count=int(puzzle_config.get("player_unit_count")),
+        game_mode=puzzle_config.get("game_mode"),
+        node_count=int(puzzle_config.get("node_count")),
+        edge_count=int(puzzle_config.get("edge_count")),
+        coins=puzzle_generated.coins
+    )
+    puzzle_id = services.create_puzzle(puzzle)
+    print("\n\npuzzle id: ", puzzle_id)
+
+
+    # Create Nodes
+    node_data = []
+    for node in puzzle_generated.nodes:
+        node_data.append(schemas.NodeCreate(
+            node_index=node.index,
+            x_position=node.x,
+            y_position=node.y,
+            puzzle_id=puzzle_id
+        ))
+    print("\n\nNode Data: ", node_data)
+    node_map = services.create_nodes(node_data)
+    print("Node map: ", node_map)
+
+
+    # Create Edges
+    edge_data = []
+    for edge in puzzle_generated.edges:
+        start_uuid = node_map.get(edge.start)
+        end_uuid = node_map.get(edge.end)
+        edge_data.append(
+            schemas.EdgeCreate(
+                edge_index=edge.index,
+                start_node_id=start_uuid,
+                end_node_id=end_uuid,
+                puzzle_id=puzzle_id
+            )
+        )
+    services.create_edges(edge_data)
+
+
+    # debugging
+    print("Edge data: ", [edge.edge_index for edge in edge_data])
+
+
+    # Create Units with path
+    unit_data = []
+    for unit in puzzle_generated.units:
+        unit_data.append(
+            schemas.UnitCreate(
+                faction=unit.faction,
+                unit_type=unit.unit_type,
+                path_nodes=unit.path,
+                puzzle_id=puzzle_id
+            ))
+    print("Path in unit_data: ", [unit.path_nodes for unit in unit_data])
+    services.create_units_with_path(puzzle_id, unit_data)
+
+    # Commit all
+    services.commit_all()
+
+    return RedirectResponse(url=f"/puzzles/{puzzle_id}", status_code=303)
 
 
 # get a list of puzzle (GET)

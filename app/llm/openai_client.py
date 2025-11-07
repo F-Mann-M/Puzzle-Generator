@@ -1,3 +1,5 @@
+import json
+
 from app.core.config import settings
 from openai import AsyncOpenAI
 
@@ -27,12 +29,12 @@ class OpenAIClient:
         print("Raw JSON:\n", content)
 
         # ---------- VALIDATION ----------
-        # try:
-        #     puzzle = PuzzleLLMResponse.model_validate_json(content)
-        #     print("\n Parsed Puzzle:")
-        #     print(puzzle.model_dump(indent=2))
-        # except Exception as e:
-        #     print("\n Validation failed:", e)
+        try:
+            puzzle = PuzzleLLMResponse.model_validate_json(content)
+            print("\n Parsed Puzzle:")
+            print(puzzle)
+        except Exception as e:
+            print("\n Validation failed:", e)
 
         # ---------- TOKEN USAGE ----------
         if response.usage:
@@ -43,4 +45,4 @@ class OpenAIClient:
                 f"total: {usage.total_tokens}"
             )
 
-        return content
+        return puzzle
