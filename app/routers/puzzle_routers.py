@@ -172,7 +172,7 @@ async def create_puzzle(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/puzzles/{puzzle_id}", status_code=303)
 
 
-# load puzzle generator
+# Load puzzle generator
 @router.get("/generate", response_class=HTMLResponse)
 async def show_generate_puzzle(request: Request):
      return templates.TemplateResponse("generate-puzzle.html", {"request": request})
