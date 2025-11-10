@@ -14,10 +14,3 @@ class PathRead(BaseModel):
 
     class Config:
         from_attributes = True
-
-# class UnitResponse(PathCreate):
-#     id: UUID
-#
-#     class Config:
-#         # orm_mode = True
-#         from_attributes = True

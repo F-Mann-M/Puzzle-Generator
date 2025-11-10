@@ -1,8 +1,6 @@
 from pydantic import BaseModel
 from uuid import UUID
 
-from app.schemas.node_schema import NodeGenerate
-
 
 class EdgeCreate(BaseModel):
     edge_index: int

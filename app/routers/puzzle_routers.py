@@ -1,5 +1,4 @@
 # import moduls/libraries
-
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
