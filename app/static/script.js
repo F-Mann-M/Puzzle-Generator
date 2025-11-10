@@ -225,118 +225,6 @@ async function deletePuzzle(event, puzzleId) {
     }
 }
 
-// // =======================
-// // Edit puzzle (unchanged behavior)
-// // =======================
-// document.getElementById("refresh-btn")?.addEventListener("click", () => {
-//   const data = collectPuzzleData();
-//   fetch(`/puzzles/preview`, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify(data)
-//   })
-//     .then(r => r.text())
-//     .then(html => {
-//       document.getElementById("puzzle-visualization").innerHTML = html;
-//     });
-// });
-//
-// document.getElementById("save-btn")?.addEventListener("click", e => {
-//   e.preventDefault();
-//   const data = collectPuzzleData();
-//   fetch(`/puzzles/${puzzleId}`, {
-//     method: "PUT",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify(data)
-//   }).then(() => alert("Puzzle updated!"));
-// });
-//
-// function collectPuzzleData() {
-//   return {
-//     name: document.querySelector('[name="name"]').value,
-//     enemy_count: Number(document.querySelector('[name="enemy_count"]').value),
-//     player_unit_count: Number(document.querySelector('[name="player_unit_count"]').value),
-//     turns: Number(document.querySelector('[name="turns"]').value)
-//   };
-// }
-
-
-// =======================
-// Generate Puzzle Page – Unit Type dropdowns (uses -generate IDs)
-// =======================
-document.addEventListener("DOMContentLoaded", () => {
-    // Only run on the generate page
-    const generateForm = document.querySelector('form[action="/puzzles/generate"]');
-    if (!generateForm) return;
-
-    console.log("✅ Generate puzzle script active");
-
-    const enemyContainerGen = document.getElementById("enemy-units-generate");
-    const playerContainerGen = document.getElementById("player-units-generate");
-
-    const enemyCountInputGen = document.getElementById("enemy_count");
-    const playerCountInputGen = document.getElementById("player_unit_count");
-
-    // --- Enemy dropdowns ---
-    enemyCountInputGen?.addEventListener("input", e => {
-        const count = parseInt(e.target.value) || 0;
-        enemyContainerGen.innerHTML = "";
-        if (count <= 0) return;
-
-        for (let i = 0; i < count; i++) {
-            enemyContainerGen.insertAdjacentHTML(
-                "beforeend",
-                `
-      <div class="enemy-type-row">
-        <label>Enemy ${i}:</label>
-
-        <!-- Enemy Type -->
-        <select name="enemy_type_${i}" required>
-          <option value="">-- Select Type --</option>
-          <option value="Grunt">Grunt</option>
-<!--          <option value="Brute">Brute</option>-->
-<!--          <option value="Archer">Archer</option>-->
-        </select>
-
-        <!-- Enemy Movement -->
-        <select name="enemy_movement_${i}" required>
-          <option value="Static" selected>Static</option>
-          <option value="Move">Move</option>
-<!--          <option value="Loop">Loop</option>-->
-        </select>
-      </div>
-      `
-            );
-        }
-    });
-
-
-    // --- Player dropdowns ---
-    playerCountInputGen?.addEventListener("input", e => {
-        const count = parseInt(e.target.value) || 0;
-        playerContainerGen.innerHTML = "";
-        if (count <= 0) return;
-
-        for (let i = 0; i < count; i++) {
-            playerContainerGen.insertAdjacentHTML(
-                "beforeend",
-                `
-        <div class="player-type-row">
-          <label>Player Unit ${i}:</label>
-          <select name="player_type_${i}" required>
-            <option value="">-- Select Type --</option>
-            <option value="Swordman">Swordman</option>
-            <option value="Nun">Nun</option>
-            <option value="Archer">Archer</option>
-            <option value="Peasant">Peasant</option>
-          </select>
-        </div>
-        `
-            );
-        }
-    });
-});
-
 // =======================
 // Submit Puzzle as JSON
 // =======================
@@ -348,15 +236,15 @@ document.getElementById("puzzle-form")?.addEventListener("submit", async (e) => 
     document.querySelectorAll(".node-row").forEach((row, i) => {
         const x = parseFloat(row.querySelector(`[name="node_${i}_x"]`).value);
         const y = parseFloat(row.querySelector(`[name="node_${i}_y"]`).value);
-        nodes.push({index: i, x_position: x, y_position: y});
+        nodes.push({index: i, x: x, y: y});
     });
 
     // ----- Edges -----
     // use getEdgeList() and map to objects {start, end}
     const edges = getEdgeList().map(([start, end], i) => ({
-        edge_index: i,      // ✅ new index key
-        start_node: start,  // optional rename for clarity
-        end_node: end       // optional rename for clarity
+        index: i,      // ✅ new index key
+        start: start,  // optional rename for clarity
+        end: end       // optional rename for clarity
     }));
 
     // ----- Units -----
@@ -416,4 +304,130 @@ if (response.redirected) {
 } else {
   alert("❌ Error creating puzzle");
 }
+});
+
+
+// =======================
+// Generate Puzzle Page – Build structured JSON
+// =======================
+document.addEventListener("DOMContentLoaded", () => {
+  const generateForm = document.querySelector('form[action="/puzzles/generate"]');
+  if (!generateForm) return;
+
+  console.log("✅ Generate puzzle script active");
+
+  const enemyContainerGen  = document.getElementById("enemy-units-generate");
+  const playerContainerGen = document.getElementById("player-units-generate");
+  const enemyCountInputGen = document.getElementById("enemy_count");
+  const playerCountInputGen = document.getElementById("player_unit_count");
+
+  // --- Enemy dropdowns ---
+  enemyCountInputGen?.addEventListener("input", e => {
+    const count = parseInt(e.target.value) || 0;
+    enemyContainerGen.innerHTML = "";
+    if (count <= 0) return;
+
+    for (let i = 0; i < count; i++) {
+      enemyContainerGen.insertAdjacentHTML(
+        "beforeend",
+        `
+        <div class="enemy-type-row">
+          <label>Enemy ${i}:</label>
+          <select name="enemy_type_${i}" required>
+            <option value="">-- Select Type --</option>
+            <option value="Grunt">Grunt</option>
+          </select>
+          <select name="enemy_movement_${i}" required>
+            <option value="Static" selected>Static</option>
+            <option value="Move">Move</option>
+          </select>
+        </div>
+        `
+      );
+    }
+  });
+
+  // --- Player dropdowns ---
+  playerCountInputGen?.addEventListener("input", e => {
+    const count = parseInt(e.target.value) || 0;
+    playerContainerGen.innerHTML = "";
+    if (count <= 0) return;
+
+    for (let i = 0; i < count; i++) {
+      playerContainerGen.insertAdjacentHTML(
+        "beforeend",
+        `
+        <div class="player-type-row">
+          <label>Player Unit ${i}:</label>
+          <select name="player_type_${i}" required>
+            <option value="">-- Select Type --</option>
+            <option value="Swordsman">Swordsman</option>
+<!--            <option value="Nun">Nun</option>-->
+<!--            <option value="Archer">Archer</option>-->
+<!--            <option value="Peasant">Peasant</option>-->
+          </select>
+        </div>
+        `
+      );
+    }
+  });
+
+  // --- Intercept form submission ---
+  generateForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    // ----- Collect values -----
+    const name = document.getElementById("name").value;
+    const model = document.getElementById("model").value;
+    const game_mode = document.getElementById("game_mode").value;
+    const node_count = parseInt(document.getElementById("node_count").value) || 0;
+    const edge_count = parseInt(document.getElementById("edge_count").value) || 0;
+    const turns = parseInt(document.getElementById("turns").value) || 0;
+
+    // ----- Build units -----
+    const units = [];
+
+    // Enemies
+    enemyContainerGen.querySelectorAll(".enemy-type-row").forEach((row) => {
+      const type = row.querySelector(`[name^="enemy_type_"]`).value;
+      const movement = row.querySelector(`[name^="enemy_movement_"]`).value;
+      if (type) units.push({ faction: "enemy", type, movement });
+    });
+
+    // Players
+    playerContainerGen.querySelectorAll(".player-type-row").forEach((row) => {
+      const type = row.querySelector(`[name^="player_type_"]`).value;
+      if (type) units.push({ faction: "player", type });
+    });
+
+    // ----- Build final data object -----
+    const data = {
+      name,
+      model,
+      game_mode,
+      node_count,
+      edge_count,
+      turns,
+      units,
+    };
+
+    console.log("📤 Sending puzzle generation JSON:", data);
+
+    // ----- Send to backend -----
+    const response = await fetch("/puzzles/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    if (response.redirected) {
+    window.location.href = response.url;  // manually follow it
+    } else if (response.ok) {
+      alert("✅ Puzzle generation request sent!");
+    } else {
+      const err = await response.text();
+      alert("❌ Error generating puzzle: " + err);
+      console.error("❌ Server response:", err);
+    }
+  });
 });

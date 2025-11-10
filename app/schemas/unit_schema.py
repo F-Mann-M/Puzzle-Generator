@@ -19,6 +19,7 @@ class UnitGenerate(BaseModel):
     path: List[int]
 
 
+
 class UnitRead(BaseModel):
     id: UUID
     unit_type: str

@@ -28,6 +28,9 @@ class OpenAIClient:
         content = response.choices[0].message.content
         print("Raw JSON:\n", content)
 
+
+        puzzle = None
+
         # ---------- VALIDATION ----------
         try:
             puzzle = PuzzleLLMResponse.model_validate_json(content)

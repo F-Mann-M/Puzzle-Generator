@@ -11,8 +11,6 @@ from app.schemas.node_schema import NodeRead, NodeGenerate
 class PuzzleCreate(BaseModel):
     name: str
     model: str
-    # enemy_count: int
-    # player_unit_count: int
     game_mode: str
     coins: Optional[int]
     nodes: List[dict]
@@ -20,16 +18,14 @@ class PuzzleCreate(BaseModel):
     units: List[dict]
 
 
-
 # Data sent from user to MML
 class PuzzleGenerate(BaseModel):
+    name: str
     model: str
     game_mode: str
     node_count: Optional[int]
     edge_count: Optional[int]
     turns: Optional[int]
-    # enemy_count: int
-    # player_unit_count: int
     units: list[dict]
 
 
@@ -38,7 +34,6 @@ class PuzzleLLMResponse(BaseModel):
     edges: List[EdgeGenerate]
     units: List[UnitGenerate]
     coins: int | None = 5
-
 
 
 class PuzzleRead(PuzzleCreate):
@@ -63,15 +58,3 @@ class PuzzleUpdate(PuzzleCreate):
 
     class Config:
         from_attributes = True # read directly form SQLAlchemy objects (Pydantic)
-
-
-
-
-
-# Data returns by API
-# class PuzzleResponse(PuzzleCreate):
-#     id: UUID
-#     created_at: datetime
-#
-#     class Config:
-#         from_attributes = True  # read directly form SQLAlchemy objects (Pydantic)

@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4
 
-from app.schemas import PuzzleCreate, NodeCreate, EdgeCreate, UnitCreate, PuzzleGenerate
+from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.llm import get_llm
 from app.prompts.prompt_manager import get_prompt
 
@@ -40,8 +40,8 @@ class PuzzleServices:
             node = models.Node(
                 id=uuid4(),
                 node_index=node_data["index"],
-                x_position=node_data["x_position"],
-                y_position=node_data["y_position"],
+                x_position=node_data["x"],
+                y_position=node_data["y"],
                 puzzle_id=puzzle.id
             )
             self.db.add(node)
@@ -49,11 +49,11 @@ class PuzzleServices:
             node_map[node_data["index"]] = node.id
 
         for edge_data in puzzle_data.edges:
-            start_uuid = node_map.get(edge_data["start_node"])
-            end_uuid = node_map.get(edge_data["end_node"])
+            start_uuid = node_map.get(edge_data["start"])
+            end_uuid = node_map.get(edge_data["end"])
             edge = models.Edge(
                 id=uuid4(),
-                edge_index=edge_data["edge_index"],
+                edge_index=edge_data["index"],
                 start_node_id=start_uuid,
                 end_node_id=end_uuid,
                 puzzle_id=puzzle.id
@@ -65,7 +65,7 @@ class PuzzleServices:
         for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),
-                unit_type=unit_data["type"],
+                unit_type=unit_data["unit_type"],
                 faction=unit_data["faction"],
                 puzzle_id=puzzle.id,
             )
@@ -158,7 +158,9 @@ class PuzzleServices:
 
 
     # generate puzzle
-    async def generate_puzzle(self, puzzle_config: PuzzleGenerate):
+    async def generate_puzzle(self, puzzle_config: PuzzleGenerate)-> PuzzleCreate:
+        print("Puzzle Config: ", puzzle_config)
+
         llm = get_llm(puzzle_config.model)
         prompts = await get_prompt(
             game_mode=puzzle_config.game_mode,
@@ -169,5 +171,15 @@ class PuzzleServices:
         )
 
         puzzle_generated = await llm.generate(prompts)
-        return puzzle_generated
+        new_puzzle = PuzzleCreate(
+            name=puzzle_config.name,
+            model=puzzle_config.model,
+            game_mode=puzzle_config.game_mode,
+            coins=puzzle_generated.coins,
+            nodes=[n.model_dump() for n in puzzle_generated.nodes],
+            edges=[n.model_dump() for n in puzzle_generated.edges],
+            units=[n.model_dump() for n in puzzle_generated.units]
+        )
+
+        return new_puzzle
 

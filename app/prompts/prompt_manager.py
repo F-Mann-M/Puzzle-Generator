@@ -24,6 +24,7 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
                 "For the EdgeGenerate schema ONLY use *only* these key names: 'index', 'start', 'end', 'x', 'y'."
                 "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
                 "Each edge’s 'start' and 'end' must correspond to existing node indexes"
+                "For the UnitGenerate schema ONLY use *only* these key names: 'unit_type', 'faction', 'path'"
             ),
         },
         {
