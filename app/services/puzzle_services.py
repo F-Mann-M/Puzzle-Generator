@@ -23,73 +23,66 @@ class PuzzleServices:
             id=uuid4(),
             name=puzzle_data.name,
             model=puzzle_data.model,
-            enemy_count=puzzle_data.enemy_count,
-            player_unit_count=puzzle_data.player_unit_count,
+            enemy_count=len([enemy for enemy in puzzle_data.units if enemy["faction"] == "enemy"]),
+            player_unit_count=len([player for player in puzzle_data.units if player["faction"] == "player"]),
             game_mode=puzzle_data.game_mode,
-            node_count=puzzle_data.node_count,
-            edge_count=puzzle_data.edge_count,
+            node_count=len([node for node in puzzle_data.nodes]),
+            edge_count=len([edge for edge in puzzle_data.edges]),
             coins=puzzle_data.coins,
         )
         self.db.add(puzzle)
         self.db.flush()
-        return puzzle.id
 
 
-    def create_nodes(self, nodes: list[NodeCreate]):
-        """ Create nodes, build and return index → id map. Used to build edges"""
+        # Create nodes, build and return index → id map. Used to build edges
         node_map = {}
-        for node_data in nodes:
+        for node_data in puzzle_data.nodes:
             node = models.Node(
                 id=uuid4(),
-                node_index=node_data.node_index,
-                x_position=node_data.x_position,
-                y_position=node_data.y_position,
-                puzzle_id=node_data.puzzle_id
+                node_index=node_data["index"],
+                x_position=node_data["x_position"],
+                y_position=node_data["y_position"],
+                puzzle_id=puzzle.id
             )
             self.db.add(node)
             self.db.flush()
-            node_map[node_data.node_index] = node.id
-        return node_map
+            node_map[node_data["index"]] = node.id
 
-
-    def create_edges(self, edges: list[EdgeCreate]):
-        for edge_data in edges:
+        for edge_data in puzzle_data.edges:
+            start_uuid = node_map.get(edge_data["start_node"])
+            end_uuid = node_map.get(edge_data["end_node"])
             edge = models.Edge(
                 id=uuid4(),
-                edge_index=edge_data.edge_index,
-                start_node_id=edge_data.start_node_id,
-                end_node_id=edge_data.end_node_id,
-                puzzle_id=edge_data.puzzle_id
+                edge_index=edge_data["edge_index"],
+                start_node_id=start_uuid,
+                end_node_id=end_uuid,
+                puzzle_id=puzzle.id
             )
             self.db.add(edge)
             self.db.flush()
 
-
-    def create_units_with_path(self, puzzle_id, units: list[UnitCreate]):
-
-        for unit_data in units:
-            # Create Unit
+        # Create Unit
+        for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),
-                unit_type=unit_data.unit_type,
-                faction=unit_data.faction,
-                puzzle_id=puzzle_id,
+                unit_type=unit_data["type"],
+                faction=unit_data["faction"],
+                puzzle_id=puzzle.id,
             )
             self.db.add(unit)
             self.db.flush()
 
             # Create path
-            path = models.Path(unit_id=unit.id
-                               )
+            path = models.Path(unit_id=unit.id)
             self.db.add(path)
             self.db.flush()
 
             # Create path_node
-            for index, n_index in enumerate(unit_data.path_nodes):
+            for index, n_index in enumerate(unit_data["path"]):
                 node = (
                     self.db.query(models.Node)
                     .filter(
-                        models.Node.puzzle_id == puzzle_id,
+                        models.Node.puzzle_id == puzzle.id,
                         models.Node.node_index == n_index
                     )
                     .first()
@@ -104,10 +97,8 @@ class PuzzleServices:
                 self.db.add(path_node)
                 self.db.flush()
 
-
-    def commit_all(self):
-        # Commit all
         self.db.commit()
+        return puzzle
 
 
     # get all puzzle

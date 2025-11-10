@@ -11,12 +11,14 @@ from app.schemas.node_schema import NodeRead, NodeGenerate
 class PuzzleCreate(BaseModel):
     name: str
     model: str
-    enemy_count: int
-    player_unit_count: int
+    # enemy_count: int
+    # player_unit_count: int
     game_mode: str
-    node_count: int
-    edge_count: int
     coins: Optional[int]
+    nodes: List[dict]
+    edges: List[dict]
+    units: List[dict]
+
 
 
 # Data sent from user to MML
