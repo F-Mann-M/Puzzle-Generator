@@ -12,7 +12,7 @@ class GeminiClient:
 
     async def generate(self, prompt: str):
         response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=self.model_name,
             contents=prompt["user_prompt"],
             config={
                 "system_instruction": prompt["system_prompt"],
