@@ -15,8 +15,6 @@ from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.services import PuzzleServices
 
 
-
-
 # create Jinja2 template engine
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 

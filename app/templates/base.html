@@ -8,7 +8,8 @@
     <script src="../static/script.js" defer></script>
 </head>
 <body>
-    <header>
+    <div class="container">
+    <header class="menu">
         <nav>
             <a href="/">Home</a> |
             <a href="/puzzles">Puzzles</a> |
@@ -16,13 +17,12 @@
             <a href="/puzzles/generate" class="btn">Generate Puzzle</a>
         </nav>
     </header>
-
     <main>
         {% block content %}{% endblock %}
-    </main>
-
-    <footer>
+    <div class="footer">
         <p>© 2025 Puzzle Generator</p>
-    </footer>
+    </div>
+    </main>
+    </div>
 </body>
 </html>

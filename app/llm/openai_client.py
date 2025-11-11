@@ -12,17 +12,19 @@ class OpenAIClient:
         self.client = AsyncOpenAI(api_key=API_KEY)
         self.model_name = model_name
 
-    async def generate(self, messages: list):
+    async def generate(self, prompt: dict):
         print("Thinking...")
+        print("system_prompt: ", prompt.get("system_prompt"))
 
         try:
             response = await self.client.chat.completions.create(
                 model=self.model_name,
-                messages=messages,
+                messages=[{"role": "system", "content": prompt.get("system_prompt")},
+                          {"role": "user", "content": prompt.get("user_prompt")}],
                 response_format={"type": "json_object"},
             )
         except TypeError:
-            response = await self.client.chat.completions.create(model=self.model_name, messages=messages)
+            response = await self.client.chat.completions.create(model=self.model_name, messages=prompt)
 
 
         content = response.choices[0].message.content

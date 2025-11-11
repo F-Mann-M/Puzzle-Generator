@@ -48,6 +48,7 @@ class PuzzleServices:
             self.db.flush()
             node_map[node_data["index"]] = node.id
 
+
         for edge_data in puzzle_data.edges:
             start_uuid = node_map.get(edge_data["start"])
             end_uuid = node_map.get(edge_data["end"])
