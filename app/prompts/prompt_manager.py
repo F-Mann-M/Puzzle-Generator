@@ -1,17 +1,15 @@
-BASIC_RULES = """
-A puzzle is based on nodes and edges placed on a 10x10 grid.
-- Nodes follow the Node schema: each node has integer x, y coordinates and an index (starting from 0).
-- Edges connect two nodes via their indexes and also include x and y coordinates.
-- Units follow the Unit schema: each unit has a faction, unit_type, and a path (list of node indexes).
-- Only one unit can occupy a node.
-- The top-level object must follow the PuzzleLLMResponse schema strictly.
-"""
-
-
+from app.prompts.prompt_game_rules import BASIC_RULES
+import json
 
 async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: int, units: list) -> dict:
     print("Edge Count: ", edge_count)
+    print("Edge Count: ", node_count)
+    print("Edge Count: ", turns)
     prompt = {"system_prompt": (
+        f"You are a game designer how creates puzzles based on this {BASIC_RULES}"
+        "You will create all nodes, edges and paths for enemy units and player units."
+        "Since the path of the player units are also the solution of each puzzle you provide the puzzle with the solution (how to place and to move player units)"
+        "You provide complete puzzles with solutions"
         "You are a JSON generator for a puzzle system. "
         "Return ONLY a valid JSON object conforming to this Pydantic schema: "
         "PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], "
@@ -22,48 +20,25 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
         "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
         "Each edge’s 'start' and 'end' must correspond to existing node indexes"
         "For the UnitGenerate schema ONLY use *only* these key names: 'unit_type', 'faction', 'path'"),
-    "user_prompt": (
-        f"Generate a puzzle following these rules:\n{BASIC_RULES}\n\n"
-        f"The puzzle has {node_count} nodes and {edge_count} edges. "
-        f"Place these units on nodes: {units}. "
-        f"The game mode is '{game_mode}' and the number of turns is {turns}. "
-        "The 'coins' field must be an integer (e.g. 5). "
-        "Edges must connect existing node indexes (0–N). "
-        "Return each list as a JSON array, not an object."
-        "Follow all schema rules strictly")
+    "user_prompt": (f"""
+        # User Prompt: Generate Puzzle Scenario
+        
+        You are to create a new puzzle following all the rules and schema definitions provided in the system prompt.
+        
+        Generate a puzzle that satisfies the following parameters:
+        
+        Game Mode: {game_mode}
+        Turns: {turns}
+        Number of Nodes: {node_count}
+        Number of Edges: {edge_count}
+        Number of Units: {len(units)}
+        
+        Units:
+        {json.dumps(units, indent=2)}
+        
+        Return only valid JSON for PuzzleLLMResponse.
+        """)
+
     }
     print(f"Prompt built successfully (nodes={node_count}, edges={edge_count}, units={len(units)})")
     return prompt
-
-
-
-    # messages = [
-    #     {
-    #         "role": "system",
-    #         "content": (
-    #             "You are a JSON generator for a puzzle system. "
-    #             "Return ONLY a valid JSON object conforming to this Pydantic schema: "
-    #             "PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], "
-    #             "units: List[UnitGenerate], coins: int }. "
-    #             "Ensure each list is a JSON array ([...]) not an object with numeric keys. "
-    #             "Return no explanations, only raw JSON."
-    #             "For the EdgeGenerate schema ONLY use *only* these key names: 'index', 'start', 'end', 'x', 'y'."
-    #             "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
-    #             "Each edge’s 'start' and 'end' must correspond to existing node indexes"
-    #             "For the UnitGenerate schema ONLY use *only* these key names: 'unit_type', 'faction', 'path'"
-    #         ),
-    #     },
-    #     {
-    #         "role": "user",
-    #         "content": (
-    #             f"Generate a puzzle following these rules:\n{BASIC_RULES}\n\n"
-    #             f"The puzzle has {node_count} nodes and {edge_count} edges. "
-    #             f"Place these units on nodes: {units}. "
-    #             f"The game mode is '{game_mode}' and the number of turns is {turns}. "
-    #             "The 'coins' field must be an integer (e.g. 5). "
-    #             "Edges must connect existing node indexes (0–N). "
-    #             "Return each list as a JSON array, not an object."
-    #             "Follow all schema rules strictly"
-    #         ),
-    #     },
-    # ]

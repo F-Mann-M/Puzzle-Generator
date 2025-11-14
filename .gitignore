@@ -212,3 +212,4 @@ test.py
 alembic/
 alembic.ini
 exercise/
+prompt_game_rules.py

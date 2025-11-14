@@ -114,7 +114,7 @@ def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=edge_x, y=edge_y, mode="lines", line=dict(width=2, color="#aaa"), name="Edges"
+        x=edge_x, y=edge_y, mode="lines", line=dict(width=4, color="#aaa"), name="Edges"
     ))
 
     colors = ["red", "blue", "green", "orange", "purple"]
@@ -138,7 +138,7 @@ def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     fig.add_trace(go.Scatter(
         x=node_x, y=node_y, mode="markers+text",
         text=node_labels, textposition="middle center",
-        marker=dict(size=20, color="white", line=dict(width=2, color="black")),
+        marker=dict(size=40, color="white", line=dict(width=4, color="black")),
         name="Nodes"
     ))
 
