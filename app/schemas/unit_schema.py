@@ -7,14 +7,14 @@ from app.schemas.node_schema import NodeGenerate
 
 
 class UnitCreate(BaseModel):
-    unit_type: str
+    type: str
     faction: str
     puzzle_id: UUID
     path_nodes: list[int] # node indexes
 
 
 class UnitGenerate(BaseModel):
-    unit_type: str
+    type: str
     faction: str
     path: List[int]
 

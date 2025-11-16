@@ -1,3 +1,4 @@
+
 from app import models
 from typing import List, Optional
 from fastapi import HTTPException
@@ -63,10 +64,11 @@ class PuzzleServices:
             self.db.flush()
 
         # Create Unit
+        print("\n\nUnit properies: ", puzzle_data.units) # debugging
         for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),
-                unit_type=unit_data["unit_type"],
+                unit_type=unit_data["type"],  # ToDo: check what kind of type of data is provided by generated puzzle
                 faction=unit_data["faction"],
                 puzzle_id=puzzle.id,
             )
@@ -172,6 +174,8 @@ class PuzzleServices:
         )
 
         puzzle_generated = await llm.generate(prompts)
+        print("\n\nGenerated puzzle: ", puzzle_generated) #debugging
+
         new_puzzle = PuzzleCreate(
             name=puzzle_config.name,
             model=puzzle_config.model,

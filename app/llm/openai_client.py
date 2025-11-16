@@ -45,9 +45,10 @@ class OpenAIClient:
         if response.usage:
             usage = response.usage
             print(
+                "\n\n\n TOKEN USAGE"
                 f"\nTokens — prompt: {usage.prompt_tokens}, "
-                f"completion: {usage.completion_tokens}, "
-                f"total: {usage.total_tokens}"
+                f"\ncompletion: {usage.completion_tokens}, "
+                f"\ntotal: {usage.total_tokens}"
             )
 
         return puzzle
