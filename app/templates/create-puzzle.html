@@ -5,7 +5,6 @@
     <title>Puzzle Editor</title>
 
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="/static/editor.css">
 
     <script src="/static/editor.js?v=2" defer></script>
 </head>
@@ -27,7 +26,7 @@
 
     <select id="unit-type-select"></select>
 
-    <button id="export-btn">Create Puzzle</button>
+    <button id="export-btn" type="button">Create Puzzle</button>
 </div>
 
 <!-- Editor Canvas -->
@@ -39,7 +38,7 @@
 <form id="editor-form" method="POST" action="/puzzles">
     <input type="text" name="name" id="name" placeholder="Puzzle Name" required>
     <input type="text" name="model" id="model" placeholder="Created manually" required>
-        <select name="game_mode" id="game_mode" required>-->
+        <select name="game_mode" id="game_mode" required>
             <option value="">-- Select Game Mode --</option>
             <option value="Skirmish">Skirmish</option>
             <option value="Safe travel">Safe travel</option>

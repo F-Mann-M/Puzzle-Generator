@@ -130,3 +130,36 @@ a,a:visited, a:hover, a:active {
     justify-content: center;
     gap: 20px;
 }
+
+
+/* Editor */
+
+#editor-container {
+    width: 100%;
+    height: 600px;
+    border: 2px solid #444;
+    background: #fafafa;
+    margin-top: 20px;
+}
+
+#editor-svg {
+    width: 100%;
+    height: 100%;
+}
+
+#toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+#toolbar select,
+#toolbar button {
+    padding: 8px 14px;
+    font-size: 14px;
+}
+
+.unit-selected {
+    stroke: gold !important;
+    stroke-width: 4 !important;
+}
