@@ -1,62 +1,124 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Puzzle Editor</title>
 
-{% block title %}Create Puzzle{% endblock %}
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/editor.css">
 
-{% block content %}
+    <script src="/static/editor.js?v=2" defer></script>
+</head>
+<body>
 
-<div class="headline"><h2>Create a New Puzzle</h2></div>
-<div class="layout_container">
-    <div class="text_container">
-        <form id="puzzle-form">
+<h2>Puzzle Editor</h2>
 
-            <label for="name">Name:</label>
-            <input id="name" type="text" name="name" required><br><br>
+<!-- Toolbar -->
+<div id="toolbar">
+    <button id="add-node-btn">Add Node</button>
+    <button id="add-edge-btn">Add Edge</button>
 
+    <select id="faction-select">
+        <option value="enemy">Enemy</option>
+        <option value="player">Player</option>
+    </select>
+     <button id="place-unit-btn">Place Unit</button>
+    <button id="edit-path-btn">Edit Paths</button>
 
-            <!-- Basic game setup -->
-            <label for="game_mode">Game Mode:</label>
-            <select name="game_mode" id="game_mode" required>
-                <option value="">-- Select Game Mode --</option>
-                <option value="Skirmish">Skirmish</option>
-                <option value="Safe travel">Safe travel</option>
-                <option value="Plunder">Plunder</option>
-            </select><br><br>
+    <select id="unit-type-select"></select>
 
-            <label for="node_count">Node Count:</label>
-            <input id="node_count" type="number" name="node_count" required>
-            <div id="nodes-container"></div>
-            <br><br>
-
-            <label for="edge_count">Edge Count:</label>
-            <input id="edge_count" type="number" name="edge_count" required>
-            <div id="edges-container"></div>
-            <br><br>
-
-            <label for="coins">Max Coins:</label>
-            <input id="coins" type="number" name="coins"><br><br>
-
-            <!-- Units details -->
-            <label for="enemy_count">Enemy Count:</label>
-            <input id="enemy_count" type="number" name="enemy_count" required>
-            <div id="enemy-units"></div>
-            <br><br>
-
-            <label for="player_unit_count">Player Unit Count:</label>
-            <input id="player_unit_count" type="number" name="player_unit_count" required>
-            <div id="player-units"></div>
-            <br><br>
-
-
-            <button type="submit">Create Puzzle</button>
-            <!-- Text input for LLM to give extra rules/ ideas -->
-        </form>
-    </div>
-
-    <div id="preview-container">
-<!--        <h3>Puzzle Preview</h3>-->
-        <div id="puzzle-plot" style="height:600px;"></div>
-    </div>
+    <button id="export-btn">Create Puzzle</button>
 </div>
-<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
-{% endblock %}
+<!-- Editor Canvas -->
+<div id="editor-container">
+    <svg id="editor-svg"></svg>
+</div>
+
+<!-- Hidden form to wrap PuzzleCreate fields -->
+<form id="editor-form" method="POST" action="/puzzles">
+    <input type="text" name="name" id="name" placeholder="Puzzle Name" required>
+    <input type="text" name="model" id="model" placeholder="Created manually" required>
+        <select name="game_mode" id="game_mode" required>-->
+            <option value="">-- Select Game Mode --</option>
+            <option value="Skirmish">Skirmish</option>
+            <option value="Safe travel">Safe travel</option>
+            <option value="Plunder">Plunder</option>
+        </select>
+    <input type="number" name="coins" id="coins" placeholder="Coins"><br>
+
+    <textarea name="description" id="description" placeholder="Description"></textarea>
+
+    <!-- JSON fields -->
+<!--    <input type="hidden" name="nodes" id="nodes-field">-->
+<!--    <input type="hidden" name="edges" id="edges-field">-->
+<!--    <input type="hidden" name="units" id="units-field">-->
+</form>
+
+</body>
+</html>
+
+
+
+<!--{% extends "base.html" %}-->
+
+<!--{% block title %}Create Puzzle{% endblock %}-->
+
+<!--{% block content %}-->
+
+<!--<div class="headline"><h2>Create a New Puzzle</h2></div>-->
+<!--<div class="layout_container">-->
+<!--    <div class="text_container">-->
+<!--        <form id="puzzle-form">-->
+
+<!--            <label for="name">Name:</label>-->
+<!--            <input id="name" type="text" name="name" required><br><br>-->
+
+
+<!--            &lt;!&ndash; Basic game setup &ndash;&gt;-->
+<!--            <label for="game_mode">Game Mode:</label>-->
+<!--            <select name="game_mode" id="game_mode" required>-->
+<!--                <option value="">&#45;&#45; Select Game Mode &#45;&#45;</option>-->
+<!--                <option value="Skirmish">Skirmish</option>-->
+<!--                <option value="Safe travel">Safe travel</option>-->
+<!--                <option value="Plunder">Plunder</option>-->
+<!--            </select><br><br>-->
+
+<!--            <label for="node_count">Node Count:</label>-->
+<!--            <input id="node_count" type="number" name="node_count" required>-->
+<!--            <div id="nodes-container"></div>-->
+<!--            <br><br>-->
+
+<!--            <label for="edge_count">Edge Count:</label>-->
+<!--            <input id="edge_count" type="number" name="edge_count" required>-->
+<!--            <div id="edges-container"></div>-->
+<!--            <br><br>-->
+
+<!--            <label for="coins">Max Coins:</label>-->
+<!--            <input id="coins" type="number" name="coins"><br><br>-->
+
+<!--            &lt;!&ndash; Units details &ndash;&gt;-->
+<!--            <label for="enemy_count">Enemy Count:</label>-->
+<!--            <input id="enemy_count" type="number" name="enemy_count" required>-->
+<!--            <div id="enemy-units"></div>-->
+<!--            <br><br>-->
+
+<!--            <label for="player_unit_count">Player Unit Count:</label>-->
+<!--            <input id="player_unit_count" type="number" name="player_unit_count" required>-->
+<!--            <div id="player-units"></div>-->
+<!--            <br><br>-->
+
+
+<!--            <button type="submit">Create Puzzle</button>-->
+<!--            &lt;!&ndash; Text input for LLM to give extra rules/ ideas &ndash;&gt;-->
+<!--        </form>-->
+<!--    </div>-->
+
+<!--    <div id="preview-container">-->
+<!--&lt;!&ndash;        <h3>Puzzle Preview</h3>&ndash;&gt;-->
+<!--        <div id="puzzle-plot" style="height:600px;"></div>-->
+<!--    </div>-->
+<!--</div>-->
+<!--<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>-->
+
+<!--{% endblock %}-->

@@ -16,6 +16,7 @@ class PuzzleCreate(BaseModel):
     nodes: List[dict]
     edges: List[dict]
     units: List[dict]
+    description: Optional[str]
 
 
 # Data sent from user to MML
@@ -52,6 +53,7 @@ class PuzzleUpdate(PuzzleCreate):
     game_mode: Optional[str]
     node_count: Optional[int]
     edge_count: Optional[int]
+    description: Optional[str]
     units: List[UnitRead]
     coins: Optional[int]
     updated_at: datetime

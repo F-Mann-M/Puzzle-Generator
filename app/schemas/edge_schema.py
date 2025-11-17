@@ -7,6 +7,7 @@ class EdgeCreate(BaseModel):
     start_node_id: UUID
     end_node_id: UUID
     puzzle_id: UUID
+    label: str
 
 # for llm generation
 class EdgeGenerate(BaseModel):
