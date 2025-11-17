@@ -1,18 +1,20 @@
 # import moduls/libraries
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID
 from pathlib import Path
-import plotly.graph_objects as go
+import json
+
 
 # import form project
 from app.core.database import get_db
 from app import models
 from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.services import PuzzleServices
+from app.visualization import generate_puzzle_visualization, generate_preview_visualization
 
 
 # create Jinja2 template engine
@@ -93,64 +95,19 @@ def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(
 
 
 # Puzzle Visualization
-@router.get(
-    "/{puzzle_id}/visualization",
-    response_class=HTMLResponse,
-    response_model=None
-)
-def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
+@router.get("/{puzzle_id}/visualization", response_class=HTMLResponse)
+async def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     puzzle = db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
     if not puzzle:
         return HTMLResponse("<h3>Puzzle not found</h3>", status_code=404)
 
-    # --- Visualization logic ---
-    positions = {n.id: (n.x_position, n.y_position) for n in puzzle.nodes}
-    edge_x, edge_y = [], []
-    for e in puzzle.edges:
-        x0, y0 = positions[e.start_node_id]
-        x1, y1 = positions[e.end_node_id]
-        edge_x += [x0, x1, None]
-        edge_y += [y0, y1, None]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=edge_x, y=edge_y, mode="lines", line=dict(width=4, color="#aaa"), name="Edges"
-    ))
-
-    colors = ["red", "blue", "green", "orange", "purple"]
-    for i, unit in enumerate(puzzle.units):
-        if not unit.path or not unit.path.path_node:
-            continue
-        path_nodes = sorted(unit.path.path_node, key=lambda p: p.order_index)
-        xs = [positions[p.node.id][0] for p in path_nodes]
-        ys = [positions[p.node.id][1] for p in path_nodes]
-        fig.add_trace(go.Scatter(
-            x=xs, y=ys,
-            mode="lines+markers",
-            line=dict(width=4, color=colors[i % len(colors)]),
-            marker=dict(size=10, color=colors[i % len(colors)]),
-            name=unit.unit_type or f"Unit {i+1}"
-        ))
-
-    node_x = [n.x_position for n in puzzle.nodes]
-    node_y = [n.y_position for n in puzzle.nodes]
-    node_labels = [n.node_index for n in puzzle.nodes]
-    fig.add_trace(go.Scatter(
-        x=node_x, y=node_y, mode="markers+text",
-        text=node_labels, textposition="middle center",
-        marker=dict(size=40, color="white", line=dict(width=4, color="black")),
-        name="Nodes"
-    ))
-
-    fig.update_layout(
-        title=f"Puzzle: {puzzle.name}",
-        showlegend=True,
-        plot_bgcolor="white",
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        height=600
-    )
-
+    fig = generate_puzzle_visualization(puzzle)
     html = fig.to_html(full_html=False, include_plotlyjs="cdn")
     return HTMLResponse(content=html)
+
+
+@router.post("/preview")
+async def preview_puzzle(config: dict):
+    fig = generate_preview_visualization(config)
+    return JSONResponse(content=json.loads(fig.to_json()))
 

@@ -3,21 +3,28 @@ html, body {
     font-style: normal;
     font-weight: 400;
     letter-spacing: 0;
-    background-color: grey;
+    background-color: #ccc;
+    margin: 0;
+    padding: 0;
+    height: 100%;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
 }
+
 .container {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     background-color: white;
-    margin-top: 10px 20px;
-    height: 100%;
+    margin: 20px;
+    width: 90%;
+    max-width: 1800px;
     padding: 30px;
+    box-sizing: border-box;
 }
-
 
 
 table {
@@ -26,7 +33,7 @@ table {
 }
 
 th, td {
-    text-align: left; /*  forces text to align left */
+    text-align: left;
     padding: 8px;
     border-bottom: 1px solid #ddd;
 }
@@ -69,13 +76,20 @@ a,a:visited, a:hover, a:active {
     text-align: center;
 }
 
+.headline {
+    width: 80%;
+    margin: 30px auto;
+
+}
+
 .layout_container {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
-    width: 90%;
-    margin: 0 auto;
+    width: 80%;
+    /*max-width: 1200px;*/
+    margin: 30px auto;
     gap: 20px;
 }
 

@@ -431,3 +431,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+
+// ========================
+// Puzzle Preview
+// ========================
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("puzzle-form");
+  const plotDiv = document.getElementById("puzzle-plot");
+
+  if (!form || !plotDiv) return;
+
+  async function updatePreview() {
+    const formData = new FormData(form);
+    const config = Object.fromEntries(formData.entries());
+
+    if (!config.node_count || !config.edge_count) return;
+
+    try {
+      const res = await fetch("/puzzles/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const fig = await res.json(); // ✅ already parsed
+      Plotly.react("puzzle-plot", fig.data, fig.layout);
+    } catch (err) {
+      console.error("Preview update failed:", err);
+    }
+  }
+
+  // Debounced listener
+  let timer;
+  form.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(updatePreview, 400);
+  });
+});
