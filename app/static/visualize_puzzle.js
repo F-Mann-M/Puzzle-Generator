@@ -278,7 +278,7 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
         text.textContent = node.node_index;
 
         svg.appendChild(circle);
-        svg.appendChild(text);
+        // svg.appendChild(text);
     });
 
     // --- Draw units (on their starting nodes) ---

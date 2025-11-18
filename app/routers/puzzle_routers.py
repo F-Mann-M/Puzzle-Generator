@@ -76,12 +76,6 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     services.delete_puzzle(puzzle_id)
     return {"detail": f"Puzzle {puzzle_id} deleted"}
 
-@router.delete("/{puzzle_id}/delete", response_class=HTMLResponse)
-async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
-    """Delete a puzzle"""
-    services = PuzzleServices(db)
-    services.delete_puzzle(puzzle_id)
-    return templates.TemplateResponse("puzzles.html", {"request": request, "puzzles": puzzles})
 
 # Get puzzle by id
 @router.get("/{puzzle_id}", response_class=HTMLResponse)
