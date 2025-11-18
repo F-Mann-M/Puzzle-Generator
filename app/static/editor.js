@@ -233,8 +233,8 @@ function loadUnitTypes() {
 
     unitTypeSelect.innerHTML = "";
     const options = faction === "enemy"
-        ? ["Grunt", "Archer", "Mage"]
-        : ["Swordman", "Knight", "Healer"];
+        ? ["Grunt", "Brute"]
+        : ["Swordman", "Nun", "Archer"];
 
     for (const type of options) {
         const opt = document.createElement("option");
@@ -348,18 +348,98 @@ function render() {
     });
 
     // --- Unit Paths (draw BEFORE units so unit circle is on top) ---
+    // Group edges (node pairs) by which units use them
+    const edgeGroups = new Map(); // key: "nodeId1,nodeId2", value: array of {unit, edgeIndex}
+    
+    // First pass: collect all edges from all units
+    units.filter(u => !u.deleted).forEach(u => {
+        const pts = u.path.map(pid => getNode(pid)).filter(Boolean);
+        
+        for (let i = 0; i < pts.length - 1; i++) {
+            const nodeA = pts[i];
+            const nodeB = pts[i + 1];
+            
+            // Create normalized edge key (always smaller ID first)
+            const edgeKey = nodeA.id < nodeB.id 
+                ? `${nodeA.id},${nodeB.id}` 
+                : `${nodeB.id},${nodeA.id}`;
+            
+            if (!edgeGroups.has(edgeKey)) {
+                edgeGroups.set(edgeKey, []);
+            }
+            edgeGroups.get(edgeKey).push({ unit: u, nodeA, nodeB, edgeIndex: i });
+        }
+    });
+
+    // Second pass: render paths with offsets for shared edges
     units.filter(u => !u.deleted).forEach(u => {
         const pts = u.path.map(pid => getNode(pid)).filter(Boolean);
 
         for (let i = 0; i < pts.length - 1; i++) {
-            const a = pts[i];
-            const b = pts[i + 1];
+            const nodeA = pts[i];
+            const nodeB = pts[i + 1];
+            
+            // Create normalized edge key
+            const edgeKey = nodeA.id < nodeB.id 
+                ? `${nodeA.id},${nodeB.id}` 
+                : `${nodeB.id},${nodeA.id}`;
+            
+            // Find all units using this edge
+            const edgeUsers = edgeGroups.get(edgeKey) || [];
+            const totalSharing = edgeUsers.length;
+            
+            // Find this unit's position in the group
+            const unitIndex = edgeUsers.findIndex(eu => eu.unit.id === u.id);
+            
+            // Calculate offset: alternate sides with increasing distance
+            // Unit 0: -5px, Unit 1: +5px, Unit 2: -10px, Unit 3: +10px, etc.
+            let offsetDistance = 0;
+            if (totalSharing > 1 && unitIndex >= 0) {
+                const side = (unitIndex % 2 === 0) ? -1 : 1;  // Alternate: negative for even, positive for odd
+                const layer = Math.floor(unitIndex / 2) + 1;  // Layer: 1, 1, 2, 2, 3, 3, ...
+                offsetDistance = side * layer * 5;  // 5px per layer
+            }
+
+            // Ensure consistent direction for perpendicular calculation
+            // Always use smaller node ID -> larger node ID direction
+            let x1, y1, x2, y2;
+            if (nodeA.id < nodeB.id) {
+                x1 = nodeA.x;
+                y1 = nodeA.y;
+                x2 = nodeB.x;
+                y2 = nodeB.y;
+            } else {
+                // Reverse direction to maintain consistency
+                x1 = nodeB.x;
+                y1 = nodeB.y;
+                x2 = nodeA.x;
+                y2 = nodeA.y;
+            }
+
+            // Apply perpendicular offset if needed
+            if (offsetDistance !== 0) {
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                
+                if (length > 0) {
+                    // Perpendicular vector (normalized) - always use same direction
+                    // Use consistent direction: rotate 90° counterclockwise
+                    const perpX = -dy / length;
+                    const perpY = dx / length;
+                    // Apply offset
+                    x1 += perpX * offsetDistance;
+                    y1 += perpY * offsetDistance;
+                    x2 += perpX * offsetDistance;
+                    y2 += perpY * offsetDistance;
+                }
+            }
 
             const pathLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            pathLine.setAttribute("x1", a.x);
-            pathLine.setAttribute("y1", a.y);
-            pathLine.setAttribute("x2", b.x);
-            pathLine.setAttribute("y2", b.y);
+            pathLine.setAttribute("x1", x1);
+            pathLine.setAttribute("y1", y1);
+            pathLine.setAttribute("x2", x2);
+            pathLine.setAttribute("y2", y2);
             pathLine.setAttribute("stroke", u.color);
             pathLine.setAttribute("stroke-width", 4);
 
@@ -372,10 +452,19 @@ function render() {
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         c.setAttribute("cx", n.x);
         c.setAttribute("cy", n.y);
-        c.setAttribute("r", 30);
+        c.setAttribute("r", 20);
         c.setAttribute("fill", "white");
         c.setAttribute("stroke", "black");
         c.setAttribute("stroke-width", 3);
+
+        // Click on node to add to path when in edit-path mode
+        c.addEventListener("click", evt => {
+            if (currentTool === "edit-path" && selectedUnit != null) {
+                evt.stopPropagation();
+                appendNodeToSelectedPath(n.id);
+                return;
+            }
+        });
 
         // Right click = delete
         c.addEventListener("contextmenu", evt => {
@@ -399,11 +488,30 @@ function render() {
         unitCircle.setAttribute("stroke", "#000");
         unitCircle.setAttribute("stroke-width", 2);
 
+        // Add yellow highlight circle around selected unit in edit-path mode
+        if (currentTool === "edit-path" && selectedUnit === u.id) {
+            const highlightCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            highlightCircle.setAttribute("cx", start.x);
+            highlightCircle.setAttribute("cy", start.y);
+            highlightCircle.setAttribute("r", 18);
+            highlightCircle.setAttribute("fill", "none");
+            highlightCircle.setAttribute("stroke", "yellow");
+            highlightCircle.setAttribute("stroke-width", 3);
+            highlightCircle.setAttribute("opacity", "0.8");
+            svg.appendChild(highlightCircle);
+        }
+
         // Select for editing path
         unitCircle.addEventListener("click", evt => {
-            if (currentTool === "edit-path" && selectedUnit != null && selectedUnit !== u.id) {
+            if (currentTool === "edit-path" && selectedUnit != null) {
                 evt.stopPropagation();
-                appendNodeToSelectedPath(u.path[0]);
+                if (selectedUnit === u.id) {
+                    // If clicking on the selected unit's circle, add the starting node to complete a circle
+                    appendNodeToSelectedPath(u.path[0]);
+                } else {
+                    // If clicking on a different unit's circle, add that unit's starting node
+                    appendNodeToSelectedPath(u.path[0]);
+                }
                 return;
             }
 
@@ -420,6 +528,38 @@ function render() {
 
         svg.appendChild(unitCircle);
     });
+
+    // --- Draw path index labels (render last so they appear on top) ---
+    if (currentTool === "edit-path" && selectedUnit != null) {
+        const selectedUnitObj = getUnit(selectedUnit);
+        if (selectedUnitObj) {
+            // Collect all path indices for each node
+            const nodeIndices = new Map();
+            selectedUnitObj.path.forEach((nodeId, pathIndex) => {
+                if (!nodeIndices.has(nodeId)) {
+                    nodeIndices.set(nodeId, []);
+                }
+                nodeIndices.get(nodeId).push(pathIndex);
+            });
+
+            // Render one label per node showing all its indices
+            nodeIndices.forEach((indices, nodeId) => {
+                const node = getNode(nodeId);
+                if (node) {
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", node.x);
+                    text.setAttribute("y", node.y);
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("dominant-baseline", "central");
+                    text.setAttribute("font-size", "12");
+                    text.setAttribute("font-weight", "bold");
+                    text.setAttribute("fill", "black");
+                    text.textContent = indices.join(", ");
+                    svg.appendChild(text);
+                }
+            });
+        }
+    }
 }
 
 // ======================================================
@@ -431,19 +571,18 @@ async function exportPuzzle(evt) {
 
     const formData = new FormData(editorForm);
     const name = (formData.get("name") || "").toString().trim();
-    const model = (formData.get("model") || "").toString().trim();
     const game_mode = formData.get("game_mode") || "";
     const coins = Number(formData.get("coins") || 0);
     const description = (formData.get("description") || "").toString().trim();
 
-    if (!name || !model || !game_mode) {
-        alert("Name, Model, and Game Mode are required!");
+    if (!name || !game_mode) {
+        alert("Name and Game Mode are required!");
         return;
     }
 
     const payload = {
         name,
-        model,
+        model: "Created Manually",
         game_mode,
         coins,
         description,
@@ -486,73 +625,3 @@ async function exportPuzzle(evt) {
 
 exportBtn.addEventListener("click", exportPuzzle);
 
-
-
-// // ======================================================
-// // Export Puzzle -> FastAPI
-// // ======================================================
-// function exportPuzzle() {
-//     const payload = {
-//         nodes: nodes.filter(n => !n.deleted).map(n => ({
-//             index: n.id,
-//             x: n.x,
-//             y: n.y
-//         })),
-//         edges: edges.filter(e => !e.deleted).map(e => ({
-//             index: e.id,
-//             start: e.start,
-//             end: e.end
-//         })),
-//         units: units.filter(u => !u.deleted).map(u => ({
-//             unit_type: u.unit_type,
-//             faction: u.faction,
-//             path: u.path
-//         }))
-//     };
-//
-//     nodesField.value = JSON.stringify(payload.nodes);
-//     edgesField.value = JSON.stringify(payload.edges);
-//     unitsField.value = JSON.stringify(payload.units);
-//
-//     async function exportPuzzle() {
-//         const payload = {
-//             name: document.getElementById("name").value,
-//             model: document.getElementById("model").value,
-//             game_mode: document.getElementById("game_mode").value,
-//             coins: Number(document.getElementById("coins").value || 0),
-//             description: document.getElementById("description").value,
-//
-//             nodes: nodes.filter(n => !n.deleted).map(n => ({
-//                 index: n.id,
-//                 x: n.x,
-//                 y: n.y
-//             })),
-//
-//             edges: edges.filter(e => !e.deleted).map(e => ({
-//                 index: e.id,
-//                 start: e.start,
-//                 end: e.end
-//             })),
-//
-//             units: units.filter(u => !u.deleted).map(u => ({
-//                 unit_type: u.unit_type,
-//                 faction: u.faction,
-//                 path: u.path
-//             }))
-//         };
-//
-//         const response = await fetch("/puzzles/", {
-//             method: "POST",
-//             headers: {"Content-Type": "application/json"},
-//             body: JSON.stringify(payload)
-//         });
-//
-//         if (response.redirected) {
-//             window.location.href = response.url;
-//         } else {
-//             const error = await response.text();
-//             alert("Puzzle creation failed:\n" + error);
-//         }
-//     }
-//
-// }

@@ -6,48 +6,49 @@
 <h2>Generate a New Puzzle</h2>
 
 <form action="/puzzles/generate" method="post">
+        <label for="name">Name:</label>
+        <input id="name" type="text" name="name" required><br><br>
 
-    <label for="name">Name:</label>
-    <input id="name" type="text" name="name" required><br><br>
+        <label for="model">Model:</label>
+        <select id="model" name="model" required>
+            <option value="">-- Select LLM Model --</option>
+            <option value="gpt-4o-mini">GPT 4o mini</option>
+            <option value="gpt-4.1-mini">GPT 4.1 mini</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
+            <option value="gemini-2.0-flash">Gemini 2 Flash</option>
+            <option value="gemini-2.0-flash-lite">Gemini 2 Flash-Lite</option>
+        </select><br><br>
 
-    <label for="model">Model:</label>
-    <select id="model" name="model" required>
-        <option value="">-- Select LLM Model --</option>
-        <option value="gpt-4o-mini">GPT 4o mini</option>
-        <option value="gpt-4.1-mini">GPT 4.1 mini</option>
-        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-        <option value="gemini-2.0-flash">Gemini 2 Flash</option>
-        <option value="gemini-2.0-flash-lite">Gemini 2 Flash-Lite</option>
-    </select><br><br>
+        <label for="game_mode">Game Mode:</label>
+        <select name="game_mode" id="game_mode" required>
+            <option value="">-- Select Game Mode --</option>
+            <option value="skirmish">Skirmish</option>
+            <option value="safe_travel">Safe Travel</option>
+        </select><br><br>
 
-    <label for="game_mode">Game Mode:</label>
-    <select name="game_mode" id="game_mode" required>
-        <option value="">-- Select Game Mode --</option>
-        <option value="skirmish">Skirmish</option>
-        <option value="safe_travel">Safe Travel</option>
-    </select><br><br>
+        <label for="node_count">Node Count:</label>
+        <input id="node_count" type="number" name="node_count" required><br><br>
 
-    <label for="node_count">Node Count:</label>
-    <input id="node_count" type="number" name="node_count" required><br><br>
+        <label for="edge_count">Edge Count:</label>
+        <input id="edge_count" type="number" name="edge_count" required><br><br>
 
-    <label for="edge_count">Edge Count:</label>
-    <input id="edge_count" type="number" name="edge_count" required><br><br>
+        <label for="turns">Max Turns:</label>
+        <input id="turns" type="number" name="turns"><br><br>
 
-    <label for="turns">Max Turns:</label>
-    <input id="turns" type="number" name="turns"><br><br>
+        <!-- Units details -->
+        <label for="enemy_count">Enemy Count:</label>
+        <input id="enemy_count" type="number" name="enemy_count" required>
+        <div id="enemy-units-generate"></div>
+        <br><br>
 
-    <!-- Units details -->
-    <label for="enemy_count">Enemy Count:</label>
-    <input id="enemy_count" type="number" name="enemy_count" required>
-    <div id="enemy-units-generate"></div><br><br>
+        <label for="player_unit_count">Player Unit Count:</label>
+        <input id="player_unit_count" type="number" name="player_unit_count" required>
+        <div id="player-units-generate"></div>
+        <br><br>
 
-    <label for="player_unit_count">Player Unit Count:</label>
-    <input id="player_unit_count" type="number" name="player_unit_count" required>
-    <div id="player-units-generate"></div><br><br>
-
-    <button type="submit">Generate Puzzle</button>
-
+        <button type="submit">Generate Puzzle</button>
 </form>
+
 
 {% endblock %}

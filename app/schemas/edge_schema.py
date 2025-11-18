@@ -19,6 +19,8 @@ class EdgeGenerate(BaseModel):
 class EdgeRead(EdgeCreate):
     id: UUID
 
+class EdgeUpdate(EdgeRead):
+    pass
 
     class Config:
         from_attributes = True

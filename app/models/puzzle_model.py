@@ -17,6 +17,7 @@ class Puzzle(Base):
     node_count = Column(Integer, nullable=False)
     edge_count = Column(Integer)
     coins = Column(Integer)
+    description = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

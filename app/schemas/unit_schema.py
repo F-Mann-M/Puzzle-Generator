@@ -22,18 +22,18 @@ class UnitGenerate(BaseModel):
 
 class UnitRead(BaseModel):
     id: UUID
-    unit_type: str
+    type: str
     faction: str
     path: UUID
     puzzle_id: UUID
 
+
+class UnitUpdate(UnitCreate):
+    id: UUID
+    type: str
+
+
+
+
     class Config:
         from_attributes = True
-
-#
-# class UnitResponse(UnitCreate):
-#     id: UUID
-#
-#     class Config:
-#         # orm_mode = True
-#         from_attributes = True

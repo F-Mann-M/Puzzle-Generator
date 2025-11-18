@@ -3,83 +3,33 @@
 {% block title %}Puzzle Details{% endblock %}
 
 {% block content %}
-<h2>Puzzle Details</h2>
+<div class="headline"> <h2>Puzzle Details</h2></div>
 
-<ul>
-    <li><strong>Name:</strong> {{ puzzle.name }}</li>
-    <li><strong>ID:</strong> {{ puzzle.id }}</li>
-    <li><strong>Model:</strong> {{ puzzle.model }}</li>
-    <li><strong>Game Mode:</strong> {{ puzzle.game_mode }}</li>
-    <li><strong>Enemy Count:</strong> {{ puzzle.enemy_count }}</li>
-    <li><strong>Player Unit Count:</strong> {{ puzzle.player_unit_count }}</li>
-    <li><strong>Coins:</strong> {{ puzzle.coins }}</li>
-    <li><strong>Created At:</strong> {{ puzzle.created_at }}</li>
+<div class="layout_container">
+    <div class="text_container">
+
+    <strong>Name:</strong> {{ puzzle.name }}<br>
+<!--    <li><strong>ID:</strong> {{ puzzle.id }}</li>-->
+        <strong>Model:</strong> {{ puzzle.model }}<br>
+        <strong>Game Mode:</strong> {{ puzzle.game_mode }}<br>
+        <strong>Enemy Count:</strong> {{ puzzle.enemy_count }}<br>
+        <strong>Player Unit Count:</strong> {{ puzzle.player_unit_count }}<br>
+        <strong>Coins:</strong> {{ puzzle.coins }}<br>
+        <strong>Created At:</strong> {{ puzzle.created_at }}
+
 </ul>
-
-<h3>Related Enemy Units</h3>
-<ul>
-    {% for unit in puzzle.units %}
-    {% if unit.faction == "player" %}
-    <li>
-        <strong>Unit:</strong> {{ unit.unit_type }}
-        <ul>
-            {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
-
-            <li>
-                <strong>PathNode {{ path_node.order_index }}:</strong>
-                {{ path_node.node_index }}
-            </li>
-            {% endfor %}
-        </ul>
-    </li>
-    {% endif %}
-    {% endfor %}
-</ul>
-
-<h3>Related Player Units</h3>
-<ul>
-    {% for unit in puzzle.units %}
-    {% if unit.faction == "enemy" %}
-    <li>
-        <strong>Unit:</strong> {{ unit.unit_type }}
-        <ul>
-            {% for path_node in unit.path.path_node | sort(attribute="order_index") %}
-            <li>
-                <strong>PathNode {{ path_node.node_index }}:</strong>
-                {{ path_node.order_index }}
-            </li>
-            {% endfor %}
-        </ul>
-    </li>
-    {% endif %}
-    {% endfor %}
-</ul>
-
-<h3>Nodes</h3>
-<ul>
-    {% for node in puzzle.nodes | sort(attribute="node_index")%}
-    <li><strong>Index {{ node.node_index }}: </strong> x: {{ node.x_position }}, y: {{ node.y_position }}</li>
-    {% endfor %}
-</ul>
-
-
-<h3>Edges</h3>
-<ul>
-    {% for edge in puzzle.edges | sort(attribute="edge_index")%}
-    <li><strong>Index {{ edge.edge_index }}: </strong> start-node: {{ edge.start_node_id }}, end-node: {{
-        edge.end_node_id }}
-    </li>
-    {% endfor %}
-</ul>
+        </div>
+<div class="card_container"><p><strong>Description: </strong> {{ puzzle.description }}</p></div>
+</div>
 
 <!-- Puzzle Visualization -->
 <div class="p-4">
     <h2 class="text-lg font-bold mb-2">Puzzle Visualization</h2>
-    <iframe src="/puzzles/{{ puzzle.id }}/visualization"
-            style="width:100%; height:650px; border:none;">
-    </iframe>
+    <div id="puzzle-visualization-container" style="width: 100%; height: 600px; border: 1px solid #ccc; background: #f9f9f9;">
+        <svg id="puzzle-visualization-svg" data-puzzle-id="{{ puzzle.id }}" style="width: 100%; height: 100%;"></svg>
+    </div>
 </div>
-
+<script src="/static/visualize_puzzle.js" defer></script>
 
 <form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
     <button type="submit">Delete</button>

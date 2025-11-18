@@ -11,12 +11,16 @@ class NodeCreate(BaseModel):
 # for llm generation
 class NodeGenerate(BaseModel):
     index: int
-    x: int
-    y: int
+    x: float
+    y: float
 
 
 class NodeRead(NodeCreate):
     id: UUID
+
+
+class NodeUpdate(NodeRead):
+    pass
 
     class Config:
         # orm_mode = True

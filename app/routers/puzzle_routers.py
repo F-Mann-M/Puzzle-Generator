@@ -14,7 +14,6 @@ from app.core.database import get_db
 from app import models
 from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.services import PuzzleServices
-from app.visualization import generate_puzzle_visualization, generate_preview_visualization
 
 
 # create Jinja2 template engine
@@ -77,6 +76,12 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     services.delete_puzzle(puzzle_id)
     return {"detail": f"Puzzle {puzzle_id} deleted"}
 
+@router.delete("/{puzzle_id}/delete", response_class=HTMLResponse)
+async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
+    """Delete a puzzle"""
+    services = PuzzleServices(db)
+    services.delete_puzzle(puzzle_id)
+    return templates.TemplateResponse("puzzles.html", {"request": request, "puzzles": puzzles})
 
 # Get puzzle by id
 @router.get("/{puzzle_id}", response_class=HTMLResponse)
@@ -94,20 +99,11 @@ def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(
     return templates.TemplateResponse("update-puzzle.html", {"request": request, "puzzle": puzzle})
 
 
-# Puzzle Visualization
-@router.get("/{puzzle_id}/visualization", response_class=HTMLResponse)
-async def visualize_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
-    puzzle = db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
-    if not puzzle:
-        return HTMLResponse("<h3>Puzzle not found</h3>", status_code=404)
-
-    fig = generate_puzzle_visualization(puzzle)
-    html = fig.to_html(full_html=False, include_plotlyjs="cdn")
-    return HTMLResponse(content=html)
-
-
-@router.post("/preview")
-async def preview_puzzle(config: dict):
-    fig = generate_preview_visualization(config)
-    return JSONResponse(content=json.loads(fig.to_json()))
+# Serialize puzzle data to JSON for puzzle visualization
+@router.get("/{puzzle_id}/data", response_class=JSONResponse)
+async def get_puzzle_data(puzzle_id: UUID, db: Session = Depends(get_db)):
+    """Get puzzle data as JSON for visualization"""
+    services = PuzzleServices(db)
+    puzzle_data = services.serialize_puzzle(puzzle_id) # Serialize puzzle data to JSON
+    return JSONResponse(content=puzzle_data)
 

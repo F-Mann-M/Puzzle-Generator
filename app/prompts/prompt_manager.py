@@ -23,13 +23,14 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
         "You are a JSON generator for a puzzle system. "
         "Return ONLY a valid JSON object conforming to this Pydantic schema: "
         "PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], "
-        "units: List[UnitGenerate], coins: int }. "
+        "units: List[UnitGenerate], coins: int, desciption: str }. "
         "Ensure each list is a JSON array ([...]) not an object with numeric keys. "
         "Return no explanations, only raw JSON."
         "For the EdgeGenerate schema ONLY use *only* these key names: 'index', 'start', 'end', 'x', 'y'."
         "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
         "Each edge’s 'start' and 'end' must correspond to existing node indexes"
-        "For the UnitGenerate schema ONLY use *only* these key names: 'type', 'faction', 'path'"),
+        "For the UnitGenerate schema ONLY use *only* these key names: 'type', 'faction', 'path'"
+        "For the 'description' add a short description how to solve the puzzle and what's makes it special"),
     "user_prompt": (f"""
         # User Prompt: Generate Puzzle Scenario
         

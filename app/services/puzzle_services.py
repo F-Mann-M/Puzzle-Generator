@@ -30,6 +30,7 @@ class PuzzleServices:
             node_count=len([node for node in puzzle_data.nodes]),
             edge_count=len([edge for edge in puzzle_data.edges]),
             coins=puzzle_data.coins,
+            description=puzzle_data.description,
         )
         self.db.add(puzzle)
         self.db.flush()
@@ -68,7 +69,7 @@ class PuzzleServices:
         for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),
-                unit_type=unit_data["type"],  # ToDo: check what kind of type of data is provided by generated puzzle
+                unit_type=unit_data["type"],
                 faction=unit_data["faction"],
                 puzzle_id=puzzle.id,
             )
@@ -174,7 +175,7 @@ class PuzzleServices:
         )
 
         puzzle_generated = await llm.generate(prompts)
-        print("\n\nGenerated puzzle: ", puzzle_generated) #debugging
+        print("\n\nGenerated description: ", puzzle_generated.description) #debugging
 
         new_puzzle = PuzzleCreate(
             name=puzzle_config.name,
@@ -183,8 +184,52 @@ class PuzzleServices:
             coins=puzzle_generated.coins,
             nodes=[n.model_dump() for n in puzzle_generated.nodes],
             edges=[n.model_dump() for n in puzzle_generated.edges],
-            units=[n.model_dump() for n in puzzle_generated.units]
+            units=[n.model_dump() for n in puzzle_generated.units],
+            description=puzzle_generated.description
         )
 
         return new_puzzle
 
+
+    # Serialize puzzle data to JSON
+    def serialize_puzzle(self, puzzle_id):
+        puzzle = self.get_puzzle_by_id(puzzle_id)
+        puzzle_data = {
+            "nodes": [
+                {
+                    "id": str(node.id),
+                    "node_index": node.node_index,
+                    "x_position": node.x_position,
+                    "y_position": node.y_position
+                }
+                for node in sorted(puzzle.nodes, key=lambda n: n.node_index)
+            ],
+            "edges": [
+                {
+                    "edge_index": edge.edge_index,
+                    "start_node_id": str(edge.start_node_id),
+                    "end_node_id": str(edge.end_node_id)
+                }
+                for edge in sorted(puzzle.edges, key=lambda e: e.edge_index)
+            ],
+            "units": [
+                {
+                    "id": str(unit.id),
+                    "unit_type": unit.unit_type,
+                    "faction": unit.faction,
+                    "path": {
+                        "path_node": [
+                            {
+                                "node_id": str(path_node.node_id),
+                                "order_index": path_node.order_index,
+                                "node_index": path_node.node_index
+                            }
+                            for path_node in sorted(unit.path.path_node, key=lambda pn: pn.order_index)
+                        ]
+                    } if unit.path and unit.path.path_node else {"path_node": []}
+                }
+                for unit in puzzle.units
+            ]
+        }
+
+        return puzzle_data
