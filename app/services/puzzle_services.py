@@ -1,4 +1,3 @@
-
 from app import models
 from typing import List, Optional
 from fastapi import HTTPException
@@ -35,7 +34,6 @@ class PuzzleServices:
         self.db.add(puzzle)
         self.db.flush()
 
-
         # Create nodes, build and return index → id map. Used to build edges
         node_map = {}
         for node_data in puzzle_data.nodes:
@@ -49,7 +47,6 @@ class PuzzleServices:
             self.db.add(node)
             self.db.flush()
             node_map[node_data["index"]] = node.id
-
 
         for edge_data in puzzle_data.edges:
             start_uuid = node_map.get(edge_data["start"])
@@ -65,7 +62,150 @@ class PuzzleServices:
             self.db.flush()
 
         # Create Unit
-        print("\n\nUnit properies: ", puzzle_data.units) # debugging
+        print("\n\nUnit properties: ", puzzle_data.units)  # debugging
+        for unit_data in puzzle_data.units:
+            unit = models.Unit(
+                id=uuid4(),
+                unit_type=unit_data["type"],
+                faction=unit_data["faction"],
+                puzzle_id=puzzle.id,
+            )
+            self.db.add(unit)
+            self.db.flush()
+
+            # Create path
+            path = models.Path(unit_id=unit.id)
+            self.db.add(path)
+            self.db.flush()
+
+            # Create path_node
+            for index, n_index in enumerate(unit_data["path"]):
+                node = (
+                    self.db.query(models.Node)
+                    .filter(
+                        models.Node.puzzle_id == puzzle.id,
+                        models.Node.node_index == n_index
+                    )
+                    .first()
+                )
+                path_node = models.PathNode(
+                    id=uuid4(),
+                    path_id=path.id,
+                    node_id=node.id,
+                    order_index=index,
+                    node_index=n_index
+                )
+                self.db.add(path_node)
+                self.db.flush()
+
+        self.db.commit()
+        return puzzle
+
+    # get all puzzle
+    def get_all_puzzle(
+            self,
+            name: Optional[str] = None,
+            game_mode: Optional[str] = None,  # default None if no filter is selected
+            model: Optional[str] = None,
+            sort_by: Optional[str] = None,
+            order: Optional[str] = "asc"  # default asc
+    ) -> List[models.Puzzle]:  # returns a list of Puzzle objects
+        """Fetch puzzle with filter"""
+        query = self.db.query(models.Puzzle)
+
+        # filter not implemented to front-end yet
+        if name:
+            query = query.filter(models.Puzzle.name == name)
+        if game_mode:
+            query = query.filter(models.Puzzle.game_mode == game_mode)
+        if model:
+            query = query.filter(models.Puzzle.model == model)
+        if sort_by:
+            sort_column = getattr(models.Puzzle, sort_by, None)
+            if sort_column:
+                query = query.order_by(sort_column.desc() if order == "desc" else sort_column.asc())
+
+        puzzles = query.all()
+        return puzzles
+
+    # get one puzzle by id
+    def get_puzzle_by_id(self, puzzle_id):
+        """Fetch puzzle by id"""
+        puzzle = (self.db.query(models.Puzzle)
+                  .options(joinedload(models.Puzzle.units)  # gets related units form units table
+                           .joinedload(models.Unit.path)  # with paths
+                           .joinedload(models.Path.path_node))
+                  .options(joinedload(models.Puzzle.nodes))  # get related nodes
+                  .options(joinedload(models.Puzzle.edges))  # get related edges
+                  .filter(models.Puzzle.id == puzzle_id).first())
+        if not puzzle:
+            raise HTTPException(status_code=404, detail="Puzzle not found")
+        return puzzle
+
+    # delete one puzzle
+    def delete_puzzle(self, puzzle_id):
+        """Fetch puzzle by id an delete"""
+        puzzle = self.get_puzzle_by_id(puzzle_id)
+        if puzzle:
+            self.db.delete(puzzle)
+            self.db.commit()
+
+    def update_puzzle(self, puzzle_id, puzzle_data: PuzzleCreate):
+        """Update existing puzzle by deleting old data and recreating with new data"""
+        puzzle = self.get_puzzle_by_id(puzzle_id)
+        if not puzzle:
+            raise HTTPException(status_code=404, detail="Puzzle not found")
+
+        # Update puzzle metadata
+        puzzle.name = puzzle_data.name
+        puzzle.model = puzzle_data.model
+        puzzle.enemy_count = len([enemy for enemy in puzzle_data.units if enemy["faction"] == "enemy"])
+        puzzle.player_unit_count = len([player for player in puzzle_data.units if player["faction"] == "player"])
+        puzzle.game_mode = puzzle_data.game_mode
+        puzzle.node_count = len([node for node in puzzle_data.nodes])
+        puzzle.edge_count = len([edge for edge in puzzle_data.edges])
+        puzzle.coins = puzzle_data.coins
+        puzzle.description = puzzle_data.description
+        self.db.flush()
+
+        # Delete old nodes, edges, and units (cascade will handle paths and path_nodes)
+        for node in puzzle.nodes:
+            self.db.delete(node)
+        for edge in puzzle.edges:
+            self.db.delete(edge)
+        for unit in puzzle.units:
+            self.db.delete(unit)
+        self.db.flush()
+
+        # Create new nodes, build and return index → id map
+        node_map = {}
+        for node_data in puzzle_data.nodes:
+            node = models.Node(
+                id=uuid4(),
+                node_index=node_data["index"],
+                x_position=node_data["x"],
+                y_position=node_data["y"],
+                puzzle_id=puzzle.id
+            )
+            self.db.add(node)
+            self.db.flush()
+            node_map[node_data["index"]] = node.id
+
+        # Create new edges
+        for edge_data in puzzle_data.edges:
+            start_uuid = node_map.get(edge_data["start"])
+            end_uuid = node_map.get(edge_data["end"])
+            edge = models.Edge(
+                id=uuid4(),
+                edge_index=edge_data["index"],
+                start_node_id=start_uuid,
+                end_node_id=end_uuid,
+                puzzle_id=puzzle.id
+            )
+            self.db.add(edge)
+            self.db.flush()
+
+        # Create new units
         for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),
@@ -105,77 +245,37 @@ class PuzzleServices:
         return puzzle
 
 
-    # get all puzzle
-    def get_all_puzzle(
-            self,
-            name: Optional[str] = None,
-            game_mode: Optional[str] = None,  # default None if no filter is selected
-            model: Optional[str] = None,
-            sort_by: Optional[str] = None,
-            order: Optional[str] = "asc"  # default asc
-    ) -> List[models.Puzzle]:  # returns a list of Puzzle objects
-        """Fetch puzzle with filter"""
-        query = self.db.query(models.Puzzle)
-
-        # filter not implemented to front-end yet
-        if name:
-            query = query.filter(models.Puzzle.name == name)
-        if game_mode:
-            query = query.filter(models.Puzzle.game_mode == game_mode)
-        if model:
-            query = query.filter(models.Puzzle.model == model)
-        if sort_by:
-            sort_column = getattr(models.Puzzle, sort_by, None)
-            if sort_column:
-                query = query.order_by(sort_column.desc() if order == "desc" else sort_column.asc())
-
-        puzzles = query.all()
-        return puzzles
-
-    # get one puzzle by id
-    def get_puzzle_by_id(self, puzzle_id):
-        """Fetch puzzle by id"""
-        puzzle = (self.db.query(models.Puzzle)
-                  .options(joinedload(models.Puzzle.units) # gets related units form units table
-                           .joinedload(models.Unit.path) # with paths
-                           .joinedload(models.Path.path_node))
-                  .options(joinedload(models.Puzzle.nodes))  # get related nodes
-                  .options(joinedload(models.Puzzle.edges))  # get related edges
-                  .filter(models.Puzzle.id == puzzle_id).first())
-        if not puzzle:
-            raise HTTPException(status_code=404, detail="Puzzle not found")
-        return puzzle
-
-
-    # delete one puzzle
-    def delete_puzzle(self, puzzle_id):
-        """Fetch puzzle by id an delete"""
-        puzzle = self.get_puzzle_by_id(puzzle_id)
-        if puzzle:
-            self.db.delete(puzzle)
-            self.db.commit()
-
-
-    # update puzzle
-    def update_puzzle(self, puzzle_id, updated_data):
-        puzzle = self.get_puzzle_by_id(puzzle_id)
-
-
     # generate puzzle
-    async def generate_puzzle(self, puzzle_config: PuzzleGenerate)-> PuzzleCreate:
+    async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate:
         print("Puzzle Config: ", puzzle_config)
+
+        # get example puzzles from database
+        example_puzzles = self.get_all_puzzle()
+        # Serialize each puzzle to JSON format
+        serialized_examples = []
+        for puzzle in example_puzzles:
+            if puzzle.game_mode == puzzle_config.game_mode:
+                serialized = self.serialize_puzzle(puzzle.id)
+                # Add description and name for context
+                serialized['name'] = puzzle.name
+                serialized['description'] = puzzle.description
+                serialized['game_mode'] = puzzle.game_mode
+                serialized_examples.append(serialized)
 
         llm = get_llm(puzzle_config.model)
         prompts = await get_prompt(
+            example_puzzles=serialized_examples,
+            db=self.db,
             game_mode=puzzle_config.game_mode,
             node_count=puzzle_config.node_count,
             edge_count=puzzle_config.edge_count,
             turns=puzzle_config.turns,
             units=puzzle_config.units,
+            description=puzzle_config.description,
         )
 
         puzzle_generated = await llm.generate(prompts)
-        print("\n\nGenerated description: ", puzzle_generated.description) #debugging
+        print("\n\nGenerated description: ", puzzle_generated.description)  # debugging
 
         new_puzzle = PuzzleCreate(
             name=puzzle_config.name,
@@ -189,7 +289,6 @@ class PuzzleServices:
         )
 
         return new_puzzle
-
 
     # Serialize puzzle data to JSON
     def serialize_puzzle(self, puzzle_id):

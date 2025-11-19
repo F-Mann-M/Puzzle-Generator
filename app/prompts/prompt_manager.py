@@ -2,14 +2,19 @@ from app.prompts.prompt_game_rules import BASIC_RULES, GAME_MODE_SKIRMISH, GAME_
 import json
 
 
-async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: int, units: list) -> dict:
-    print("\n****** Values for prompt generation *****")
-    print("Edge Count: ", edge_count)
-    print("Node Count: ", node_count)
-    print("Turns: ", turns)
-    print("Gamer Mode: ", game_mode)
+async def get_prompt(
+        example_puzzles,
+        game_mode: str,
+        node_count: int,
+        edge_count: int,
+        turns: int,
+        units: list,
+        description: str, 
+        db) -> dict:
 
+    
     # define game mode
+    game_mode_prompt = ""
     if game_mode.lower() == "skirmish":
         game_mode_prompt = GAME_MODE_SKIRMISH
     elif game_mode.lower() == "safe_travel":
@@ -30,8 +35,13 @@ async def get_prompt(game_mode: str, node_count: int, edge_count: int, turns: in
         "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index'."
         "Each edge’s 'start' and 'end' must correspond to existing node indexes"
         "For the UnitGenerate schema ONLY use *only* these key names: 'type', 'faction', 'path'"
-        "For the 'description' add a short description how to solve the puzzle and what's makes it special"),
-    "user_prompt": (f"""
+        "For the 'description' add a short description how to solve the puzzle and what's makes it special"
+        "describe all moves in detail turn by turn. which unit is doing what and why."
+        f"Use {description}"
+        f"These are example puzzles in JSON format: {json.dumps(example_puzzles, indent=2)}"
+        f"Use these examples as reference for structure, difficulty, and puzzle design patterns."
+        ),
+        "user_prompt": (f"""
         # User Prompt: Generate Puzzle Scenario
         
         You are to create a new puzzle following all the rules and schema definitions provided in the system prompt.

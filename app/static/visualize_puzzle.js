@@ -266,19 +266,86 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
         circle.setAttribute("stroke", "black");
         circle.setAttribute("stroke-width", 3);
 
-        // Add text label for node index
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", node.x_position);
-        text.setAttribute("y", node.y_position);
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("dominant-baseline", "central");
-        text.setAttribute("font-size", "10");
-        text.setAttribute("font-weight", "bold");
-        text.setAttribute("fill", "black");
-        text.textContent = node.node_index;
+        // Create tooltip group
+        const tooltipGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        tooltipGroup.setAttribute("class", "node-tooltip");
+        tooltipGroup.style.display = "none";
+        tooltipGroup.style.pointerEvents = "none";
+
+        // Tooltip background rectangle
+        const tooltipRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        tooltipRect.setAttribute("fill", "white");
+        tooltipRect.setAttribute("stroke", "black");
+        tooltipRect.setAttribute("stroke-width", "1");
+        tooltipRect.setAttribute("rx", "3");
+        tooltipRect.setAttribute("ry", "3");
+
+        // Find units placed on this node (units that start here)
+        const unitsOnNode = puzzleData.units.filter(u => {
+            if (!u.path || !u.path.path_node || u.path.path_node.length === 0) return false;
+            const sortedPathNodes = [...u.path.path_node].sort((a, b) => a.order_index - b.order_index);
+            return sortedPathNodes[0].node_id === node.id;
+        });
+        const unitTypes = unitsOnNode.map(u => `${u.faction} ${u.unit_type || 'Unit'}`).join(', ');
+
+        // Tooltip text
+        const tooltipText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        tooltipText.setAttribute("font-size", "11");
+        tooltipText.setAttribute("fill", "black");
+        tooltipText.setAttribute("font-family", "monospace");
+        
+        let textContent = `Node: ${node.node_index}\nX: ${node.x_position}\nY: ${node.y_position}`;
+        if (unitTypes) {
+            textContent += `\nUnits: ${unitTypes}`;
+        }
+        const lines = textContent.split('\n');
+        
+        // Calculate tooltip size and position first
+        const textWidth = Math.max(120, lines.reduce((max, line) => Math.max(max, line.length * 6), 0));
+        const textHeight = lines.length * 14;
+        const padding = 6;
+        const offsetLeft = 25; // Distance from node center to tooltip
+        
+        // Rectangle position (to the left of node)
+        const rectX = -textWidth - padding * 2 - offsetLeft;
+        const rectY = -textHeight / 2 - padding;
+        
+        tooltipRect.setAttribute("width", textWidth + padding * 2);
+        tooltipRect.setAttribute("height", textHeight + padding * 2);
+        tooltipRect.setAttribute("x", rectX);
+        tooltipRect.setAttribute("y", rectY);
+
+        // Text position (inside rectangle, with padding)
+        const textX = rectX + padding;
+        const textY = rectY + padding + 11; // 11 is half font size for baseline
+        
+        tooltipText.setAttribute("x", textX);
+        tooltipText.setAttribute("y", textY);
+        tooltipText.setAttribute("text-anchor", "start");
+        
+        // Create tspan elements with correct positioning
+        lines.forEach((line, i) => {
+            const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+            tspan.setAttribute("x", textX);
+            tspan.setAttribute("dy", i === 0 ? "0" : "14");
+            tspan.textContent = line;
+            tooltipText.appendChild(tspan);
+        });
+
+        tooltipGroup.appendChild(tooltipRect);
+        tooltipGroup.appendChild(tooltipText);
+        tooltipGroup.setAttribute("transform", `translate(${node.x_position}, ${node.y_position})`);
+
+        // Mouseover/mouseout handlers
+        circle.addEventListener("mouseenter", () => {
+            tooltipGroup.style.display = "block";
+        });
+        circle.addEventListener("mouseleave", () => {
+            tooltipGroup.style.display = "none";
+        });
 
         svg.appendChild(circle);
-        // svg.appendChild(text);
+        svg.appendChild(tooltipGroup);
     });
 
     // --- Draw units (on their starting nodes) ---
@@ -353,8 +420,8 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
                     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
                     text.setAttribute("x", node.x_position);
                     text.setAttribute("y", node.y_position);
-                    text.setAttribute("text-anchor", "middle");
-                    text.setAttribute("dominant-baseline", "central");
+                    text.setAttribute("text-anchor", "left");
+                    text.setAttribute("dominant-baseline", "left");
                     text.setAttribute("font-size", "12");
                     text.setAttribute("font-weight", "bold");
                     text.setAttribute("fill", "black");

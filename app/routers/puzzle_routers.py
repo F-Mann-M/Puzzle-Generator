@@ -93,6 +93,15 @@ def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(
     return templates.TemplateResponse("update-puzzle.html", {"request": request, "puzzle": puzzle})
 
 
+# Update puzzle by id
+@router.put("/{puzzle_id}", response_class=HTMLResponse)
+async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Depends(get_db)):
+    """Update an existing puzzle"""
+    services = PuzzleServices(db)
+    updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
+    return RedirectResponse(url=f"/puzzles/{updated_puzzle.id}", status_code=303)
+
+
 # Serialize puzzle data to JSON for puzzle visualization
 @router.get("/{puzzle_id}/data", response_class=JSONResponse)
 async def get_puzzle_data(puzzle_id: UUID, db: Session = Depends(get_db)):

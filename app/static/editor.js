@@ -1,5 +1,5 @@
 // ======================================================
-// Puzzle Editor – Clean Working Version (Create-Only)
+// Puzzle Editor – Create and Update Version
 // ======================================================
 
 // --- GET ELEMENTS ---
@@ -32,6 +32,10 @@ let nextUnitId = 0;
 
 let pendingEdgeStart = null;
 let selectedUnit = null;
+
+// --- EDIT MODE DETECTION ---
+let isEditMode = false;
+let puzzleId = null;
 
 // ======================================================
 // Utility
@@ -457,6 +461,80 @@ function render() {
         c.setAttribute("stroke", "black");
         c.setAttribute("stroke-width", 3);
 
+        // Create tooltip group
+        const tooltipGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        tooltipGroup.setAttribute("class", "node-tooltip");
+        tooltipGroup.style.display = "none";
+        tooltipGroup.style.pointerEvents = "none";
+
+        // Tooltip background rectangle
+        const tooltipRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        tooltipRect.setAttribute("fill", "white");
+        tooltipRect.setAttribute("stroke", "black");
+        tooltipRect.setAttribute("stroke-width", "1");
+        tooltipRect.setAttribute("rx", "3");
+        tooltipRect.setAttribute("ry", "3");
+
+        // Find units placed on this node (units that start here)
+        const unitsOnNode = units.filter(u => !u.deleted && u.path.length > 0 && u.path[0] === n.id);
+        const unitTypes = unitsOnNode.map(u => `${u.faction} ${u.type || 'Unit'}`).join(', ');
+
+        // Tooltip text
+        const tooltipText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        tooltipText.setAttribute("font-size", "11");
+        tooltipText.setAttribute("fill", "black");
+        tooltipText.setAttribute("font-family", "monospace");
+        
+        let textContent = `Node: ${n.id}\nX: ${Math.round(n.x)}\nY: ${Math.round(n.y)}`;
+        if (unitTypes) {
+            textContent += `\nUnits: ${unitTypes}`;
+        }
+        const lines = textContent.split('\n');
+        
+        // Calculate tooltip size and position first
+        const textWidth = Math.max(120, lines.reduce((max, line) => Math.max(max, line.length * 6), 0));
+        const textHeight = lines.length * 14;
+        const padding = 6;
+        const offsetLeft = 25; // Distance from node center to tooltip
+        
+        // Rectangle position (to the left of node)
+        const rectX = -textWidth - padding * 2 - offsetLeft;
+        const rectY = -textHeight / 2 - padding;
+        
+        tooltipRect.setAttribute("width", textWidth + padding * 2);
+        tooltipRect.setAttribute("height", textHeight + padding * 2);
+        tooltipRect.setAttribute("x", rectX);
+        tooltipRect.setAttribute("y", rectY);
+
+        // Text position (inside rectangle, with padding)
+        const textX = rectX + padding;
+        const textY = rectY + padding + 11; // 11 is half font size for baseline
+        
+        tooltipText.setAttribute("x", textX);
+        tooltipText.setAttribute("y", textY);
+        tooltipText.setAttribute("text-anchor", "start");
+        
+        // Create tspan elements with correct positioning
+        lines.forEach((line, i) => {
+            const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+            tspan.setAttribute("x", textX);
+            tspan.setAttribute("dy", i === 0 ? "0" : "14");
+            tspan.textContent = line;
+            tooltipText.appendChild(tspan);
+        });
+
+        tooltipGroup.appendChild(tooltipRect);
+        tooltipGroup.appendChild(tooltipText);
+        tooltipGroup.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+
+        // Mouseover/mouseout handlers
+        c.addEventListener("mouseenter", () => {
+            tooltipGroup.style.display = "block";
+        });
+        c.addEventListener("mouseleave", () => {
+            tooltipGroup.style.display = "none";
+        });
+
         // Click on node to add to path when in edit-path mode
         c.addEventListener("click", evt => {
             if (currentTool === "edit-path" && selectedUnit != null) {
@@ -473,6 +551,7 @@ function render() {
         });
 
         svg.appendChild(c);
+        svg.appendChild(tooltipGroup);
     });
 
     // --- Draw Units ---
@@ -606,8 +685,11 @@ async function exportPuzzle(evt) {
     console.log("Sending PuzzleCreate payload:", payload);
 
     try {
-        const response = await fetch("/puzzles", {
-            method: "POST",
+        const method = isEditMode ? "PUT" : "POST";
+        const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
+        
+        const response = await fetch(url, {
+            method: method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
@@ -624,4 +706,135 @@ async function exportPuzzle(evt) {
 }
 
 exportBtn.addEventListener("click", exportPuzzle);
+
+// ======================================================
+// Initialize Editor (Load existing puzzle if in edit mode)
+// ======================================================
+document.addEventListener("DOMContentLoaded", async () => {
+    // Check for edit mode via data-puzzle-id attribute
+    const puzzleIdAttr = svg?.getAttribute("data-puzzle-id");
+    if (puzzleIdAttr) {
+        isEditMode = true;
+        puzzleId = puzzleIdAttr;
+        
+        // Update button text
+        if (exportBtn) {
+            exportBtn.textContent = "Update Puzzle";
+        }
+        
+        // Load existing puzzle data
+        await loadPuzzleData(puzzleId);
+    }
+});
+
+// ======================================================
+// Load Puzzle Data for Editing
+// ======================================================
+async function loadPuzzleData(puzzleId) {
+    try {
+        const response = await fetch(`/puzzles/${puzzleId}/data`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const puzzleData = await response.json();
+        
+        // Clear existing data
+        nodes = [];
+        edges = [];
+        units = [];
+        
+        // Find max indices to set nextNodeId, nextEdgeId, nextUnitId
+        let maxNodeIndex = -1;
+        let maxEdgeIndex = -1;
+        
+        // Load nodes
+        puzzleData.nodes.forEach(node => {
+            nodes.push({
+                id: node.node_index,
+                x: node.x_position,
+                y: node.y_position,
+                deleted: false
+            });
+            maxNodeIndex = Math.max(maxNodeIndex, node.node_index);
+        });
+        
+        // Create a map from node UUID to node_index for edge loading
+        const nodeIdToIndexMap = {};
+        puzzleData.nodes.forEach(node => {
+            nodeIdToIndexMap[node.id] = node.node_index;
+        });
+        
+        // Load edges
+        puzzleData.edges.forEach(edge => {
+            const startNodeIndex = nodeIdToIndexMap[edge.start_node_id];
+            const endNodeIndex = nodeIdToIndexMap[edge.end_node_id];
+            
+            if (startNodeIndex !== undefined && endNodeIndex !== undefined) {
+                edges.push({
+                    id: edge.edge_index,
+                    start: startNodeIndex,
+                    end: endNodeIndex,
+                    deleted: false
+                });
+                maxEdgeIndex = Math.max(maxEdgeIndex, edge.edge_index);
+            }
+        });
+        
+        // Load units
+        let unitCounter = 0;
+        puzzleData.units.forEach(unit => {
+            // Extract path as array of node indices
+            const path = [];
+            if (unit.path && unit.path.path_node) {
+                const sortedPathNodes = [...unit.path.path_node].sort((a, b) => a.order_index - b.order_index);
+                sortedPathNodes.forEach(pathNode => {
+                    // Use the nodeIdToIndexMap to get node_index
+                    const nodeIndex = nodeIdToIndexMap[pathNode.node_id];
+                    if (nodeIndex !== undefined) {
+                        path.push(nodeIndex);
+                    }
+                });
+            }
+            
+            units.push({
+                id: unitCounter++,
+                faction: unit.faction,
+                type: unit.unit_type,
+                path: path,
+                color: randomColor(),
+                deleted: false
+            });
+        });
+        
+        // Set next IDs to be higher than existing ones
+        nextNodeId = maxNodeIndex + 1;
+        nextEdgeId = maxEdgeIndex + 1;
+        nextUnitId = unitCounter;
+        
+        // Pre-fill form fields
+        if (editorForm) {
+            const nameField = document.getElementById("name");
+            const gameModeField = document.getElementById("game_mode");
+            const coinsField = document.getElementById("coins");
+            const descriptionField = document.getElementById("description");
+            
+            // Get puzzle metadata from the page (passed via template)
+            const puzzleName = document.querySelector('[data-puzzle-name]')?.getAttribute('data-puzzle-name');
+            const puzzleGameMode = document.querySelector('[data-puzzle-game-mode]')?.getAttribute('data-puzzle-game-mode');
+            const puzzleCoins = document.querySelector('[data-puzzle-coins]')?.getAttribute('data-puzzle-coins');
+            const puzzleDescription = document.querySelector('[data-puzzle-description]')?.getAttribute('data-puzzle-description');
+            
+            if (nameField && puzzleName) nameField.value = puzzleName;
+            if (gameModeField && puzzleGameMode) gameModeField.value = puzzleGameMode;
+            if (coinsField && puzzleCoins) coinsField.value = puzzleCoins;
+            if (descriptionField && puzzleDescription) descriptionField.value = puzzleDescription;
+        }
+        
+        // Render the loaded puzzle
+        render();
+    } catch (err) {
+        console.error("Error loading puzzle data:", err);
+        alert("Failed to load puzzle data: " + err.message);
+    }
+}
 
