@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Puzzle{% endblock %}
+
+{% block content %}
+<script src="/app/static/chat.js"></script>
+
+<h2>AI Chat Interface</h2>
+    <div id="chat-container">
+        <div class="ai-msg">AI: Welcome! Ask me a question.</div>
+    </div>
+
+    <form id="chat-form">
+        <input type="text" id="user-input" placeholder="Type your message..." required style="width: 80%;">
+        <button type="submit">Send</button>
+    </form>
+{% endblock %}

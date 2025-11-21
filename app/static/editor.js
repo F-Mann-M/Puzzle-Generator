@@ -84,7 +84,7 @@ function setupZoom() {
         const svgPoint = screenToSVG(svg, evt.clientX, evt.clientY);
         
         // Determine zoom factor (positive deltaY = scroll down = zoom out, negative = zoom in)
-        const zoomFactor = evt.deltaY > 0 ? 1.1 : 0.9;
+        const zoomFactor = evt.deltaY > 0 ? 0.9 : 1.1;
         const minZoom = 0.1;
         const maxZoom = 10.0;
         

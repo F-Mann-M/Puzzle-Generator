@@ -27,7 +27,13 @@ async def show_create_puzzle(request: Request):
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
 
-# Create puzzle by you own
+# load chat
+@router.get("/chat", response_class=HTMLResponse)
+async def show_chat(request: Request):
+    """Get chat page"""
+    return templates.TemplateResponse("chat.html", {"request": request})
+
+# Create puzzle
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
     services = PuzzleServices(db)
@@ -109,4 +115,5 @@ async def get_puzzle_data(puzzle_id: UUID, db: Session = Depends(get_db)):
     services = PuzzleServices(db)
     puzzle_data = services.serialize_puzzle(puzzle_id) # Serialize puzzle data to JSON
     return JSONResponse(content=puzzle_data)
+
 
