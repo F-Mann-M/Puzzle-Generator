@@ -33,6 +33,17 @@ let nextUnitId = 0;
 let pendingEdgeStart = null;
 let selectedUnit = null;
 
+// Zoom state
+let currentViewBox = { x: 0, y: 0, width: 1000, height: 1000 };
+let zoomLevel = 1.0;
+
+// Pan state
+let panning = false;
+let panStartX = null;
+let panStartY = null;
+let panStartViewBoxX = null;
+let panStartViewBoxY = null;
+
 // --- EDIT MODE DETECTION ---
 let isEditMode = false;
 let puzzleId = null;
@@ -45,6 +56,65 @@ function svgPoint(evt) {
     p.x = evt.clientX;
     p.y = evt.clientY;
     return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+// Update SVG viewBox from currentViewBox
+function updateViewBox() {
+    if (!svg) return;
+    svg.setAttribute("viewBox", `${currentViewBox.x} ${currentViewBox.y} ${currentViewBox.width} ${currentViewBox.height}`);
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+}
+
+// Convert screen coordinates to SVG coordinates
+function screenToSVG(svgElement, screenX, screenY) {
+    const pt = svgElement.createSVGPoint();
+    pt.x = screenX;
+    pt.y = screenY;
+    return pt.matrixTransform(svgElement.getScreenCTM().inverse());
+}
+
+// Handle mousewheel zoom
+function setupZoom() {
+    if (!svg) return;
+    
+    svg.addEventListener("wheel", (evt) => {
+        evt.preventDefault();
+        
+        // Convert mouse position to SVG coordinates
+        const svgPoint = screenToSVG(svg, evt.clientX, evt.clientY);
+        
+        // Determine zoom factor (positive deltaY = scroll down = zoom out, negative = zoom in)
+        const zoomFactor = evt.deltaY > 0 ? 1.1 : 0.9;
+        const minZoom = 0.1;
+        const maxZoom = 10.0;
+        
+        // Calculate new zoom level
+        const newZoom = zoomLevel * zoomFactor;
+        if (newZoom < minZoom || newZoom > maxZoom) return;
+        
+        // Calculate the ratio of the mouse point within the current viewBox
+        const ratioX = (svgPoint.x - currentViewBox.x) / currentViewBox.width;
+        const ratioY = (svgPoint.y - currentViewBox.y) / currentViewBox.height;
+        
+        // Calculate new viewBox dimensions
+        const newWidth = currentViewBox.width / zoomFactor;
+        const newHeight = currentViewBox.height / zoomFactor;
+        
+        // Adjust viewBox origin to keep the point under cursor fixed
+        const newX = svgPoint.x - ratioX * newWidth;
+        const newY = svgPoint.y - ratioY * newHeight;
+        
+        // Update state
+        zoomLevel = newZoom;
+        currentViewBox = {
+            x: newX,
+            y: newY,
+            width: newWidth,
+            height: newHeight
+        };
+        
+        updateViewBox();
+    });
 }
 
 function getNode(id) {
@@ -126,6 +196,30 @@ svg.addEventListener("mousedown", evt => {
     const pt = svgPoint(evt);
     didDrag = false; // Reset drag flag on new mousedown
 
+    // Check for right-click pan (button 2 = right mouse button)
+    if (evt.button === 2) {
+        // Check if clicking on a node - if so, don't pan (let context menu work)
+        for (const n of nodes) {
+            if (n.deleted) continue;
+            const dx = n.x - pt.x;
+            const dy = n.y - pt.y;
+            if (dx * dx + dy * dy < 20 * 20) {
+                // Clicked on a node, don't start panning
+                return;
+            }
+        }
+        
+        // Right-click in empty area - start panning
+        panning = true;
+        panStartX = evt.clientX;
+        panStartY = evt.clientY;
+        panStartViewBoxX = currentViewBox.x;
+        panStartViewBoxY = currentViewBox.y;
+        evt.preventDefault(); // Prevent context menu
+        return;
+    }
+
+    // Left-click node dragging
     for (const n of nodes) {
         if (n.deleted) continue;
         const dx = n.x - pt.x;
@@ -142,6 +236,31 @@ svg.addEventListener("mousedown", evt => {
 });
 
 svg.addEventListener("mousemove", evt => {
+    // Handle panning (right-click drag)
+    if (panning) {
+        const dx = evt.clientX - panStartX;
+        const dy = evt.clientY - panStartY;
+        
+        // Convert screen pixel movement to SVG coordinate movement
+        // Calculate scale based on viewBox dimensions vs SVG element size
+        const svgRect = svg.getBoundingClientRect();
+        const scaleX = currentViewBox.width / svgRect.width;
+        const scaleY = currentViewBox.height / svgRect.height;
+        
+        // Calculate pan offset in SVG coordinates
+        // Negative because dragging right should move viewBox left (content appears to move right)
+        const panOffsetX = -dx * scaleX;
+        const panOffsetY = -dy * scaleY;
+        
+        // Update viewBox
+        currentViewBox.x = panStartViewBoxX + panOffsetX;
+        currentViewBox.y = panStartViewBoxY + panOffsetY;
+        
+        updateViewBox();
+        return;
+    }
+    
+    // Handle node dragging
     if (potentialDrag && !dragging) {
         // Check if mouse has moved beyond threshold
         const dx = evt.clientX - dragStartX;
@@ -170,7 +289,17 @@ svg.addEventListener("mousemove", evt => {
     render();
 });
 
-document.addEventListener("mouseup", () => {
+document.addEventListener("mouseup", (evt) => {
+    // Stop panning on right mouse button release
+    if (evt.button === 2) {
+        panning = false;
+        panStartX = null;
+        panStartY = null;
+        panStartViewBoxX = null;
+        panStartViewBoxY = null;
+    }
+    
+    // Stop node dragging
     dragging = false;
     potentialDrag = false;
     draggingNodeId = null;
@@ -238,7 +367,7 @@ function loadUnitTypes() {
     unitTypeSelect.innerHTML = "";
     const options = faction === "enemy"
         ? ["Grunt", "Brute"]
-        : ["Swordman", "Nun", "Archer"];
+        : ["Swordsman", "Nun", "Archer"];
 
     for (const type of options) {
         const opt = document.createElement("option");
@@ -328,6 +457,47 @@ svg.addEventListener("click", evt => {
 // ======================================================
 function render() {
     svg.innerHTML = "";
+    
+    // Update viewBox to fit all nodes if we have any (only on first render or if nodes are outside)
+    const activeNodes = nodes.filter(n => !n.deleted);
+    if (activeNodes.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        activeNodes.forEach(n => {
+            minX = Math.min(minX, n.x);
+            minY = Math.min(minY, n.y);
+            maxX = Math.max(maxX, n.x);
+            maxY = Math.max(maxY, n.y);
+        });
+        
+        // Add padding
+        const padding = 100;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+        
+        // Only update viewBox if it hasn't been set yet (initial state) or if nodes are outside current viewBox
+        const nodesOutside = minX < currentViewBox.x || minY < currentViewBox.y || 
+            maxX > currentViewBox.x + currentViewBox.width || maxY > currentViewBox.y + currentViewBox.height;
+        
+        if (currentViewBox.width === 1000 && currentViewBox.height === 1000 && currentViewBox.x === 0 && currentViewBox.y === 0) {
+            // Initial state - set viewBox to fit nodes
+            currentViewBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+            zoomLevel = 1.0;
+            updateViewBox();
+        } else if (nodesOutside && zoomLevel === 1.0) {
+            // Nodes are outside and we're at default zoom - expand viewBox
+            const newMinX = Math.min(currentViewBox.x, minX);
+            const newMinY = Math.min(currentViewBox.y, minY);
+            const newMaxX = Math.max(currentViewBox.x + currentViewBox.width, maxX);
+            const newMaxY = Math.max(currentViewBox.y + currentViewBox.height, maxY);
+            currentViewBox = { x: newMinX, y: newMinY, width: newMaxX - newMinX, height: newMaxY - newMinY };
+            updateViewBox();
+        }
+    } else {
+        // No nodes - ensure viewBox is set
+        updateViewBox();
+    }
 
     // --- Draw edges ---
     edges.filter(e => !e.deleted).forEach(e => {
@@ -544,10 +714,12 @@ function render() {
             }
         });
 
-        // Right click = delete
+        // Right click = delete (only if not panning)
         c.addEventListener("contextmenu", evt => {
-            evt.preventDefault();
-            deleteNode(n.id);
+            if (!panning) {
+                evt.preventDefault();
+                deleteNode(n.id);
+            }
         });
 
         svg.appendChild(c);
@@ -711,6 +883,34 @@ exportBtn.addEventListener("click", exportPuzzle);
 // Initialize Editor (Load existing puzzle if in edit mode)
 // ======================================================
 document.addEventListener("DOMContentLoaded", async () => {
+    // Setup zoom functionality
+    setupZoom();
+    
+    // Prevent context menu on SVG when right-clicking in empty area (for panning)
+    if (svg) {
+        svg.addEventListener("contextmenu", (evt) => {
+            // Only prevent if we're not clicking on a node (nodes handle their own context menu)
+            const pt = svgPoint(evt);
+            let clickedOnNode = false;
+            for (const n of nodes) {
+                if (n.deleted) continue;
+                const dx = n.x - pt.x;
+                const dy = n.y - pt.y;
+                if (dx * dx + dy * dy < 20 * 20) {
+                    clickedOnNode = true;
+                    break;
+                }
+            }
+            // If not clicking on a node, prevent context menu to allow panning
+            if (!clickedOnNode) {
+                evt.preventDefault();
+            }
+        });
+    }
+    
+    // Set initial viewBox
+    updateViewBox();
+    
     // Check for edit mode via data-puzzle-id attribute
     const puzzleIdAttr = svg?.getAttribute("data-puzzle-id");
     if (puzzleIdAttr) {
@@ -829,6 +1029,10 @@ async function loadPuzzleData(puzzleId) {
             if (coinsField && puzzleCoins) coinsField.value = puzzleCoins;
             if (descriptionField && puzzleDescription) descriptionField.value = puzzleDescription;
         }
+        
+        // Reset zoom and viewBox to fit loaded puzzle
+        zoomLevel = 1.0;
+        currentViewBox = { x: 0, y: 0, width: 1000, height: 1000 }; // Reset to trigger auto-fit in render()
         
         // Render the loaded puzzle
         render();

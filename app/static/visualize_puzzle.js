@@ -6,6 +6,17 @@
 let storedPuzzleData = null;
 let selectedUnitId = null;
 
+// Zoom state
+let currentViewBox = { x: 0, y: 0, width: 100, height: 100 };
+let zoomLevel = 1.0;
+
+// Pan state
+let panning = false;
+let panStartX = null;
+let panStartY = null;
+let panStartViewBoxX = null;
+let panStartViewBoxY = null;
+
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
     // --- GET ELEMENTS ---
@@ -43,6 +54,12 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => {
             console.error("Error fetching puzzle data:", err);
         });
+    
+    // Setup zoom functionality
+    setupZoom();
+    
+    // Setup panning functionality
+    setupPanning();
 });
 
 // ======================================================
@@ -50,6 +67,167 @@ document.addEventListener("DOMContentLoaded", () => {
 // ======================================================
 function randomColor() {
     return "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
+}
+
+// Update SVG viewBox from currentViewBox
+function updateViewBox() {
+    const svg = document.getElementById("puzzle-visualization-svg");
+    if (!svg) return;
+    svg.setAttribute("viewBox", `${currentViewBox.x} ${currentViewBox.y} ${currentViewBox.width} ${currentViewBox.height}`);
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+}
+
+// Convert screen coordinates to SVG coordinates
+function screenToSVG(svg, screenX, screenY) {
+    const pt = svg.createSVGPoint();
+    pt.x = screenX;
+    pt.y = screenY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+// Handle mousewheel zoom
+function setupZoom() {
+    const svg = document.getElementById("puzzle-visualization-svg");
+    if (!svg) return;
+    
+    svg.addEventListener("wheel", (evt) => {
+        evt.preventDefault();
+        
+        // Convert mouse position to SVG coordinates
+        const svgPoint = screenToSVG(svg, evt.clientX, evt.clientY);
+        
+        // Determine zoom factor (positive deltaY = scroll down = zoom out, negative = zoom in)
+        const zoomFactor = evt.deltaY > 0 ? 0.9 : 1.1;
+        const minZoom = 0.1;
+        const maxZoom = 10.0;
+        
+        // Calculate new zoom level
+        const newZoom = zoomLevel * zoomFactor;
+        if (newZoom < minZoom || newZoom > maxZoom) return;
+        
+        // Calculate the ratio of the mouse point within the current viewBox
+        const ratioX = (svgPoint.x - currentViewBox.x) / currentViewBox.width;
+        const ratioY = (svgPoint.y - currentViewBox.y) / currentViewBox.height;
+        
+        // Calculate new viewBox dimensions
+        const newWidth = currentViewBox.width / zoomFactor;
+        const newHeight = currentViewBox.height / zoomFactor;
+        
+        // Adjust viewBox origin to keep the point under cursor fixed
+        const newX = svgPoint.x - ratioX * newWidth;
+        const newY = svgPoint.y - ratioY * newHeight;
+        
+        // Update state
+        zoomLevel = newZoom;
+        currentViewBox = {
+            x: newX,
+            y: newY,
+            width: newWidth,
+            height: newHeight
+        };
+        
+        updateViewBox();
+    });
+}
+
+// Handle right-click panning
+function setupPanning() {
+    const svg = document.getElementById("puzzle-visualization-svg");
+    if (!svg) return;
+    
+    // Right-click detection for panning
+    svg.addEventListener("mousedown", (evt) => {
+        // Check for right-click pan (button 2 = right mouse button)
+        if (evt.button === 2) {
+            // Convert click position to SVG coordinates to check if clicking on a node
+            const pt = screenToSVG(svg, evt.clientX, evt.clientY);
+            
+            // Check if clicking on a node - if so, don't pan (let other interactions work)
+            if (storedPuzzleData && storedPuzzleData.nodes) {
+                let clickedOnNode = false;
+                for (const node of storedPuzzleData.nodes) {
+                    const dx = node.x_position - pt.x;
+                    const dy = node.y_position - pt.y;
+                    if (dx * dx + dy * dy < 20 * 20) {
+                        // Clicked on a node, don't start panning
+                        clickedOnNode = true;
+                        break;
+                    }
+                }
+                if (clickedOnNode) {
+                    return;
+                }
+            }
+            
+            // Right-click in empty area - start panning
+            panning = true;
+            panStartX = evt.clientX;
+            panStartY = evt.clientY;
+            panStartViewBoxX = currentViewBox.x;
+            panStartViewBoxY = currentViewBox.y;
+            evt.preventDefault(); // Prevent context menu
+        }
+    });
+    
+    // Handle panning on mouse move
+    svg.addEventListener("mousemove", (evt) => {
+        if (panning) {
+            const dx = evt.clientX - panStartX;
+            const dy = evt.clientY - panStartY;
+            
+            // Convert screen pixel movement to SVG coordinate movement
+            // Calculate scale based on viewBox dimensions vs SVG element size
+            const svgRect = svg.getBoundingClientRect();
+            const scaleX = currentViewBox.width / svgRect.width;
+            const scaleY = currentViewBox.height / svgRect.height;
+            
+            // Calculate pan offset in SVG coordinates
+            // Negative because dragging right should move viewBox left (content appears to move right)
+            const panOffsetX = -dx * scaleX;
+            const panOffsetY = -dy * scaleY;
+            
+            // Update viewBox
+            currentViewBox.x = panStartViewBoxX + panOffsetX;
+            currentViewBox.y = panStartViewBoxY + panOffsetY;
+            
+            updateViewBox();
+        }
+    });
+    
+    // Stop panning on mouse up
+    document.addEventListener("mouseup", (evt) => {
+        // Stop panning on right mouse button release
+        if (evt.button === 2) {
+            panning = false;
+            panStartX = null;
+            panStartY = null;
+            panStartViewBoxX = null;
+            panStartViewBoxY = null;
+        }
+    });
+    
+    // Prevent context menu on SVG when right-clicking in empty area (for panning)
+    svg.addEventListener("contextmenu", (evt) => {
+        // Only prevent if we're not clicking on a node
+        const pt = screenToSVG(svg, evt.clientX, evt.clientY);
+        let clickedOnNode = false;
+        
+        if (storedPuzzleData && storedPuzzleData.nodes) {
+            for (const node of storedPuzzleData.nodes) {
+                const dx = node.x_position - pt.x;
+                const dy = node.y_position - pt.y;
+                if (dx * dx + dy * dy < 20 * 20) {
+                    clickedOnNode = true;
+                    break;
+                }
+            }
+        }
+        
+        // If not clicking on a node, prevent context menu to allow panning
+        if (!clickedOnNode) {
+            evt.preventDefault();
+        }
+    });
 }
 
 // Predefined colors for units
@@ -90,8 +268,9 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
     // Calculate bounding box for viewBox
     if (puzzleData.nodes.length === 0) {
         // Empty puzzle - set default viewBox
-        svg.setAttribute("viewBox", "0 0 100 100");
-        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        currentViewBox = { x: 0, y: 0, width: 100, height: 100 };
+        zoomLevel = 1.0;
+        updateViewBox();
         return;
     }
 
@@ -110,9 +289,10 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
     maxX += padding;
     maxY += padding;
 
-    // Set viewBox for proper scaling
-    svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
-    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    // Set initial viewBox for proper scaling
+    currentViewBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    zoomLevel = 1.0;
+    updateViewBox();
 
     // Create node ID to index mapping for edges
     const nodeIdToIndex = {};

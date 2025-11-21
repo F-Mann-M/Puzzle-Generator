@@ -3,29 +3,34 @@
 {% block title %}Puzzle Details{% endblock %}
 
 {% block content %}
-<div class="headline"> <h2>Puzzle Details</h2></div>
+<!--<div class="headline"><h2>Puzzle Details</h2></div>-->
 
 <div class="layout_container">
     <div class="text_container">
-
-    <strong>Name:</strong> {{ puzzle.name }}<br>
-<!--    <li><strong>ID:</strong> {{ puzzle.id }}</li>-->
+        <strong>Puzzle Details:</strong><br><br>
+        <strong>Name:</strong> {{ puzzle.name }}<br>
+        <!--    <li><strong>ID:</strong> {{ puzzle.id }}</li>-->
         <strong>Model:</strong> {{ puzzle.model }}<br>
         <strong>Game Mode:</strong> {{ puzzle.game_mode }}<br>
         <strong>Enemy Count:</strong> {{ puzzle.enemy_count }}<br>
         <strong>Player Unit Count:</strong> {{ puzzle.player_unit_count }}<br>
         <strong>Coins:</strong> {{ puzzle.coins }}<br>
-        <strong>Created At:</strong> {{ puzzle.created_at }}
+        <strong>Created At:</strong> {{ puzzle.created_at }} <br>
+        {% if puzzle.updated_at %}
+        <strong>Last update:</strong> {{ puzzle.updated_at }}
+        {% endif %}
 
-</ul>
-        </div>
-<div class="card_container"><p><strong>Description: </strong><br> {{ puzzle.description }}</p></div>
+        </ul>
+    </div>
+    <div class="card_container"><strong>Description:</strong>{{ puzzle.description|replace('\r\n', '<br>')|replace('\n', '<br>')|replace('\r', '<br>')|safe }}
+    </div>
 </div>
 
 <!-- Puzzle Visualization -->
 <div class="p-4">
     <h2 class="text-lg font-bold mb-2">Puzzle Visualization</h2>
-    <div id="puzzle-visualization-container" style="width: 100%; height: 600px; border: 1px solid #ccc; background: #f9f9f9;">
+    <div id="puzzle-visualization-container"
+         style="width: 100%; height: 600px; border: 1px solid #ccc; background: #f9f9f9;">
         <svg id="puzzle-visualization-svg" data-puzzle-id="{{ puzzle.id }}" style="width: 100%; height: 100%;"></svg>
     </div>
 </div>
@@ -34,7 +39,9 @@
 <form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
     <button type="submit">Delete</button>
 </form>
-<a href="/puzzles/{{ puzzle.id }}/update"><button>Edit</button></a>
+<a href="/puzzles/{{ puzzle.id }}/update">
+    <button>Edit</button>
+</a>
 </form><br><br>
 
 <a href="/puzzles">← Back to list</a>

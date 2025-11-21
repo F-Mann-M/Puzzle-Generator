@@ -128,6 +128,7 @@ class PuzzleServices:
         puzzles = query.all()
         return puzzles
 
+
     # get one puzzle by id
     def get_puzzle_by_id(self, puzzle_id):
         """Fetch puzzle by id"""
@@ -142,6 +143,7 @@ class PuzzleServices:
             raise HTTPException(status_code=404, detail="Puzzle not found")
         return puzzle
 
+
     # delete one puzzle
     def delete_puzzle(self, puzzle_id):
         """Fetch puzzle by id an delete"""
@@ -149,6 +151,7 @@ class PuzzleServices:
         if puzzle:
             self.db.delete(puzzle)
             self.db.commit()
+
 
     def update_puzzle(self, puzzle_id, puzzle_data: PuzzleCreate):
         """Update existing puzzle by deleting old data and recreating with new data"""
@@ -168,7 +171,7 @@ class PuzzleServices:
         puzzle.description = puzzle_data.description
         self.db.flush()
 
-        # Delete old nodes, edges, and units (cascade will handle paths and path_nodes)
+        # Delete old nodes, edges, and units
         for node in puzzle.nodes:
             self.db.delete(node)
         for edge in puzzle.edges:
