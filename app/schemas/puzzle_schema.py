@@ -18,6 +18,7 @@ class PuzzleCreate(BaseModel):
     edges: List[dict]
     units: List[dict]
     description: Optional[str] = ""
+    is_working: Optional[bool] = False
 
 
 # Data sent from user to MML

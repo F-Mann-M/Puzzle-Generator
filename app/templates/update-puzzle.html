@@ -47,7 +47,12 @@
         <option value="Plunder" {% if puzzle.game_mode == 'Plunder' %}selected{% endif %}>Plunder</option>
     </select>
     <label for="coins">Coins:</label>
-    <input type="number" name="coins" id="coins" placeholder="Coins" value="{{ puzzle.coins or '' }}"><br><br>
+    <input type="number" name="coins" id="coins" placeholder="Coins" value="{{ puzzle.coins or '' }}">
+    <label for="is_working">Is the puzzle working?</label>
+        <select name="is_working" id="is_working">
+            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Yes</option>
+            <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>No</option>
+        </select><br><br>
 
     <textarea name="description" id="description" placeholder="Description">{{ puzzle.description or '' }}</textarea>
 

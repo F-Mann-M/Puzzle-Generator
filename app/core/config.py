@@ -9,7 +9,7 @@ class Settings(BaseSettings): # load all key=value pairs from .env
     GEMINI_KEY: str
     GROQ_KEY: str
     CLAUD_KEY: str
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str # Masterschool key
 
     model_config = SettingsConfigDict(
         env_file = BASE_DIR/".env",

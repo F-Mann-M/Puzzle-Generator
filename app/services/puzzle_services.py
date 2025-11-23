@@ -30,6 +30,7 @@ class PuzzleServices:
             edge_count=len([edge for edge in puzzle_data.edges]),
             coins=puzzle_data.coins,
             description=puzzle_data.description,
+            is_working=puzzle_data.is_working,
         )
         self.db.add(puzzle)
         self.db.flush()
@@ -169,6 +170,7 @@ class PuzzleServices:
         puzzle.edge_count = len([edge for edge in puzzle_data.edges])
         puzzle.coins = puzzle_data.coins
         puzzle.description = puzzle_data.description
+        puzzle.is_working = puzzle_data.is_working
         self.db.flush()
 
         # Delete old nodes, edges, and units
@@ -257,7 +259,7 @@ class PuzzleServices:
         # Serialize each puzzle to JSON format
         serialized_examples = []
         for puzzle in example_puzzles:
-            if puzzle.game_mode == puzzle_config.game_mode:
+            if puzzle.game_mode.lower() == puzzle_config.game_mode.lower() and puzzle.is_working:
                 serialized = self.serialize_puzzle(puzzle.id)
                 # Add description and name for context
                 serialized['name'] = puzzle.name
@@ -335,3 +337,8 @@ class PuzzleServices:
         }
 
         return puzzle_data
+
+
+    # Get Chat data and evaluate next steps
+    def chat(self, ):
+        pass

@@ -15,6 +15,7 @@ function displayMessage(sender, text) {
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault(); // Prevent the default form submission (page reload)
     const message = userInput.value.trim();
+    const model = document.getElementById('model').value;
     if (!message) return;
 
     displayMessage('user', message);
@@ -22,12 +23,12 @@ chatForm.addEventListener('submit', async (e) => {
 
     // --- 1. Send the message to the FastAPI endpoint ---
     try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch('/puzzles/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({message: message})
+            body: JSON.stringify({message: message, model: model})
         });
 
         if (!response.ok) {

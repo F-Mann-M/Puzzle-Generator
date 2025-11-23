@@ -9,7 +9,9 @@
     <div class="text_container">
         <strong>Puzzle Details:</strong><br><br>
         <strong>Name:</strong> {{ puzzle.name }}<br>
-        <!--    <li><strong>ID:</strong> {{ puzzle.id }}</li>-->
+        <strong>Is Working:</strong>
+        {% if puzzle.is_working == True %} <span style="color: green">Yes</span>
+        {% else %}<span style="color: red"> No </span>{% endif %}<br>
         <strong>Model:</strong> {{ puzzle.model }}<br>
         <strong>Game Mode:</strong> {{ puzzle.game_mode }}<br>
         <strong>Enemy Count:</strong> {{ puzzle.enemy_count }}<br>

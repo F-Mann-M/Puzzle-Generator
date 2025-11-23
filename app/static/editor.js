@@ -825,6 +825,7 @@ async function exportPuzzle(evt) {
     const game_mode = formData.get("game_mode") || "";
     const coins = Number(formData.get("coins") || 0);
     const description = (formData.get("description") || "").toString().trim();
+    const is_working = (formData.get("is_working") || false)
 
     if (!name || !game_mode) {
         alert("Name and Game Mode are required!");
@@ -837,6 +838,7 @@ async function exportPuzzle(evt) {
         game_mode,
         coins,
         description,
+        is_working,
         nodes: nodes.filter(n => !n.deleted).map(n => ({
             index: n.id,
             x: n.x,

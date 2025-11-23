@@ -12,7 +12,7 @@ import json
 # import form project
 from app.core.database import get_db
 from app import models
-from app.schemas import PuzzleCreate, PuzzleGenerate
+from app.schemas import PuzzleCreate, PuzzleGenerate, ChatRequest
 from app.services import PuzzleServices
 
 
@@ -32,6 +32,18 @@ async def show_create_puzzle(request: Request):
 async def show_chat(request: Request):
     """Get chat page"""
     return templates.TemplateResponse("chat.html", {"request": request})
+
+
+# Chat:
+@router.post("/chat", response_class=JSONResponse)
+async def chat(request: Request, chat_data: ChatRequest, db: Session = Depends(get_db)):
+    """Chat with the AI"""
+    print("this is chat content: ", chat_data.message, chat_data.model)
+    # services = PuzzleServices(db)
+    # response = services.chat(chat_data.model, chat_data.message)
+
+    # return JSONResponse(content={"response": response})
+
 
 # Create puzzle
 @router.post("/", response_class=HTMLResponse)
