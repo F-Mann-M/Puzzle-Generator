@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.llm import get_llm
 from app.prompts.prompt_manager import get_prompt
+from app.prompts.prompt_game_rules import BASIC_RULES
 
 
 class PuzzleServices:
@@ -340,5 +341,18 @@ class PuzzleServices:
 
 
     # Get Chat data and evaluate next steps
-    def chat(self, ):
-        pass
+    async def chat(self, model: str, message: str) -> str:
+        llm = get_llm(model)
+        system_prompt = (
+            "You are an helpfully assistant."
+            "you are an noble advisor."
+            "You speak like a noble advisor from the Middle Ages. "
+            "You only address the user as 'My Lord'."
+            f"If user asks for the rules of the game use {BASIC_RULES}."
+            "You ONLY answer questions related to the puzzle rules"
+            "Your ONLY purpose is to help the user with the a puzzle."
+            "if user asks for somthing not puzzle related answer in a funny way. make up a very short Middle Ages anecdote"
+        )
+        prompt = {"system_prompt": system_prompt, "user_prompt": message}
+        llm_response = await llm.chat(prompt)
+        return llm_response

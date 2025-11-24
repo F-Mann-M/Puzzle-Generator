@@ -1,6 +1,6 @@
 # import moduls/libraries
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -39,10 +39,9 @@ async def show_chat(request: Request):
 async def chat(request: Request, chat_data: ChatRequest, db: Session = Depends(get_db)):
     """Chat with the AI"""
     print("this is chat content: ", chat_data.message, chat_data.model)
-    # services = PuzzleServices(db)
-    # response = services.chat(chat_data.model, chat_data.message)
-
-    # return JSONResponse(content={"response": response})
+    services = PuzzleServices(db)
+    response = await services.chat(chat_data.model, chat_data.message)
+    return JSONResponse(content={"response": response})
 
 
 # Create puzzle
