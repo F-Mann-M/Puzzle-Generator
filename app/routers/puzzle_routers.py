@@ -1,17 +1,16 @@
 # import moduls/libraries
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Query, Request, Form
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID
 from pathlib import Path
-import json
+
 
 
 # import form project
 from app.core.database import get_db
-from app import models
 from app.schemas import PuzzleCreate, PuzzleGenerate, ChatRequest
 from app.services import PuzzleServices
 
@@ -24,6 +23,7 @@ router = APIRouter()
 # load puzzle builder
 @router.get("/create-puzzle", response_class=HTMLResponse)
 async def show_create_puzzle(request: Request):
+    """Show create puzzle page"""
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
 
@@ -35,18 +35,25 @@ async def show_chat(request: Request):
 
 
 # Chat:
-@router.post("/chat", response_class=JSONResponse)
-async def chat(request: Request, chat_data: ChatRequest, db: Session = Depends(get_db)):
+@router.post("/chat", response_class=HTMLResponse)
+async def chat(
+    request: Request,
+    chat_data: ChatRequest,
+    db: Session = Depends(get_db)
+):
     """Chat with the AI"""
     print("this is chat content: ", chat_data.message, chat_data.model)
+
     services = PuzzleServices(db)
     response = await services.chat(chat_data.model, chat_data.message)
-    return JSONResponse(content={"response": response})
-
+    user_msg = f'<div class="user-msg" style="margin: 10px 0; padding: 10px; background-color: #e3f2fd; border-radius: 5px;"><strong>You:</strong> {chat_data.message}</div>'
+    ai_msg = f'<div class="ai-msg" style="margin: 10px 0; padding: 10px; background-color: #f1f8e9; border-radius: 5px;"><strong>Rudolfo:</strong> {response}</div>'
+    return HTMLResponse(content=user_msg + ai_msg)
 
 # Create puzzle
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
+    """Create a new puzzle"""
     services = PuzzleServices(db)
     new_puzzle = services.create_puzzle(puzzle)
     return RedirectResponse(url=f"/puzzles/{new_puzzle.id}", status_code=303)
@@ -55,13 +62,14 @@ async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
 # Load puzzle generator
 @router.get("/generate", response_class=HTMLResponse)
 async def show_generate_puzzle(request: Request):
-     return templates.TemplateResponse("generate-puzzle.html", {"request": request})
+    """Show generate puzzle page"""
+    return templates.TemplateResponse("generate-puzzle.html", {"request": request})
 
 
 # Generate puzzle (LLM Endpoint)
 @router.post("/generate")
 async def generate_puzzle(puzzle_generate: PuzzleGenerate, db: Session = Depends(get_db)):
-    """Takes in json data from front-end, generates puzzle data and stores puzzle to database."""
+    """Generate a new puzzle"""
     services = PuzzleServices(db)
     puzzle_generated = await services.generate_puzzle(puzzle_generate)
     new_puzzle = services.create_puzzle(puzzle_generated)
@@ -86,12 +94,12 @@ async def get_puzzles(
 
 
 # API Delete Request
-@router.delete("/{puzzle_id}", status_code=200)
+@router.delete("/{puzzle_id}/delete", status_code=204)
 async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     """Delete a puzzle"""
     services = PuzzleServices(db)
     services.delete_puzzle(puzzle_id)
-    return {"detail": f"Puzzle {puzzle_id} deleted"}
+    return HTMLResponse(content="", status_code=200)
 
 
 # Get puzzle by id
@@ -105,19 +113,10 @@ async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(ge
 
 @router.get("/{puzzle_id}/update", response_class=HTMLResponse)
 def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
+    """Show update puzzle page"""
     services = PuzzleServices(db)
     puzzle = services.get_puzzle_by_id(puzzle_id)
     return templates.TemplateResponse("update-puzzle.html", {"request": request, "puzzle": puzzle})
-
-
-# Update puzzle by id
-@router.put("/{puzzle_id}", response_class=HTMLResponse)
-async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Depends(get_db)):
-    """Update an existing puzzle"""
-    services = PuzzleServices(db)
-    updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
-    return RedirectResponse(url=f"/puzzles/{updated_puzzle.id}", status_code=303)
-
 
 # Serialize puzzle data to JSON for puzzle visualization
 @router.get("/{puzzle_id}/data", response_class=JSONResponse)

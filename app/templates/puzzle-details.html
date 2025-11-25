@@ -38,13 +38,11 @@
 </div>
 <script src="/static/visualize_puzzle.js" defer></script><br>
 
-<form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
-    <button type="submit">Delete</button>
-</form>
-<a href="/puzzles/{{ puzzle.id }}/update">
-    <button>Edit</button>
-</a>
-</form><br><br>
+<button hx-delete="/puzzles/{{ puzzle.id }}/delete"
+        hx-trigger="click"
+        hx-on::after-request="if(event.detail.xhr.status === 200) window.location.href='/puzzles'">Delete</button>
+<a href="/puzzles/{{ puzzle.id }}/update"><button>Edit</button></a>
+<br><br>
 
 <a href="/puzzles">← Back to list</a>
 {% endblock %}

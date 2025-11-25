@@ -65,10 +65,7 @@ class OpenAIClient:
         except TypeError:
             response = await self.client.responses.create(model=self.model_name, messages=prompt, stream=True)
 
-
-        print("Token input: ", response.output[0].usage.total_input)
-        print("Token output: ", response.output[0].usage.total_output)
-        print("Token usage total: ", response.output[0].usage.total_tokens)
+        print(response)
         return response.output[0].content[0].text
 
 

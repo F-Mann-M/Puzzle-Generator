@@ -24,10 +24,20 @@
         <td>{{ puzzle.player_unit_count }}</td>
         <td>{{ puzzle.is_working }}</td>
         <td>
-            <a href="/puzzles/{{ puzzle.id }}"><button>View</button></a>
-            <a href="/puzzles/{{ puzzle.id }}/update"><button>Edit</button></a>
-            <form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">
-                <button type="submit">Delete</button>
+            <a href="/puzzles/{{ puzzle.id }}">
+                <button>View</button>
+            </a>
+            <a href="/puzzles/{{ puzzle.id }}/update">
+                <button>Edit</button>
+            </a>
+            <button hx-delete="{{puzzle.id}}/delete"
+                    hx-trigger="click"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML">
+                Delete</button>
+
+            <!--            <form onsubmit="deletePuzzle(event, '{{ puzzle.id }}')" style="display:inline;">-->
+            <!--                <button type="submit">Delete</button>-->
             </form>
 
     </tr>

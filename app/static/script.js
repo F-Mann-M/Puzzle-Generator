@@ -1,26 +1,4 @@
 // =======================
-// Delete puzzle
-// =======================
-async function deletePuzzle(event, puzzleId) {
-    event.preventDefault();
-    if (!confirm("Are you sure you want to delete this puzzle?")) return;
-
-    try {
-        const response = await fetch(`/puzzles/${puzzleId}`, {method: "DELETE"});
-        if (response.ok) {
-            // Redirect to puzzles list after successful deletion
-            window.location.href = "/puzzles";
-        } else {
-            const errorText = await response.text().catch(() => "Unknown error");
-            alert(`Error deleting puzzle: ${errorText}`);
-        }
-    } catch (err) {
-        console.error("Error deleting puzzle:", err);
-        alert("Error deleting puzzle: " + err.message);
-    }
-}
-
-// =======================
 // Generate Puzzle Page – Build structured JSON
 // =======================
 document.addEventListener("DOMContentLoaded", () => {
@@ -136,11 +114,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (response.redirected) {
     window.location.href = response.url;  // manually follow it
     } else if (response.ok) {
-      alert("✅ Puzzle generation request sent!");
+      alert("Puzzle generation request sent!");
     } else {
       const err = await response.text();
-      alert("❌ Error generating puzzle: " + err);
-      console.error("❌ Server response:", err);
+      alert("Error generating puzzle: " + err);
+      console.error("Server response:", err);
     }
   });
 });

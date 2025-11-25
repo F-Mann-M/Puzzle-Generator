@@ -4,16 +4,15 @@
 
 {% block content %}
 
-
-<h2>AI Chat Interface</h2>
+<h2>Puzzle Council</h2>
 <div id="chat-container">
-    wellcome to this chat.
-    <!-- messages will appear here -->
+    Welcome to our council. Together we will help you devise the best puzzles.
+    <!-- chat messages will appear here -->
 </div>
 
-    <form id="chat-form">
-
-        <textarea type="text" id="user-input" placeholder="Type your message..." required
+    <form id="chat-form" hx-post="chat" hx-target="#chat-container" hx-swap="beforeend" hx-ext="json-enc">
+        <br><br>
+        <textarea type="text" id="user-input" name="message" placeholder="Type your message..." required
                   style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>
         <!-- choose Model -->
         <label for="model">Model:</label>
@@ -29,5 +28,4 @@
         <button type="submit" id="sendBtn">Send</button>
     </form>
 
-<script src="/static/chat.js"></script>
 {% endblock %}
