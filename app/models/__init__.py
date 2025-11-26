@@ -4,4 +4,5 @@ from app.models.node_model import Node
 from app.models.edge_model import Edge
 from app.models.path_model import Path
 from app.models.path_nodes import PathNode
-
+from app.models.session_model import Session
+from app.models.message_model import Message

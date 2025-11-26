@@ -11,7 +11,7 @@ from pathlib import Path
 
 # import form project
 from app.core.database import get_db
-from app.schemas import PuzzleCreate, PuzzleGenerate, ChatRequest
+from app.schemas import PuzzleCreate, PuzzleGenerate, SessionRequest
 from app.services import PuzzleServices
 
 
@@ -36,17 +36,14 @@ async def show_chat(request: Request):
 
 # Chat:
 @router.post("/chat", response_class=HTMLResponse)
-async def chat(
-    request: Request,
-    chat_data: ChatRequest,
-    db: Session = Depends(get_db)
+async def chat(session_data: SessionRequest, db: Session = Depends(get_db)
 ):
     """Chat with the AI"""
-    print("this is chat content: ", chat_data.message, chat_data.model)
+    print("this is chat content: ", session_data.message, session_data.model)
 
     services = PuzzleServices(db)
-    response = await services.chat(chat_data.model, chat_data.message)
-    user_msg = f'<div class="user-msg" style="margin: 10px 0; padding: 10px; background-color: #e3f2fd; border-radius: 5px;"><strong>You:</strong> {chat_data.message}</div>'
+    response = await services.chat(session_data.model, session_data.content)
+    user_msg = f'<div class="user-msg" style="margin: 10px 0; padding: 10px; background-color: #e3f2fd; border-radius: 5px;"><strong>You:</strong> {session_data.content}</div>'
     ai_msg = f'<div class="ai-msg" style="margin: 10px 0; padding: 10px; background-color: #f1f8e9; border-radius: 5px;"><strong>Rudolfo:</strong> {response}</div>'
     return HTMLResponse(content=user_msg + ai_msg)
 

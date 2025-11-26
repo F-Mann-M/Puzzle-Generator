@@ -2,7 +2,7 @@ from app.prompts.prompt_game_rules import BASIC_RULES, GAME_MODE_SKIRMISH, GAME_
 import json
 
 
-async def get_prompt(
+async def get_puzzle_generation_prompt(
         example_puzzles,
         game_mode: str,
         node_count: int,
@@ -65,3 +65,4 @@ async def get_prompt(
     }
     print(f"Prompt built successfully (nodes={node_count}, edges={edge_count}, units={len(units)}")
     return prompt
+

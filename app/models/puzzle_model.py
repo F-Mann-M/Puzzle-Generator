@@ -24,11 +24,12 @@ class Puzzle(Base):
 
 
 
-    # relationship: many objects one puzzle
+    # relationship
     units = relationship("Unit", back_populates="puzzle", cascade="all, delete-orphan")
     nodes = relationship("Node", back_populates="puzzle", cascade="all, delete-orphan")
     edges = relationship("Edge", back_populates="puzzle", cascade="all, delete-orphan")
-    # path relationship
+    sessions = relationship("Session", back_populates="puzzle")
+
 
 
 
