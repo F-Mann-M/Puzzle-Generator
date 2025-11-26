@@ -12,5 +12,5 @@ class Session(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     puzzle = relationship("Puzzle", backref="sessions")
-    message = relationship("Message", backref="sessions", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="sessions", cascade="all, delete-orphan")
 
