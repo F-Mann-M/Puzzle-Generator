@@ -1,5 +1,5 @@
 # import moduls/libraries
-from fastapi import APIRouter, Depends, Query, Request, Form
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -11,8 +11,8 @@ from pathlib import Path
 
 # import form project
 from app.core.database import get_db
-from app.schemas import PuzzleCreate, PuzzleGenerate, SessionRequest
-from app.services import PuzzleServices
+from app.schemas import PuzzleCreate, PuzzleGenerate, ChatFromRequest
+from app.services import PuzzleServices, SessionService
 
 
 # create Jinja2 template engine
@@ -29,23 +29,42 @@ async def show_create_puzzle(request: Request):
 
 # load chat
 @router.get("/chat", response_class=HTMLResponse)
-async def show_chat(request: Request):
-    """Get chat page"""
-    return templates.TemplateResponse("chat.html", {"request": request})
+async def show_chat(request: Request, db: Session = Depends(get_db)):
+    """Get chat page and load latest session"""
+    services = SessionService(db)
+    latest_chat, latest_session_id = services.get_latest_session()
+    return templates.TemplateResponse("chat.html", {"request": request, "latest_chat": latest_chat, "latest_session_id": latest_session_id})
 
 
 # Chat:
 @router.post("/chat", response_class=HTMLResponse)
-async def chat(session_data: SessionRequest, db: Session = Depends(get_db)
+async def chat(chat_data: ChatFromRequest, db: Session = Depends(get_db)
 ):
     """Chat with the AI"""
-    print("this is chat content: ", session_data.message, session_data.model)
+    print("this is chat content: ", chat_data.content, chat_data.model)
 
-    services = PuzzleServices(db)
-    response = await services.chat(session_data.model, session_data.content)
-    user_msg = f'<div class="user-msg" style="margin: 10px 0; padding: 10px; background-color: #e3f2fd; border-radius: 5px;"><strong>You:</strong> {session_data.content}</div>'
-    ai_msg = f'<div class="ai-msg" style="margin: 10px 0; padding: 10px; background-color: #f1f8e9; border-radius: 5px;"><strong>Rudolfo:</strong> {response}</div>'
-    return HTMLResponse(content=user_msg + ai_msg)
+    services = SessionService(db)
+    session_id = await services.get_or_create_session(
+        session_id=chat_data.session_id,
+        user_message=chat_data.content,
+        model=chat_data.model,
+    )
+    await services.add_message(session_id, "User", chat_data.content)
+    llm_response = await services.get_llm_response(chat_data.content, chat_data.model)
+
+    await services.add_message(session_id, "Rudolfo", llm_response)
+    chat_history = services.get_session(session_id)
+
+
+    chat_history_sorted = ""
+    for message in chat_history:
+        if message.role == "User":
+            user_msg = f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
+            chat_history_sorted += user_msg
+        if message.role == "Rudolfo":
+            ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {message.content}</div>'
+            chat_history_sorted += ai_msg
+    return HTMLResponse(content=chat_history_sorted)
 
 # Create puzzle
 @router.post("/", response_class=HTMLResponse)
@@ -114,6 +133,7 @@ def show_update_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(
     services = PuzzleServices(db)
     puzzle = services.get_puzzle_by_id(puzzle_id)
     return templates.TemplateResponse("update-puzzle.html", {"request": request, "puzzle": puzzle})
+
 
 # Serialize puzzle data to JSON for puzzle visualization
 @router.get("/{puzzle_id}/data", response_class=JSONResponse)

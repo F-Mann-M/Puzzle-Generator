@@ -7,12 +7,18 @@
 <h2>Puzzle Council</h2>
 <div id="chat-container">
     Welcome to our council. Together we will help you devise the best puzzles.
-    <!-- chat messages will appear here -->
+    {% if latest_chat %}
+    {% for message in latest_chat %}
+    <p>{{ latest_chat.id }}
+        {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>
+        {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
 </div>
-
-    <form id="chat-form" hx-post="chat" hx-target="#chat-container" hx-swap="beforeend" hx-ext="json-enc">
+    <form id="chat-form" hx-post="chat" hx-target="#chat-container" hx-swap="beforeend" hx-ext="json-enc" hx-reset="true">
         <br><br>
-        <textarea type="text" id="user-input" name="message" placeholder="Type your message..." required
+        <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
                   style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>
         <!-- choose Model -->
         <label for="model">Model:</label>

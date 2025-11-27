@@ -6,11 +6,11 @@ from sqlalchemy.dialects.postgresql import UUID
 
 class Session(Base):
     __tablename__ = "sessions"
-    id = Column(UUID, primary_key=True, default=uuid4)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     topic_name = Column(String)
     puzzle_id = Column(UUID, ForeignKey("puzzles.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    puzzle = relationship("Puzzle", backref="sessions")
+    puzzle = relationship("Puzzle", back_populates="sessions")
     messages = relationship("Message", back_populates="sessions", cascade="all, delete-orphan")
 

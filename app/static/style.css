@@ -171,3 +171,22 @@ a, a:visited, a:hover, a:active {
     stroke: gold !important;
     stroke-width: 4 !important;
 }
+
+
+
+/* Chat */
+.ai_response {
+    margin: 0px 0;
+    padding: 5px;
+    line-height: 25px;
+    background-color: #f1f8e9;
+    border-radius: 5px
+}
+
+.user_message {
+    margin: 0px 0;
+    padding: 5px;
+    background-color: #e3f2fd;
+    border-radius: 5px;
+    line-hight: 25px;
+}
