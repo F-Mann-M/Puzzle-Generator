@@ -65,6 +65,5 @@ class OpenAIClient:
         except TypeError:
             response = await self.client.responses.create(model=self.model_name, messages=prompt, stream=True)
 
-        print(response)
         return response.output[0].content[0].text
 

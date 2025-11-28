@@ -9,14 +9,25 @@
     Welcome to our council. Together we will help you devise the best puzzles.
     {% if latest_chat %}
     {% for message in latest_chat %}
-    <p>{{ latest_chat.id }}
+    <p>{{ latest_session_id }}
         {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>
         {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>
     {% endif %}
     {% endfor %}
     {% endif %}
 </div>
-    <form id="chat-form" hx-post="chat" hx-target="#chat-container" hx-swap="beforeend" hx-ext="json-enc" hx-reset="true">
+    <form id="chat-form"
+          hx-post="chat"
+          hx-target="#chat-container"
+          hx-swap="beforeend"
+          hx-ext="json-enc"
+          hx-reset="true"
+          hx-on::after-request="document.getElementById('user-input').value = ''">
+
+        <!--send hidden session id-->
+        {% if latest_session_id %}
+        <input type="hidden" name="session_id" value="{{ latest_session_id }}">
+        {% endif %}
         <br><br>
         <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
                   style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>

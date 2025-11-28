@@ -32,6 +32,7 @@ class SessionService:
         )
         self.db.add(new_session)
         self.db.commit()
+        print("new session id: ", new_session.id)
         return new_session.id
 
 
