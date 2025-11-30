@@ -9,40 +9,39 @@
     Welcome to our council. Together we will help you devise the best puzzles.
     {% if latest_chat %}
     {% for message in latest_chat %}
-    <p>{{ latest_session_id }}
-        {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>
+    <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>
         {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>
     {% endif %}
     {% endfor %}
     {% endif %}
 </div>
-    <form id="chat-form"
-          hx-post="chat"
-          hx-target="#chat-container"
-          hx-swap="beforeend"
-          hx-ext="json-enc"
-          hx-reset="true"
-          hx-on::after-request="document.getElementById('user-input').value = ''">
+<form id="chat-form"
+      hx-post="chat"
+      hx-target="#chat-container"
+      hx-swap="beforeend"
+      hx-ext="json-enc"
+      hx-reset="true"
+      hx-on::after-request="document.getElementById('user-input').value = ''">
 
-        <!--send hidden session id-->
-        {% if latest_session_id %}
-        <input type="hidden" name="session_id" value="{{ latest_session_id }}">
-        {% endif %}
-        <br><br>
-        <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
-                  style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>
-        <!-- choose Model -->
-        <label for="model">Model:</label>
-        <select id="model" name="model" required>
-            <option value="gpt-4o-mini">GPT 4o mini</option>
-            <option value="gpt-4.1-mini">GPT 4.1 mini</option>
-            <option value="gemini-3-pro-preview">Gemini 3 pro preview</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-            <option value="gemini-2.0-flash">Gemini 2 Flash</option>
-            <option value="gemini-2.0-flash-lite">Gemini 2 Flash-Lite</option>
-        </select>
-        <button type="submit" id="sendBtn">Send</button>
-    </form>
+    <!--send hidden session id-->
+    {% if latest_session_id %}
+    <input type="hidden" name="session_id" value="{{ latest_session_id }}">
+    {% endif %}
+    <br><br>
+    <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
+              style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>
+    <!-- choose Model -->
+    <label for="model">Model:</label>
+    <select id="model" name="model" required>
+        <option value="gpt-4o-mini">GPT 4o mini</option>
+        <option value="gpt-4.1-mini">GPT 4.1 mini</option>
+        <option value="gemini-3-pro-preview">Gemini 3 pro preview</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
+        <option value="gemini-2.0-flash">Gemini 2 Flash</option>
+        <option value="gemini-2.0-flash-lite">Gemini 2 Flash-Lite</option>
+    </select>
+    <button type="submit" id="sendBtn">Send</button>
+</form>
 
 {% endblock %}

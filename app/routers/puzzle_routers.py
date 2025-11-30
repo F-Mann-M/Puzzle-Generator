@@ -1,12 +1,11 @@
 # import moduls/libraries
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Body
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID
 from pathlib import Path
-
 
 
 # import form project
@@ -39,9 +38,11 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
 
 # Chat:
 @router.post("/chat", response_class=HTMLResponse)
-async def chat(chat_data: ChatFromRequest, db: Session = Depends(get_db)):
+async def chat(
+    chat_data: ChatFromRequest = Body(...),  # Explicitly parse from JSON body
+    db: Session = Depends(get_db)
+):
     """Chat with the AI"""
-
     services = SessionService(db)
 
     # get or create new session (get id, create topic name, store in database)

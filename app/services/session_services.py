@@ -1,8 +1,11 @@
 from uuid import uuid4, UUID
+
+from sqlalchemy.exc import NoResultFound
+
 from app.llm import get_llm
 from app import models
 from app.prompts.prompt_game_rules import BASIC_RULES
-from sqlalchemy.orm import joinedload
+
 
 
 
@@ -75,12 +78,22 @@ class SessionService:
 
 
     def get_latest_session(self):
-        latest_session = (self.db.query(models.Session).order_by(models.Session.created_at.desc()).first())
-        latest_chat = (self.db.query(models.Message)
-                       .filter(models.Message.session_id == latest_session.id)
-                       .all())
-        return latest_chat, latest_session.id
+        try:
+            latest_session = (self.db.query(models.Session).order_by(models.Session.created_at.desc()).first())
 
+
+            if latest_session is None:
+                return [], None
+
+            latest_chat = (self.db.query(models.Message)
+                           .filter(models.Message.session_id == latest_session.id)
+                           .all())
+
+            return latest_chat, latest_session.id
+            
+        except Exception as e:
+            print(f"Error getting latest session: {e}")
+            return [], None
 
 
     def delete_session(self, session_id):
