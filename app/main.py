@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from app.routers import puzzle_routers
+from app.routers import puzzle_routers, chat_routers
 from app.core.database import Base, engine
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +19,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # get routers
+app.include_router(chat_routers.router, prefix="/puzzles", tags=["Chat"])
 app.include_router(puzzle_routers.router, prefix="/puzzles", tags=["Puzzles"])
 
 
