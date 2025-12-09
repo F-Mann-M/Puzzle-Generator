@@ -1,8 +1,11 @@
+from http.client import HTTPException
+
 from fastapi import APIRouter, Depends, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
+from uuid import UUID
 
 from app.core.database import get_db
 from app.schemas import ChatFromRequest
@@ -19,15 +22,40 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
     """Get chat page and load latest session"""
     services = SessionService(db)
     latest_chat, latest_session_id = services.get_latest_session()
+    all_sessions = services.get_all_sessions()
     print("show chat: ", latest_session_id)
     return templates.TemplateResponse(
         "chat.html",
         {
             "request": request,
             "latest_chat": latest_chat,
-            "latest_session_id": latest_session_id
+            "latest_session_id": latest_session_id,
+            "all_sessions": all_sessions,
         }
     )
+
+@router.get("/chat/{session_id}", response_class=HTMLResponse)
+async def get_session(request: Request, session_id: UUID, db: Session = Depends(get_db)):
+    """Get chat history by session id"""
+    services = SessionService(db)
+    session = services.get_session(session_id)
+
+    for message in session:
+        print(message.content)
+
+    if not session:
+        return HTMLResponse(content="Session has no content yet.")
+
+    message_html = ""
+    for message in session:
+        if message.role == "User":
+            message_html += f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
+        else:
+            message_html += f'<div class="ai_response"><strong>You:</strong> {message.content}</div>'
+
+    return HTMLResponse(content=message_html)
+
+
 
 
 # Chat:

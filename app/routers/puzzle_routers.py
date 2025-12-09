@@ -35,6 +35,15 @@ async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/puzzles/{new_puzzle.id}", status_code=303)
 
 
+# Update puzzle
+@router.put("/{puzzle_id}", response_class=HTMLResponse)
+async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Depends(get_db)):
+    """Update an existing puzzle"""
+    services = PuzzleServices(db)
+    updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
+    return RedirectResponse(url=f"/puzzles/{updated_puzzle.id}", status_code=303)
+
+
 # Load puzzle generator
 @router.get("/generate", response_class=HTMLResponse)
 async def show_generate_puzzle(request: Request):

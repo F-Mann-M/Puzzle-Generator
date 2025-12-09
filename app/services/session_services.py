@@ -1,11 +1,8 @@
 from uuid import uuid4, UUID
 
-from sqlalchemy.exc import NoResultFound
-
 from app.llm import get_llm
 from app import models
 from app.prompts.prompt_game_rules import BASIC_RULES
-
 
 
 
@@ -15,6 +12,7 @@ class SessionService:
        self.db = db
 
     async def create_topic_name(self,message: str, model: str) -> str:
+        """ Takes in first message of a session and creates a new topic name"""
         llm = get_llm(model)
         system_prompt = "Summarize this user query in 3 to 5 words. Do not use punctuation."
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
@@ -23,6 +21,7 @@ class SessionService:
 
 
     async def get_or_create_session(self, session_id, user_message, model):
+        """ Gets a session by id or creates a new one if it doesn't exist """
         if session_id:
             existing = self.db.query(models.Session).filter(models.Session.id == session_id).first()
             return existing.id
@@ -47,21 +46,22 @@ class SessionService:
         )
         self.db.add(new_message)
         self.db.commit()
+        print(f"message with id {session_id} added to database")
 
 
     async def get_llm_response(self, user_message, model)-> str:
+        """ Gets the llm response for a user message. """
         llm = get_llm(model)
         system_prompt = (
             "You are an helpfully assistant."
             "you are an noble advisor."
-            "You speak like a noble advisor from the Middle Ages."
             "Your name is Rudolfo"
             "You only address the user as a nobel person."
             "The users Name is Goetz. He is a robber knight."
             "The users Character is based on the knight Götz von Berlichen"
             f"If user asks for the rules of the game use {BASIC_RULES}."
             "You ONLY answer questions related to the puzzle rules or Middle Ages."
-            "You can tell in a bit about the medieval everyday life,"
+            "You can tell a bit about the medieval everyday life,"
             "you can make up funny gossip from Berlichenstein Castle, "
             "medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern."
             "Your ONLY purpose is to help the user with the a puzzle."
@@ -73,14 +73,15 @@ class SessionService:
 
 
     def get_session(self, session_id):
-        query = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
-        return query
+        """ Gets session by id"""
+        session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
+        return session
 
 
     def get_latest_session(self):
+        """ Gets latest session """
         try:
             latest_session = (self.db.query(models.Session).order_by(models.Session.created_at.desc()).first())
-
 
             if latest_session is None:
                 return [], None
@@ -94,6 +95,12 @@ class SessionService:
         except Exception as e:
             print(f"Error getting latest session: {e}")
             return [], None
+
+
+    def get_all_sessions(self):
+        """ Gets a list of all sessions """
+        sessions = (self.db.query(models.Session).order_by(models.Session.created_at.desc()).all())
+        return sessions
 
 
     def delete_session(self, session_id):
