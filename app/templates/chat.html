@@ -13,7 +13,7 @@
         <div class="sessions-list">
             {% if all_sessions %}
                 {% for session in all_sessions %}
-                <div class="session-item {% if latest_session_id == session.id %}active{% endif %}""
+                <div class="session-item {% if latest_session_id == session.id %}active{% endif %}"
                      hx-get="/puzzles/chat/{{ session.id }}"
                      hx-target="#chat-container"
                      hx-swap="innerHTML"
@@ -33,13 +33,13 @@
     <div class="chat-main">
         <div id="chat-container">
             Welcome to the council. I'm Rudolfo. I will help you devise the best puzzles.
-            {% if session_content %}
-            {% for message in session_content %}
-            <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>
-                {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>
-            {% endif %}
-            {% endfor %}
-            {% endif %}
+<!--            {% if session_content %}-->
+<!--            {% for message in session_content %}-->
+<!--            <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>-->
+<!--                {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>-->
+<!--            {% endif %}-->
+<!--            {% endfor %}-->
+<!--            {% endif %}-->
         </div>
         <form id="chat-form"
               hx-post="chat"
@@ -50,9 +50,8 @@
               hx-on::after-request="document.getElementById('user-input').value = ''">
 
             <!--send hidden session id-->
-            {% if latest_session_id %}
-            <input type="hidden" name="session_id" value="{{ latest_session_id }}">
-            {% endif %}
+            <input type="hidden" name="session_id" id="session_id_input" value="">
+
             <br><br>
             <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
                       style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>

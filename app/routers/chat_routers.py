@@ -1,5 +1,3 @@
-from http.client import HTTPException
-
 from fastapi import APIRouter, Depends, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -21,33 +19,28 @@ router = APIRouter()
 async def show_chat(request: Request, db: Session = Depends(get_db)):
     """Get chat page and load latest session"""
     services = SessionService(db)
-    latest_chat, latest_session_id = services.get_latest_session()
     all_sessions = services.get_all_sessions()
-    print("show chat: ", latest_session_id)
     return templates.TemplateResponse(
         "chat.html",
         {
             "request": request,
-            "latest_chat": latest_chat,
-            "latest_session_id": latest_session_id,
             "all_sessions": all_sessions,
         }
     )
 
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
-async def get_session(request: Request, session_id: UUID, db: Session = Depends(get_db)):
+async def get_session(session_id: UUID, db: Session = Depends(get_db)):
     """Get chat history by session id"""
+    print("session id from chat.html: ", session_id)
+
     services = SessionService(db)
-    session = services.get_session(session_id)
+    session_messages = services.get_session_messages(session_id)
 
-    for message in session:
-        print(message.content)
-
-    if not session:
+    if not session_messages:
         return HTMLResponse(content="Session has no content yet.")
 
     message_html = ""
-    for message in session:
+    for message in session_messages:
         if message.role == "User":
             message_html += f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
         else:
@@ -61,10 +54,11 @@ async def get_session(request: Request, session_id: UUID, db: Session = Depends(
 # Chat:
 @router.post("/chat", response_class=HTMLResponse)
 async def chat(
-    chat_data: ChatFromRequest = Body(...),  # Explicitly parse from JSON body
+    chat_data: ChatFromRequest = Body(...),  # parse from JSON body
     db: Session = Depends(get_db)
 ):
     """Chat with the AI"""
+    print("chat_data from chat.html: ", chat_data)
     services = SessionService(db)
 
     # get or create new session (get id, create topic name, store in database)

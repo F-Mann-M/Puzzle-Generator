@@ -22,9 +22,14 @@ class SessionService:
 
     async def get_or_create_session(self, session_id, user_message, model):
         """ Gets a session by id or creates a new one if it doesn't exist """
+        print("takes in session id: ", session_id)
+
         if session_id:
             existing = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+            print("Continue session with id:", existing.id)
             return existing.id
+        else:
+            print("No session found")
 
         topic_name = await self.create_topic_name(message=user_message, model=model)
 
@@ -34,7 +39,7 @@ class SessionService:
         )
         self.db.add(new_session)
         self.db.commit()
-        print("new session id: ", new_session.id)
+        print(f"New session was created. \nSession id: ", new_session.id)
         return new_session.id
 
 
@@ -46,7 +51,7 @@ class SessionService:
         )
         self.db.add(new_message)
         self.db.commit()
-        print(f"message with id {session_id} added to database")
+        print(f"message '{new_message.content}' added to database")
 
 
     async def get_llm_response(self, user_message, model)-> str:
@@ -72,9 +77,15 @@ class SessionService:
         return llm_response
 
 
-    def get_session(self, session_id):
+    def get_session_messages(self, session_id):
         """ Gets session by id"""
-        session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
+        try:
+            session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
+            if not session:
+                raise Exception("No session found")
+        except Exception as e:
+            print(e)
+
         return session
 
 
