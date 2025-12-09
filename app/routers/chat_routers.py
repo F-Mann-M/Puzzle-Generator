@@ -44,7 +44,7 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
         if message.role == "User":
             message_html += f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
         else:
-            message_html += f'<div class="ai_response"><strong>You:</strong> {message.content}</div>'
+            message_html += f'<div class="ai_response"><strong>Rudolfo:</strong> {message.content}</div>'
 
     return HTMLResponse(content=message_html)
 

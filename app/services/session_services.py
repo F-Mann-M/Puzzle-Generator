@@ -14,7 +14,7 @@ class SessionService:
     async def create_topic_name(self,message: str, model: str) -> str:
         """ Takes in first message of a session and creates a new topic name"""
         llm = get_llm(model)
-        system_prompt = "Summarize this user query in 3 to 5 words. Do not use punctuation."
+        system_prompt = "Summarize this user query in 3 to 5 words. Do not use punctuation. Describe user as nobel man"
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
         llm_response = await llm.chat(prompt)
         return llm_response
