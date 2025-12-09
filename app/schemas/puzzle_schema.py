@@ -39,28 +39,3 @@ class PuzzleLLMResponse(BaseModel):
     units: List[UnitGenerate]
     coins: int | None = 5
     description: Optional[str] = ""
-
-
-class PuzzleRead(PuzzleCreate):
-    id: UUID
-    created_at: datetime
-    nodes: List[NodeRead]
-    edges: List[EdgeRead]
-    coins: Optional[int]
-
-
-class PuzzleUpdate(PuzzleCreate):
-    enemy_count: Optional[int]
-    player_unit_count: Optional[int]
-    node_count: Optional[int]
-    edge_count: Optional[int]
-    description: Optional[str]
-    coins: Optional[int]
-    updated_at: datetime
-    units: List[UnitUpdate]
-    nodes: List[NodeUpdate]
-    edges: List[EdgeUpdate]
-    path_nodes: List[PathNodesUpdate]
-
-    class Config:
-        from_attributes = True # read directly form SQLAlchemy objects (Pydantic)
