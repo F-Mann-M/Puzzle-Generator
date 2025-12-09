@@ -19,6 +19,7 @@ class EdgeGenerate(BaseModel):
 class EdgeRead(EdgeCreate):
     id: UUID
 
+
 class EdgeUpdate(EdgeRead):
     pass
 

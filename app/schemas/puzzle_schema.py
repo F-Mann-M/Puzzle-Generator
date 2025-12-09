@@ -50,11 +50,8 @@ class PuzzleRead(PuzzleCreate):
 
 
 class PuzzleUpdate(PuzzleCreate):
-    # name: Optional[str]
-    # model: Optional[str]
     enemy_count: Optional[int]
     player_unit_count: Optional[int]
-    # game_mode: Optional[str]
     node_count: Optional[int]
     edge_count: Optional[int]
     description: Optional[str]

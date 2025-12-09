@@ -49,15 +49,13 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
     return HTMLResponse(content=message_html)
 
 
-
-
 # Chat:
 @router.post("/chat", response_class=HTMLResponse)
 async def chat(
     chat_data: ChatFromRequest = Body(...),  # parse from JSON body
     db: Session = Depends(get_db)
 ):
-    """Chat with the AI"""
+    """Chat with the AI. Gets user message, returns AI response"""
     print("chat_data from chat.html: ", chat_data)
     services = SessionService(db)
 
@@ -79,3 +77,10 @@ async def chat(
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response}</div>'
     return HTMLResponse(content=user_msg + ai_msg)
+
+
+@router.delete("/chat/{session_id}")
+async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
+    """Delete chat by session id"""
+    services = SessionService(db)
+    await services.delete_session(session_id)

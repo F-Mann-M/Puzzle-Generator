@@ -12,19 +12,27 @@
         <h3>Sessions</h3>
         <div class="sessions-list">
             {% if all_sessions %}
-                {% for session in all_sessions %}
-                <div class="session-item {% if latest_session_id == session.id %}active{% endif %}"
-                     hx-get="/puzzles/chat/{{ session.id }}"
-                     hx-target="#chat-container"
-                     hx-swap="innerHTML"
-                     hx-on::after-request="document.querySelector('input[name=session_id]').value = '{{ session.id }}'"
-                     style="cursor: pointer;">
-                    <div class="session-topic">{{ session.topic_name }}</div>
-                    <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else '' }}</div>
+            {% for session in all_sessions %}
+            <div class="session-item {% if latest_session_id == session.id %}active{% endif %}"
+                 hx-get="/puzzles/chat/{{ session.id }}"
+                 hx-target="#chat-container"
+                 hx-swap="innerHTML"
+                 hx-on::after-request="document.querySelector('input[name=session_id]').value = '{{ session.id }}'"
+                 style="cursor: pointer;">
+                <div class="session-topic">{{ session.topic_name }}</div>
+                <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
+                    }}
                 </div>
-                {% endfor %}
+                <button hx-delete="{{session.id}}/delete"
+                        hx-trigger="click"
+                        hx-target="closest tr"
+                        hx-swap="outerHTML">
+                    Delete
+                </button>
+            </div>
+            {% endfor %}
             {% else %}
-                <p>No sessions yet</p>
+            <p>No sessions yet</p>
             {% endif %}
         </div>
     </div>
@@ -33,13 +41,13 @@
     <div class="chat-main">
         <div id="chat-container">
             Welcome to the council. I'm Rudolfo. I will help you devise the best puzzles.
-<!--            {% if session_content %}-->
-<!--            {% for message in session_content %}-->
-<!--            <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>-->
-<!--                {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>-->
-<!--            {% endif %}-->
-<!--            {% endfor %}-->
-<!--            {% endif %}-->
+            <!--            {% if session_content %}-->
+            <!--            {% for message in session_content %}-->
+            <!--            <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>-->
+            <!--                {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>-->
+            <!--            {% endif %}-->
+            <!--            {% endfor %}-->
+            <!--            {% endif %}-->
         </div>
         <form id="chat-form"
               hx-post="chat"
@@ -55,8 +63,8 @@
             <br><br>
             <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
                       style="width: 80%; height: 150px; margin: auto; text-align: left"></textarea><br><br>
-            
-                      <!-- choose Model -->
+
+            <!-- choose Model -->
             <label for="model">Model:</label>
             <select id="model" name="model" required>
                 <option value="gpt-4o-mini">GPT 4o mini</option>

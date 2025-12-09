@@ -35,7 +35,6 @@ class GeminiClient:
             contents=prompt["user_prompt"],
             config={
                 "system_instruction": prompt["system_prompt"],
-                # "response_mime_type": "application/json",
             },
         )
 

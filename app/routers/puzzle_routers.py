@@ -22,7 +22,7 @@ router = APIRouter()
 # load puzzle builder
 @router.get("/create-puzzle", response_class=HTMLResponse)
 async def show_create_puzzle(request: Request):
-    """Show create puzzle page"""
+    """Show create-puzzle page"""
     return templates.TemplateResponse("create-puzzle.html", {"request": request})
 
 
@@ -54,7 +54,7 @@ async def show_generate_puzzle(request: Request):
 # Generate puzzle (LLM Endpoint)
 @router.post("/generate")
 async def generate_puzzle(puzzle_generate: PuzzleGenerate, db: Session = Depends(get_db)):
-    """Generate a new puzzle"""
+    """Generate a new puzzle with LLM"""
     services = PuzzleServices(db)
     puzzle_generated = await services.generate_puzzle(puzzle_generate)
     new_puzzle = services.create_puzzle(puzzle_generated)

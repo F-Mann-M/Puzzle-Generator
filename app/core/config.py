@@ -4,6 +4,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings): # load all key=value pairs from .env
+    """ Load Keys"""
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'data' / 'puzzle.db'}"
     OPENAI_KEY: str
     GEMINI_KEY: str

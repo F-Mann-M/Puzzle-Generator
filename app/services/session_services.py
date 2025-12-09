@@ -44,6 +44,7 @@ class SessionService:
 
 
     async def add_message(self, session_id: UUID, role: str, content: str):
+        """ Takes in message of a session and adds it to the database"""
         new_message = models.Message(
             session_id=session_id,
             role=role,
@@ -73,6 +74,7 @@ class SessionService:
             "if user asks for somthing not puzzle related answer in a funny way. make up a very short Middle Ages anecdote"
         )
         prompt = {"system_prompt": system_prompt, "user_prompt":user_message}
+        print("loading ai response...")
         llm_response = await llm.chat(prompt)
         return llm_response
 
@@ -115,7 +117,9 @@ class SessionService:
 
 
     def delete_session(self, session_id):
-       pass
+        """ Deletes a session by id """
+        self.db.query(models.Session).filter(models.Session.id == session_id).delete()
+        print(f"Deleted session with id: {session_id}")
 
 
     def update_session(self, session_id):

@@ -147,7 +147,7 @@ class PuzzleServices:
 
     # delete one puzzle
     def delete_puzzle(self, puzzle_id):
-        """Fetch puzzle by id an delete"""
+        """Fetch puzzle by id and delete"""
         puzzle = self.get_puzzle_by_id(puzzle_id)
         if puzzle:
             self.db.delete(puzzle)
@@ -256,7 +256,8 @@ class PuzzleServices:
 
         # get example puzzles from database
         example_puzzles = self.get_all_puzzle()
-        # Serialize each puzzle to JSON format
+
+        # Serialize each puzzle to JSON format to use it as examples in few shot prompt
         serialized_examples = []
         for puzzle in example_puzzles:
             if puzzle.game_mode.lower() == puzzle_config.game_mode.lower() and puzzle.is_working:
@@ -297,6 +298,7 @@ class PuzzleServices:
 
     # Serialize puzzle data to JSON
     def serialize_puzzle(self, puzzle_id):
+
         puzzle = self.get_puzzle_by_id(puzzle_id)
         puzzle_data = {
             "nodes": [
