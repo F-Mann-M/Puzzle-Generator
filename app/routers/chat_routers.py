@@ -79,8 +79,10 @@ async def chat(
     return HTMLResponse(content=user_msg + ai_msg)
 
 
-@router.delete("/chat/{session_id}")
+@router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
 async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     """Delete chat by session id"""
+    print("delete: session id from chat.html: ", session_id)
     services = SessionService(db)
-    await services.delete_session(session_id)
+    services.delete_session(session_id)
+    return HTMLResponse(content="", status_code=200)

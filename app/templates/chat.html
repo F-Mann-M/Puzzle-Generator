@@ -23,9 +23,10 @@
                 <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
                     }}
                 </div>
-                <button hx-delete="{{session.id}}/delete"
+                <!-- delete session -->
+                <button hx-delete="/puzzles/chat/{{session.id}}/delete"
                         hx-trigger="click"
-                        hx-target="closest tr"
+                        hx-target="closest .session-item"
                         hx-swap="outerHTML">
                     Delete
                 </button>
@@ -41,13 +42,6 @@
     <div class="chat-main">
         <div id="chat-container">
             Welcome to the council. I'm Rudolfo. I will help you devise the best puzzles.
-            <!--            {% if session_content %}-->
-            <!--            {% for message in session_content %}-->
-            <!--            <p> {% if message.role == "User" %}<span class="user_message"><strong>You:</strong> {{message.content}}</span><br>-->
-            <!--                {% else %}<span class="ai_response"><strong>Rudolfo:</strong> {{message.content}}</span></p>-->
-            <!--            {% endif %}-->
-            <!--            {% endfor %}-->
-            <!--            {% endif %}-->
         </div>
         <form id="chat-form"
               hx-post="chat"

@@ -118,8 +118,15 @@ class SessionService:
 
     def delete_session(self, session_id):
         """ Deletes a session by id """
-        self.db.query(models.Session).filter(models.Session.id == session_id).delete()
-        print(f"Deleted session with id: {session_id}")
+        print("services delete session: ", session_id)
+        session = self.db.query(models.Session).filter(models.Session.id == session_id).one()
+        if session:
+            print("session found")
+            self.db.delete(session)
+            self.db.commit()
+        else:
+            print("session not found")
+        print(f"session successfully deleted: {session_id}")
 
 
     def update_session(self, session_id):
