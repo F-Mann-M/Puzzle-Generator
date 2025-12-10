@@ -55,9 +55,13 @@ class SessionService:
         print(f"message '{new_message.content}' added to database")
 
 
-    async def get_llm_response(self, user_message, model)-> str:
+    async def get_llm_response(self, user_message, model, session_id)-> str:
         """ Gets the llm response for a user message. """
         llm = get_llm(model)
+
+        # get latest chat history
+        chat_history = self.get_chat_history(session_id)
+
         system_prompt = (
             "You are an helpfully assistant."
             "you are an noble advisor."
@@ -72,11 +76,20 @@ class SessionService:
             "medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern."
             "Your ONLY purpose is to help the user with the a puzzle."
             "if user asks for somthing not puzzle related answer in a funny way. make up a very short Middle Ages anecdote"
+            f"this {chat_history} is the chat history. use it to remember the whole chat history to answer properly like an ongoing chat"
+
         )
         prompt = {"system_prompt": system_prompt, "user_prompt":user_message}
+
         print("loading ai response...")
+
         llm_response = await llm.chat(prompt)
-        return llm_response
+
+        if llm_response:
+            print("loading ai response successfully")
+            return llm_response
+        else:
+            return f"Ups! Something went wrong 😅 <br> Could not load the AI response from {model}"
 
 
     def get_session_messages(self, session_id):
@@ -127,6 +140,27 @@ class SessionService:
         else:
             print("session not found")
         print(f"session successfully deleted: {session_id}")
+
+
+    def get_chat_history(self, session_id):
+        """ Gets a chat history by session id. It is limited to the last 3500 characters (around 1000 token) """
+        #  get messages
+        chat_messages = self.get_session_messages(session_id)
+        chat_history = ""
+        for message in chat_messages:
+            chat_history += f"{message.role}: {message.content} \n"
+        if chat_history:
+            print(" chat history loaded")
+        else:
+            print("chat history not found")
+
+        # limit characters to 3500 characters
+        if len(chat_history) > 3500:  # around 1000 token
+            chat_history = chat_history[-3500:]
+
+        print(f"chat history length: {len(chat_history)}")
+
+        return chat_history
 
 
     def update_session(self, session_id):

@@ -30,13 +30,17 @@ class GeminiClient:
 
     # Chat function
     async def chat(self, prompt: str):
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt["user_prompt"],
-            config={
-                "system_instruction": prompt["system_prompt"],
-            },
-        )
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt["user_prompt"],
+                config={
+                    "system_instruction": prompt["system_prompt"],
+                },
+            )
+        except Exception as e:
+            print(e)
+            return None
 
         print(response)
 

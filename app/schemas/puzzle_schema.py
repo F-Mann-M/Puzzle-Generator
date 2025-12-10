@@ -30,7 +30,7 @@ class PuzzleGenerate(BaseModel):
     edge_count: Optional[int]
     turns: Optional[int]
     units: list[dict]
-    description: Optional[str] = ""
+    description: Optional[str] = "" # used to give further instructions related to the puzzle
 
 
 class PuzzleLLMResponse(BaseModel):

@@ -67,7 +67,7 @@ async def chat(
     )
 
     # get llm response
-    llm_response = await services.get_llm_response(chat_data.content, chat_data.model)
+    llm_response = await services.get_llm_response(chat_data.content, chat_data.model, session_id)
 
     # store user message and ai response to database
     await services.add_message(session_id, "User", chat_data.content)

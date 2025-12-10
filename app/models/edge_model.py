@@ -18,4 +18,3 @@ class Edge(Base):
     puzzle = relationship("Puzzle", back_populates="edges")
     start_node = relationship("Node", foreign_keys=[start_node_id], back_populates="start_edges")
     end_node = relationship("Node", foreign_keys=[end_node_id], back_populates="end_edges")
-    # path = relationship("Path") # Relationship Path many-to-one Node

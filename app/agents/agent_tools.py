@@ -8,3 +8,5 @@
 # list puzzle
 # delete puzzle
 
+# check if chat generate a puzzle
+
