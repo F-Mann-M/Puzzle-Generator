@@ -11,16 +11,17 @@ class SessionService:
     def __init__(self, db):
        self.db = db
 
-    async def create_topic_name(self,message: str, model: str) -> str:
+    async def create_topic_name(self, message: str, model: str) -> str:
         """ Takes in first message of a session and creates a new topic name"""
         llm = get_llm(model)
         system_prompt = "Summarize this user query in 3 to 5 words. Do not use punctuation. Describe user as nobel man"
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
         llm_response = await llm.chat(prompt)
+        print("New topic name:", llm_response)
         return llm_response
 
 
-    async def get_or_create_session(self, session_id, user_message, model):
+    async def get_or_create_session(self, session_id: UUID, user_message: str, model: str):
         """ Gets a session by id or creates a new one if it doesn't exist """
         print("takes in session id: ", session_id)
 
@@ -55,7 +56,7 @@ class SessionService:
         print(f"message '{new_message.content}' added to database")
 
 
-    async def get_llm_response(self, user_message, model, session_id)-> str:
+    async def get_llm_response(self, user_message: str, model: str, session_id: UUID)-> str:
         """ Gets the llm response for a user message. """
         llm = get_llm(model)
 
@@ -80,11 +81,8 @@ class SessionService:
 
         )
         prompt = {"system_prompt": system_prompt, "user_prompt":user_message}
-
         print("loading ai response...")
-
         llm_response = await llm.chat(prompt)
-
         if llm_response:
             print("loading ai response successfully")
             return llm_response
@@ -92,7 +90,7 @@ class SessionService:
             return f"Ups! Something went wrong 😅 <br> Could not load the AI response from {model}"
 
 
-    def get_session_messages(self, session_id):
+    def get_session_messages(self, session_id: UUID):
         """ Gets session by id"""
         try:
             session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
@@ -143,7 +141,13 @@ class SessionService:
 
 
     def get_chat_history(self, session_id):
-        """ Gets a chat history by session id. It is limited to the last 3500 characters (around 1000 token) """
+        """
+        Gets a chat history by session id. It is limited to the last 3500 characters (around 1000 token)
+        It's like a dummy memory.
+        Nice to have: would be to use an operation to extract important information,
+        puzzles, feedback and results from the chat history, categorise it and use RAG to store information
+        ...or somthing like that :D
+        """
         #  get messages
         chat_messages = self.get_session_messages(session_id)
         chat_history = ""
@@ -163,12 +167,13 @@ class SessionService:
         return chat_history
 
 
-    def update_session(self, session_id):
-       pass
-
-
-    def update_topic_name(self):
-        pass
+    def update_topic_name(self, session_id, model):
+        chat_history = self.get_chat_history(session_id)
+        topic_name = self.create_topic_name(chat_history, model)
+        session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+        session.topic_name = topic_name
+        self.db.commit()
+        print(f"updated topic name: {topic_name}")
 
 
     def add_puzzle_id(self, puzzle_id: UUID):

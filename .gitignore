@@ -212,4 +212,6 @@ test.py
 alembic/
 alembic.ini
 exercise/
-prompt_game_rules.py
+.DS_Store
+app/.DS_Store
+data/puzzle.db
