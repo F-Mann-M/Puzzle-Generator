@@ -179,5 +179,7 @@ class SessionService:
         print(f"updated topic name: {topic_name}")
 
 
-    def add_puzzle_id(self, puzzle_id: UUID):
-        pass
+    def add_puzzle_id(self, puzzle_id: UUID, session_id: UUID):
+        query = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+        query.puzzle_id = puzzle_id
+        self.db.commit()

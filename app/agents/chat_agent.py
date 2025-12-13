@@ -19,11 +19,10 @@ class AgentState(TypedDict):
     user_intent: Optional[str] # "generate", "modify", "example", "chat"
     collected_info: dict[str, Any] # "game_mode", "node_count", "enemy_unit_count", "enemy_type", "player_unit_count", "description"
     current_puzzle_id: Optional[UUID] # if puzzle generated and stored get id
-    # tool_result: Annotated[list[str], operator.add] #
-    # final_response: Optional[list]
+    # tool_result: Annotated[list[str], operator.add] # collect tool results
+    # final_response: Optional[list] # get back chat message after processing tools
     session_id: UUID
     model: str # model used... pass llm_manager.py
-    #final_response: Optional[str]
 
 class ChatAgent:
     """ LangGraph Chat Agent to handel puzzle related content"""
@@ -56,6 +55,21 @@ class ChatAgent:
 
         return builder.compile()
 
+    async def _classify_intent(self, state: AgentState)-> AgentState:
+        """ Classify user intent from conversation"""
+
+        last_message = state["messages"][-1]["content"] if state["messages"] else ""
+
+        system_prompt = """You are an intent classifier. Analyse user's massage and classify his intent.
+        Return ONLY one word: 'generate', 'create', 'modify' and 'chat'
+
+        - generate: The user wants to generate a new puzzle without having to provide all the necessary details.
+        - create: The user wants to create a new puzzle (mentions creating, generating, new puzzle, etc.)
+        - modify:
+        - chat: """
+
+        pass
+
 
     async def _chat(self, state: AgentState) -> str:
         """ handel ongoing chat"""
@@ -63,13 +77,13 @@ class ChatAgent:
         last_message = state["messages"][-1] if state["messages"] else ""
         print("Last message sent to llm: ", last_message)
 
-        # chat_messages = self.session_services.get_session_messages(self.session_id)
 
         llm_response = await self.session_services.get_llm_response(last_message.get("content"), self.model, self.session_id)
         print("Llm response: ", llm_response)
         state["messages"] = [{"role": "Rudolfo", "content": llm_response}]
 
         return state
+
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
@@ -88,6 +102,7 @@ class ChatAgent:
                         - Do NOT include code fences.
                         - Do NOT include trailing text.
                         - The response must be directly parseable as JSON.
+                        - Add detail description what happens turn by turn in 'description'
 
                         
                         If you cannot produce valid JSON, output an empty JSON object: {{}}
@@ -115,6 +130,7 @@ class ChatAgent:
         raw_data = await llm.chat(prompt)
         print("\nLLM Response collected puzzle info to create puzzle: ", raw_data)
 
+        # convert to JSON Object
         puzzle_generated = PuzzleLLMResponse.model_validate_json(raw_data)
 
         try:
@@ -132,15 +148,24 @@ class ChatAgent:
                 print("\nNew Puzzle created successfully (collect and create node)")
                 print("new puzzle (collect and create node): ", new_puzzle)
 
-
         except Exception as e:
             print(f"Could not create a puzzle. Error: {e}")
             state["messages"] = [{"role": "Rudolfo", "content": f"Could not create a puzzle. Error: {e}"}]
             return state
 
+        # Create new puzzle and store to database
         print("\nCreate new puzzle (collect and create node)...")
         puzzle = self.puzzle_services.create_puzzle(new_puzzle)
 
+        print("\nPuzzle id: ", puzzle.id)
+        print(type(puzzle.id))
+
+
+        # add puzzle.id to current session
+        # ToDo: If the session already has a puzzle ID, the current puzzle can only be updated.
+        # self.session_services.add_puzzle_id(puzzle.id)
+
+        #update state
         print("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
         state["current_puzzle_id"] = puzzle.id
 
@@ -205,6 +230,7 @@ class ChatAgent:
         result = await self.graph.ainvoke(initial_state, config=config)
 
         return result["messages"][1]["content"]
+
 
 
 

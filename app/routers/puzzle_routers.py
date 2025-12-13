@@ -113,3 +113,6 @@ async def get_puzzle_data(puzzle_id: UUID, db: Session = Depends(get_db)):
     return JSONResponse(content=puzzle_data)
 
 
+
+
+
