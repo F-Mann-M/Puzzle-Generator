@@ -53,7 +53,7 @@ class SessionService:
         )
         self.db.add(new_message)
         self.db.commit()
-        print(f"message '{new_message.content}' added to database")
+        print(f"Added message from {role} to database")
 
 
     async def get_llm_response(self, user_message: str, model: str, session_id: UUID)-> str:
@@ -92,12 +92,15 @@ class SessionService:
 
     def get_session_messages(self, session_id: UUID):
         """ Gets session by id"""
+        print(f"Query for session messages with session id: {session_id}")
         try:
             session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
+            print("Fetch session messages successfully")
             if not session:
                 raise Exception("No session found")
         except Exception as e:
-            print(e)
+            print(f"Error: {e}")
+            return []
 
         return session
 
@@ -154,15 +157,15 @@ class SessionService:
         for message in chat_messages:
             chat_history += f"{message.role}: {message.content} \n"
         if chat_history:
-            print(" chat history loaded")
+            print("Chat history loaded")
         else:
-            print("chat history not found")
+            print("Chat history not found")
 
         # limit characters to 3500 characters
         if len(chat_history) > 3500:  # around 1000 token
             chat_history = chat_history[-3500:]
 
-        print(f"chat history length: {len(chat_history)}")
+        print(f"Chat history length: {len(chat_history)}")
 
         return chat_history
 

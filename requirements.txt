@@ -8,3 +8,4 @@ arxiv
 langchain-groq
 wikipedia
 langchain_tavily
+markdown

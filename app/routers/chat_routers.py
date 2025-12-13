@@ -4,10 +4,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 from uuid import UUID
+import markdown
 
 from app.core.database import get_db
 from app.schemas import ChatFromRequest
 from app.services import SessionService
+from app.agents import ChatAgent
 
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
@@ -66,16 +68,37 @@ async def chat(
         model=chat_data.model,
     )
 
+    # Get chat history
+    # print("get session messages: ", session_id)
+    # chat_messages = services.get_session_messages(session_id)
+    # chat_history = [
+    #     {"role": msg.role, "content": msg.content}
+    #     for msg in chat_messages[-10:]  # Last 10 messages for context
+    # ]
+
+    # Initialize agent
+    agent = ChatAgent(db, session_id, chat_data.model)
+
+    # Process message through agent
+    llm_response = await agent.process(chat_data.content)
+    if llm_response:
+        print("Received response from agent graph and pass it to database")
+
     # get llm response
-    llm_response = await services.get_llm_response(chat_data.content, chat_data.model, session_id)
+    # llm_response = await services.get_llm_response(chat_data.content, chat_data.model, session_id)
 
     # store user message and ai response to database
     await services.add_message(session_id, "User", chat_data.content)
     await services.add_message(session_id, "Rudolfo", llm_response)
 
+    # format llm response to proper html output
+    print("Format the LLM response into a readable HTML format")
+    llm_response_html = markdown.markdown(llm_response)
+
     # create and send HTML response
+    print("Pass content to front-end...")
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
-    ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response}</div>'
+    ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
     return HTMLResponse(content=user_msg + ai_msg)
 
 
