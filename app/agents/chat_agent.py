@@ -8,7 +8,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from app.models import Session
 from app.agents.agent_tools import AgentTools
 from app.llm.llm_manager import get_llm
-from app.services import SessionService
+from app.services import SessionService, PuzzleServices
+from app.schemas import PuzzleCreate, PuzzleLLMResponse
 
 memory = InMemorySaver()
 
@@ -34,6 +35,7 @@ class ChatAgent:
         self.tools = AgentTools(db)
         self.graph = self.build_graph()
         self.session_services = SessionService(self.db)
+        self.puzzle_services = PuzzleServices(self.db)
 
 
     def build_graph(self) -> StateGraph:
@@ -45,11 +47,12 @@ class ChatAgent:
         # Nodes
         builder.add_node("chat", self._chat)
         builder.add_node("collect_info", self._collect_info)
+        builder.add_node("collect_and_create", self._collect_and_creates_puzzle)
 
         # Edges
         builder.add_edge(START, "chat")
-        builder.add_edge("chat", "collect_info")
-        builder.add_edge("collect_info", END)
+        builder.add_edge("chat", "collect_and_create")
+        builder.add_edge("collect_and_create", END)
 
         return builder.compile()
 
@@ -68,6 +71,80 @@ class ChatAgent:
 
         return state
 
+    async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
+        """ If LLM provides a complete puzzle, create a new puzzle """
+
+        # get last message
+        conversation = "\n".join([f"{m['role']}: {m['content']}" for m in state["messages"]])
+
+        system_prompt = f"""
+                        You are a puzzle-generation agent.
+
+                        You MUST output a single JSON object that strictly conforms to the provided JSON Schema.
+
+                        Rules:
+                        - Output JSON only.
+                        - Do NOT include explanations, markdown, or commentary.
+                        - Do NOT include code fences.
+                        - Do NOT include trailing text.
+                        - The response must be directly parseable as JSON.
+
+                        
+                        If you cannot produce valid JSON, output an empty JSON object: {{}}
+                        
+                        Extract puzzle creation parameters from this conversation: {conversation}
+
+                        Extract and return a JSON schema: {PuzzleLLMResponse}
+                        Core Schema Definitions: 
+                        {{
+                          "nodes": [NodeGenerate],
+                          "edges": [EdgeGenerate],
+                          "units": [UnitGenerate],
+                          "coins": int
+                          "description": str
+                        }}
+                        Return ONLY valid JSON, no explanations."""
+
+        llm = get_llm(state["model"])
+        prompt = {
+            "system_prompt": system_prompt,
+            "user_prompt": conversation
+        }
+
+        # Simple async call
+        raw_data = await llm.chat(prompt)
+        print("\nLLM Response collected puzzle info to create puzzle: ", raw_data)
+
+        puzzle_generated = PuzzleLLMResponse.model_validate_json(raw_data)
+
+        try:
+            new_puzzle = PuzzleCreate(
+                name="Generated Puzzle", # ToDo: generate puzzle name
+                model=self.model,
+                game_mode="Skirmish", # ToDo: collect game mode
+                coins=puzzle_generated.coins,
+                nodes=[n.model_dump() for n in puzzle_generated.nodes],
+                edges=[n.model_dump() for n in puzzle_generated.edges],
+                units=[n.model_dump() for n in puzzle_generated.units],
+                description=puzzle_generated.description
+            )
+            if new_puzzle:
+                print("\nNew Puzzle created successfully (collect and create node)")
+                print("new puzzle (collect and create node): ", new_puzzle)
+
+
+        except Exception as e:
+            print(f"Could not create a puzzle. Error: {e}")
+            state["messages"] = [{"role": "Rudolfo", "content": f"Could not create a puzzle. Error: {e}"}]
+            return state
+
+        print("\nCreate new puzzle (collect and create node)...")
+        puzzle = self.puzzle_services.create_puzzle(new_puzzle)
+
+        print("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
+        state["current_puzzle_id"] = puzzle.id
+
+        return state
 
     async def _collect_info(self, state: AgentState) -> AgentState:
         """ Collect information about the agent """
@@ -110,7 +187,7 @@ class ChatAgent:
         print("\n Updated collected info of AgentState: ", state["collected_info"])
         return state
 
-    async def process(self, user_message: str):
+    async def process(self, user_message: str) -> Optional[AgentState]:
         """ Process user message and return response """
         print("Process user message: ", user_message)
         initial_state = {

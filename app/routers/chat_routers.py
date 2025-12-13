@@ -68,7 +68,7 @@ async def chat(
         model=chat_data.model,
     )
 
-    # Get chat history
+    # Get chat history for chat agent
     # print("get session messages: ", session_id)
     # chat_messages = services.get_session_messages(session_id)
     # chat_history = [
@@ -84,8 +84,6 @@ async def chat(
     if llm_response:
         print("Received response from agent graph and pass it to database")
 
-    # get llm response
-    # llm_response = await services.get_llm_response(chat_data.content, chat_data.model, session_id)
 
     # store user message and ai response to database
     await services.add_message(session_id, "User", chat_data.content)

@@ -100,6 +100,7 @@ class PuzzleServices:
                 self.db.flush()
 
         self.db.commit()
+        print("Created new puzzle with id: ", puzzle.id)
         return puzzle
 
     # get all puzzle
