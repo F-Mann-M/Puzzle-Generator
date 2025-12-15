@@ -7,7 +7,7 @@ A web-based application for generating, creating, editing, and visualizing tacti
 ### Core Functionality
 - **Puzzle Generation**: AI-powered puzzle generation using multiple LLM providers (OpenAI, Google Gemini)
 - **Manual Puzzle Creation**: Full control over puzzle design with visual editor
-- **Puzzle Visualization**: Interactive SVG-based visualization with zoom, pan, and unit path highlighting
+- **Puzzle Visualization**: Interactive SVG-based visualization with zoom, pan, and unit path highlighting (AI generated dummy)
 - **Interactive Chat Interface**: Conversational AI assistant (Rudolfo) that helps create puzzles through natural language
 - **Puzzle Management**: Create, read, update, and delete puzzles with persistent storage
 - **Session Management**: Multi-session chat interface with conversation history
@@ -24,7 +24,7 @@ A web-based application for generating, creating, editing, and visualizing tacti
 ### Backend
 - **FastAPI**: Modern Python web framework
 - **SQLAlchemy**: ORM for database operations
-- **Alembic**: Database migration tool (does not working yet)
+- **Alembic**: Database migration tool (does not work yet)
 - **LangGraph**: Agent orchestration framework
 - **LangChain**: LLM integration framework
 - **Pydantic**: Data validation and settings management
