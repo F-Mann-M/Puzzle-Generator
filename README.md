@@ -45,7 +45,6 @@ A web-based application for generating, creating, editing, and visualizing tacti
 
 ## Project Structure
 
-```
 Puzzle-Generator/
 ├── alembic/                 
 │   ├── versions/           
@@ -98,7 +97,6 @@ Puzzle-Generator/
 ├── data/                    # Database files
 ├── requirements.txt         # Python dependencies
 └── alembic.ini             
-```
 
 ## Usage
 
