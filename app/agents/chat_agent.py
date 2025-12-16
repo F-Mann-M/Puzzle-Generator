@@ -10,6 +10,7 @@ from app.agents.agent_tools import AgentTools
 from app.llm.llm_manager import get_llm
 from app.services import SessionService, PuzzleServices
 from app.schemas import PuzzleCreate, PuzzleLLMResponse
+from app.prompts.prompt_game_rules import BASIC_RULES
 
 memory = InMemorySaver()
 
@@ -45,9 +46,9 @@ class ChatAgent:
         # Nodes
         builder.add_node("intent", self._classify_intent)
         builder.add_node("chat", self._chat)
-        # builder.add_node("collect_info", self._collect_info)
+        builder.add_node("collect_info", self._collect_info)
         builder.add_node("collect_and_create", self._collect_and_creates_puzzle)
-        #builder.add_node("generate", self.tools.generate_puzzle)
+        builder.add_node("generate", self.tools.generate_puzzle)
         builder.add_node("format_response", self.format_response)
 
         # Edges
@@ -55,8 +56,9 @@ class ChatAgent:
         builder.add_conditional_edges("intent", self._intent,
                                       {
                                           "generate" : "collect_and_create",
-                                          #"create" : "collect_info",
-                                          "chat" : "chat"
+                                          "create" : "chat", # will be collect_info
+                                          "chat" : "chat",
+                                          "modify": "chat" # will be update
                                       })
         builder.add_edge("collect_and_create", "format_response")
         builder.add_edge("chat", "format_response")
@@ -125,6 +127,7 @@ class ChatAgent:
 
         system_prompt = f"""
                         You are a puzzle-generation agent.
+                        This are the puzzle rules {BASIC_RULES}
 
                         You MUST output a single JSON object that strictly conforms to the provided JSON Schema.
 
@@ -162,10 +165,12 @@ class ChatAgent:
         raw_data = await llm.chat(prompt)
         print("\nLLM Response collected puzzle info to create puzzle: ", raw_data)
 
-        # convert to JSON Object
-        puzzle_generated = PuzzleLLMResponse.model_validate_json(raw_data)
+
 
         try:
+            # convert to JSON Object
+            puzzle_generated = PuzzleLLMResponse.model_validate_json(raw_data)
+
             puzzle_config = PuzzleCreate(
                 name="Generated Puzzle", # ToDo: generate puzzle name
                 model=self.model,
@@ -190,6 +195,7 @@ class ChatAgent:
                 state["current_puzzle_id"] = puzzle.id
 
                 # Add to tool result
+                state["tool_result"].append(raw_data)
                 state["tool_result"].append(f"Puzzle {puzzle.name} generated successfully")
 
                 return state
@@ -198,6 +204,7 @@ class ChatAgent:
 
         except Exception as e:
             print(f"Could not create a puzzle. Error: {e}")
+            state["tool_result"].append(raw_data)
             state["tool_result"].append(f"Could not create a puzzle. Error: {e}")
             return state
 
@@ -269,7 +276,10 @@ class ChatAgent:
 
 
     def format_response(self, state: AgentState) -> str:
-        """ Format final response from tool_result for user"""
+        """
+        Format final response from tool_result for user.
+        if last used tool is chat return last message
+        """
 
         response_parts = ""
         if state["tool_result"]:
