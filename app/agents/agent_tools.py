@@ -7,7 +7,7 @@ class AgentTools:
     def __init__(self, db):
         self.db = db
 
-    async def generate_puzzle(self, puzzle_config: PuzzleGenerate):
+    async def generate_puzzle(self, puzzle_config):
         """ Generate a new puzzle"""
         services = PuzzleServices(self.db)
         puzzle_generated = await services.generate_puzzle(puzzle_config)

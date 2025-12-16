@@ -70,13 +70,12 @@ async def chat(
         model=chat_data.model,
     )
 
-
-    # Get chat history for chat agent
+    # # Get chat history for chat agent
     # print("get session messages: ", session_id)
     # chat_messages = services.get_session_messages(session_id)
     # chat_history = [
     #     {"role": msg.role, "content": msg.content}
-    #     for msg in chat_messages[-10:]  # Last 10 messages for context
+    #     for msg in chat_messages[-10:]
     # ]
 
     # Initialize agent
