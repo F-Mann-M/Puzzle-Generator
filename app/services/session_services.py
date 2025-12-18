@@ -2,7 +2,6 @@ from uuid import uuid4, UUID
 
 from app.llm import get_llm
 from app import models
-from app.prompts.prompt_game_rules import BASIC_RULES
 
 
 
@@ -40,7 +39,9 @@ class SessionService:
         )
         self.db.add(new_session)
         self.db.commit()
+
         print(f"New session was created. \nSession id: ", new_session.id)
+
         return new_session.id
 
 
@@ -54,40 +55,6 @@ class SessionService:
         self.db.add(new_message)
         self.db.commit()
         print(f"Added message from {role} to database")
-
-
-    async def get_llm_response(self, user_message: str, model: str, session_id: UUID)-> str:
-        """ Gets the llm response for a user message. """
-        llm = get_llm(model)
-
-        # get latest chat history
-        chat_history = self.get_chat_history(session_id)
-
-        system_prompt = (
-            "You are an helpfully assistant."
-            "you are an noble advisor."
-            "Your name is Rudolfo"
-            "You only address the user as a nobel person."
-            "The users Name is Goetz. He is a robber knight."
-            "The users Character is based on the knight Götz von Berlichen"
-            f"If user asks for the rules of the game use {BASIC_RULES}."
-            "You ONLY answer questions related to the puzzle rules or Middle Ages."
-            "You can tell a bit about the medieval everyday life,"
-            "you can make up funny gossip from Berlichenstein Castle, "
-            "medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern."
-            "Your ONLY purpose is to help the user with the a puzzle."
-            "if user asks for somthing not puzzle related answer in a funny way. make up a very short Middle Ages anecdote"
-            f"this {chat_history} is the chat history. use it to remember the whole chat history to answer properly like an ongoing chat"
-
-        )
-        prompt = {"system_prompt": system_prompt, "user_prompt":user_message}
-        print("loading ai response...")
-        llm_response = await llm.chat(prompt)
-        if llm_response:
-            print("loading ai response successfully")
-            return llm_response
-        else:
-            return f"Ups! Something went wrong 😅 <br> Could not load the AI response from {model}"
 
 
     def get_session_messages(self, session_id: UUID):

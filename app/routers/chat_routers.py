@@ -44,7 +44,7 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
 
     message_html = ""
     for message in session_messages:
-        if message.role == "User":
+        if message.role == "user":
             message_html += f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
         else:
             message_content = markdown.markdown(message.content)
@@ -70,7 +70,7 @@ async def chat(
         model=chat_data.model,
     )
 
-    # # Get chat history for chat agent
+    # # Get chat history from session/ get states back
     # print("get session messages: ", session_id)
     # chat_messages = services.get_session_messages(session_id)
     # chat_history = [
@@ -86,10 +86,9 @@ async def chat(
     if llm_response:
         print("Received response from agent graph and pass it to database")
 
-
-    # store user message and ai response to database
-    await services.add_message(session_id, "User", chat_data.content)
-    await services.add_message(session_id, "Rudolfo", llm_response)
+    # store user message and LLM response to database
+    await services.add_message(session_id, "user", chat_data.content)
+    await services.add_message(session_id, "assistant", llm_response)
 
     # format llm response to proper html output
     print("Format the LLM response into a readable HTML format")
@@ -99,7 +98,12 @@ async def chat(
     print("Pass content to front-end...")
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
-    return HTMLResponse(content=user_msg + ai_msg)
+
+    # Include session_id update script in the response
+    # Update session_id in the hidden input
+    session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
+    
+    return HTMLResponse(content=user_msg + ai_msg + session_script)
 
 
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
@@ -111,21 +115,20 @@ async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     return HTMLResponse(content="", status_code=200)
 
 
-@router.get("/chat/{session_id}/puzzle", response_class=HTMLResponse)
-async def get_puzzle(session_id: UUID, db: Session = Depends(get_db)):
-    """Get puzzle id via session id"""
-    services = SessionService(db)
-    session = db.query(models.Session).filter(models.Session.id == session_id).first()
-
-    if not session:
-        return HTMLResponse(content="<div>Session not found.</div>")
-
-    puzzle_id = session.puzzle_id
-    print("puzzle_id: ", puzzle_id)
-
-    if not puzzle_id:
-        return HTMLResponse(content="<div>No puzzle yet.</div>")
-
-    return HTMLResponse(
-        content=f'<svg id="puzzle-visualization-svg" data-puzzle-id="{puzzle_id}" style="width: 100%; height: 100%;"></svg>'
-    )
+# @router.get("/chat/{session_id}/puzzle", response_class=HTMLResponse)
+# async def get_puzzle(session_id: UUID, db: Session = Depends(get_db)):
+#     """Get puzzle id via session id for visualization in chat"""
+#     session = db.query(models.Session).filter(models.Session.id == session_id).first()
+#
+#     if not session:
+#         return HTMLResponse(content="<div>Session not found.</div>")
+#
+#     puzzle_id = session.puzzle_id
+#     print("puzzle_id: ", puzzle_id)
+#
+#     if not puzzle_id:
+#         return HTMLResponse(content="<div>No puzzle yet.</div>")
+#
+#     return HTMLResponse(
+#         content=f'<svg id="puzzle-visualization-svg" data-puzzle-id="{puzzle_id}" style="width: 100%; height: 100%;"></svg>'
+#     )

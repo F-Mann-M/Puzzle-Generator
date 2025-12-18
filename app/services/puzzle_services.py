@@ -63,7 +63,6 @@ class PuzzleServices:
             self.db.flush()
 
         # Create Unit
-        print("\n\nUnit properties: ", puzzle_data.units)  # debugging
         for unit_data in puzzle_data.units:
             unit = models.Unit(
                 id=uuid4(),

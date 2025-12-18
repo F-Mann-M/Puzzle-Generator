@@ -1,9 +1,24 @@
 import operator
-from typing import Annotated, List, Literal, TypedDict, Optional, Any, Dict
+from typing import Annotated, List, TypedDict, Optional, Any
 from uuid import UUID
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Command, interrupt, Interrupt
-from langgraph.checkpoint.memory import InMemorySaver
+import json
+
+# MemorySave works only for sync environment
+# therefor I use AsyncSqliteSaver to async store checkpoints
+# but this version is currently buggy
+import aiosqlite
+# --- START FIX: Monkey Patch aiosqlite ---
+# The new version of aiosqlite removed 'is_alive', but LangGraph still looks for it.
+# manually add it back so the code doesn't crash.
+if not hasattr(aiosqlite.Connection, "is_alive"):
+    def is_alive(self):
+        # We assume if the thread is running, the connection is alive
+        return self._running
+
+    aiosqlite.Connection.is_alive = is_alive
+# --- END FIX ---
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from app.models import Session
 from app.agents.agent_tools import AgentTools
@@ -11,8 +26,15 @@ from app.llm.llm_manager import get_llm
 from app.services import SessionService, PuzzleServices
 from app.schemas import PuzzleCreate, PuzzleLLMResponse
 from app.prompts.prompt_game_rules import BASIC_RULES
+from app.core.config import settings
 
-memory = InMemorySaver()
+TOOL_DESCRIPTION = """
+        chat: normal chat. Receives user messages and gives back llm response
+        collect_and_create: Generates instantly a new puzzle based on the last user message
+        collect_info: collects detailed information to create a puzzle. It keeps user asking until all information are collected.
+        update_puzzle: Takes in users message and updates an existing puzzle
+        """
+
 
 class AgentState(TypedDict):
     messages: Annotated[List[dict[str, str]], operator.add]
@@ -32,7 +54,7 @@ class ChatAgent:
         self.session_id = session_id
         self.model = model
         self.tools = AgentTools(db)
-        self.graph = self.build_graph()
+        self.workflow = self.build_graph()
         self.session_services = SessionService(self.db)
         self.puzzle_services = PuzzleServices(self.db)
 
@@ -56,24 +78,37 @@ class ChatAgent:
         builder.add_conditional_edges("intent", self._intent,
                                       {
                                           "generate" : "collect_and_create",
-                                          "create" : "chat", # will be collect_info
+                                          "create" : "collect_info", # will be collect_info
                                           "chat" : "chat",
                                           "modify": "chat" # will be update
                                       })
         builder.add_edge("collect_and_create", "format_response")
+        builder.add_edge("collect_info", "format_response")
         builder.add_edge("chat", "format_response")
         builder.add_edge("format_response", END)
 
-        return builder.compile()
+
+        return builder
+
+    TOOL_DESCRIPTION = """
+        chat: normal chat. Receives user messages and gives back llm response
+        collect_and_create: Generates instantly a new puzzle based on the last user message
+        collect_info: collects detailed information to create a puzzle. It keeps user asking until all information are collected.
+        update_puzzle: Takes in users message and updates an existing puzzle
+        """
 
     async def _classify_intent(self, state: AgentState)-> AgentState:
         """ Classify user intent from conversation"""
 
-        #Get conversation
-        conversation = ""
-        if state["messages"]:
-            # message: {"id": UUID, "session_id", UUID, "role": "Rudolfo", "content": "bla bla", }
-            conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
+        # Get llm
+        llm = get_llm(state["model"])
+
+        last_message = state["messages"][-1] if state["messages"] else ""
+
+        # Get chat history
+        conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
+
+        print(f"\nClassify intent from conversation: {conversation}")
 
         system_prompt = """You are an intent classifier. Analyse user's massage and classify his intent.
         Return ONLY one word: 'generate', 'create', 'modify' and 'chat'
@@ -85,19 +120,20 @@ class ChatAgent:
         
         If something is unclear, return 'chat' to clarify."""
 
-        llm = get_llm(state["model"])
+
         prompt = {
             "system_prompt": system_prompt,
-            "user_prompt": conversation
+            "user_prompt": last_message.get("content"),
         }
-        print("Analyse user's massage and classify his intent...")
 
         # Simple async call
+        print("Analyse user's massage and classify his intent...")
         intent = await llm.chat(prompt)
         print("\nLLM has classifies user intention: ", intent)
 
         state["user_intent"] = intent.lower()
         return state
+
 
     async def _intent(self, state: AgentState) -> str:
         """Got to the next node based on user intent."""
@@ -106,24 +142,69 @@ class ChatAgent:
 
     async def _chat(self, state: AgentState) -> AgentState:
         """ handel ongoing chat"""
+        # Get llm
+        llm = get_llm(state["model"])
 
+        # Get user message
         last_message = state["messages"][-1] if state["messages"] else ""
         print("Last message sent to llm: ", last_message)
 
-        llm_response = await self.session_services.get_llm_response(last_message.get("content"), self.model, self.session_id)
-        print("Llm response: ", llm_response)
-        state["messages"] = [{"role": "Rudolfo", "content": llm_response}]
+        conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
 
-        print("current State (chat): ", state)
+        print(f"\nChat conversation: {conversation}")
+
+        # Create prompt
+        system_prompt = (
+            f"""You are an helpfully assistant.
+            you are a noble advisor.
+            Your name is Rudolfo
+            You only address the user as a nobel person.
+            The users Name is Goetz. He is a robber knight.
+            The users Character is based on the knight Götz von Berlichen
+            If user asks for the rules of the game use {BASIC_RULES}.
+            You ONLY answer questions related to the puzzle rules or Middle Ages.
+            You can tell a bit about the medieval everyday life,
+            you can make up funny gossip from Berlichenstein Castle, 
+            medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern.
+            Your ONLY purpose is to help the user with the a puzzle.
+            if user asks for somthing not puzzle related answer in a funny way. 
+            make up a very short Middle Ages anecdote
+            User the chat history {conversation} to stay in a ongoing conversation.
+            """)
+
+        prompt = {"system_prompt": system_prompt, "user_prompt": last_message.get("content")}
+
+        # Get LLM response
+        print("loading ai response...")
+        llm_response = await llm.chat(prompt)
+        final_response = ""
+        if llm_response:
+            print("loading ai response successfully")
+            final_response = llm_response
+        else:
+            final_response = f"Ups! Something went wrong 😅 <br> Could not load the AI response from {state.get('model')}"
+
+        # store response in state
+        print("Llm response: ", final_response)
+        state["messages"].append({"role": "assistant", "content": final_response})
+
+        print("\n****Current State (chat): ******", state)
+        print("state messages: ", len(state["messages"]))
         return state
 
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
+        # Get LLM
+        llm = get_llm(state["model"])
+
+        last_message = state["messages"][-1] if state["messages"] else ""
 
         # get last message
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        print("\n Conversation (state['messages']): ")
+        print("\nCollect and create conversation: ", conversation)
+        print("\nCollect and create a new puzzle...")
+
 
         system_prompt = f"""
                         You are a puzzle-generation agent.
@@ -141,8 +222,6 @@ class ChatAgent:
 
                         
                         If you cannot produce valid JSON, output an empty JSON object: {{}}
-                        
-                        Extract puzzle creation parameters from this conversation: {conversation}
 
                         Extract and return a JSON schema: {PuzzleLLMResponse}
                         Core Schema Definitions: 
@@ -155,17 +234,14 @@ class ChatAgent:
                         }}
                         Return ONLY valid JSON, no explanations."""
 
-        llm = get_llm(state["model"])
         prompt = {
             "system_prompt": system_prompt,
-            "user_prompt": conversation
+            "user_prompt": last_message.get("content"),
         }
 
         # Simple async call
         raw_data = await llm.chat(prompt)
         print("\nLLM Response collected puzzle info to create puzzle: ", raw_data)
-
-
 
         try:
             # convert to JSON Object
@@ -196,11 +272,8 @@ class ChatAgent:
 
                 # Add to tool result
                 state["tool_result"].append(raw_data)
-                state["tool_result"].append(f"Puzzle {puzzle.name} generated successfully")
-
+                state["tool_result"].append(f"<br>Puzzle {puzzle.name} generated successfully")
                 return state
-                # go to format response and chat
-                # state
 
         except Exception as e:
             print(f"Could not create a puzzle. Error: {e}")
@@ -211,10 +284,14 @@ class ChatAgent:
 
     async def _collect_info(self, state: AgentState) -> AgentState:
         """ Collect information about the agent """
+        TOOL = "collect_info"
+        last_message = state["messages"][-1] if state["messages"] else ""
 
         # get last message
-        conversation = "\n".join([f"{m['role']}: {m['content']}" for m in state["messages"]])
-        print("\n Conversation (state['messages']): ")
+        conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
+        print("\nCollecting information...")
+        print("\nConversation length: ", len(conversation))
+
 
         print("Collect info: get conversation and extract information from it")
         system_prompt = f"""Extract puzzle generation parameters from this conversation:
@@ -231,7 +308,7 @@ class ChatAgent:
                         {{"type": "Grunt", "faction": "enemy", "count": 2}},
                         {{"type": "Swordsman", "faction": "player", "count": 1}}
                     ],
-                    "description": "any additional instructions"
+                    "description": "any additional instructions like a special wish from user"
                 }}
 
                 Return ONLY valid JSON, no explanations."""
@@ -239,56 +316,118 @@ class ChatAgent:
         llm = get_llm(state["model"])
         prompt = {
             "system_prompt": system_prompt,
-            "user_prompt": conversation
+            "user_prompt": last_message.get("content"),
         }
 
         # Simple async call
-        response = await llm.chat(prompt)
-        print("\n LLM Response collected info")
+        print("\nLLM Response collects info")
+        llm_response = await llm.chat(prompt)
 
-        collected = response
+        #TODO: Add Schema for output
 
-        state["collected_info"] = collected
-        print("\n Updated collected info of AgentState: ", state["collected_info"])
+        # Clean the string to remove markdown backticks
+        clean_json_string = llm_response.replace("```json", "").replace("```", "").strip()
+
+        # Convert string to Python dict
+        response = json.loads(clean_json_string)
+
+        # check collected info:
+        collected_info = {}
+        is_collected = True
+        missing_info = []
+        for key, info in response.items():
+            if info is None:
+                is_collected = False
+                missing_info.append(key)
+            else:
+                collected_info[key] = info
+
+        print("\nCollected info: ", collected_info)
+
+        # Generate Puzzle or ask user for more information
+        tool_response = ""
+        if is_collected:
+            print("\nAll information collected!")
+            print("Collected info: ", missing_info)
+            print("Generate Puzzle...")
+            # Call Tool generate Puzzle
+            tool_response = f"""{TOOL}: Puzzle generated successfully"""
+        else:
+            print("\nfollowing infos are still missing: ")
+            for info in missing_info:
+                print(f"\t{info}")
+            tool_response = f"""{TOOL}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
+
+        # Add collected info to state collected_info
+        state["collected_info"] = collected_info
+        print("\nUpdated collected info of AgentState: ", state["collected_info"])
+
+        # Add tool results to tool_results
+        print("\nAdd tool results to tool result...")
+        state["tool_result"].append(tool_response)
+        print("\n+++ Tool result List +++ \n", state["tool_result"])
+
         return state
 
-    async def process(self, user_message: str) -> Optional[AgentState]:
+    async def process(self, user_message: str) -> str:
         """ Process user message and return response """
-        print("Process user message: ", user_message)
-        initial_state = {
-            "messages": [{"role": "User", "content": user_message}],
-            "model": self.model,
-            "session_id": self.session_id,
-            "user_intent": None,
-            "collected_info": {},
-            "current_puzzle_id": None,
-            "tool_result": [],
-            "final_response": None
-        }
-
+        print("\nProcess user message: ", user_message)
 
         # Process with graph
-        print("Invoke agent graph")
-        config = {"configurable": {"thread_id": self.session_id}}
-        result = await self.graph.ainvoke(initial_state, config=config)
+        async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
+            graph = self.workflow.compile(checkpointer=checkpointer)
+
+            print("Invoke agent graph")
+            config = {"configurable": {"thread_id": self.session_id}}
+            result = await graph.ainvoke(
+                {"messages": [{"role": "user", "content": user_message}],
+                "model": self.model,
+                "session_id": self.session_id,
+                "tool_result": []},
+                config = config)
 
         return result.get("final_response", "How can I help you?")
 
 
-    def format_response(self, state: AgentState) -> str:
+    async def format_response(self, state: AgentState) -> str:
         """
         Format final response from tool_result for user.
         if last used tool is chat return last message
+        """
+        print("\n\nFormat final response from tool_result... ")
+
+        llm = get_llm(state["model"])
+        system_prompt = f"""
+        You are a technical assistant who takes in a list of different tool results. You sumup the results
+        and explains what the tool result is.
+        Rules:
+        - mention all tool that where used
+        - this are the tool descriptions: {TOOL_DESCRIPTION}
+        - explain what the tool did
+        - and the result of the tool
+        - Looks like a short reasoning.
+        - keep in short in topics
         """
 
         response_parts = ""
         if state["tool_result"]:
             for result in state["tool_result"]:
                 response_parts += f"{result}\n"
-            state["final_response"] = response_parts if response_parts else "How can I help you?"
-            state["messages"] = [{"role": "Rudolfo", "content": state["final_response"]}]
+            print("\nJoin all tool results: ", response_parts)
+
+            # get tool_result summery from LLM
+            print("Send tools results to LLM...")
+            prompt = {
+                "system_prompt": system_prompt,
+                "user_prompt": response_parts,
+            }
+            state["final_response"] = await llm.chat(prompt)
+            state["messages"].append({"role": "Rudolfo", "content": state["final_response"]})
         else:
+            print("\nNo tool result found.")
             state["final_response"] = state["messages"][-1]["content"]
+
+        print("\n\nFinal response: ", state["final_response"])
         return state
 
 
