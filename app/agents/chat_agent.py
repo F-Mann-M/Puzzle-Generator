@@ -8,6 +8,9 @@ import json
 # therefor I use AsyncSqliteSaver to async store checkpoints
 # but this version is currently buggy
 import aiosqlite
+
+from exercise.langgraph_exercise_01 import initial_state
+
 # --- START FIX: Monkey Patch aiosqlite ---
 # The new version of aiosqlite removed 'is_alive', but LangGraph still looks for it.
 # manually add it back so the code doesn't crash.
@@ -41,7 +44,7 @@ class AgentState(TypedDict):
     user_intent: Optional[str] # "generate", "create", "modify", "chat"
     collected_info: dict[str, Any] # "game_mode", "node_count", "enemy_unit_count", "enemy_type", "player_unit_count", "description"
     current_puzzle_id: Optional[UUID] # if puzzle generated and stored get id
-    tool_result: Annotated[List[str], operator.add] # collect result messages from tools
+    tool_result: List[str] # collect result messages from tools
     final_response: Optional[str] # final response for user
     session_id: UUID
     model: str # model used... pass llm_manager.py
@@ -131,8 +134,14 @@ class ChatAgent:
         intent = await llm.chat(prompt)
         print("\nLLM has classifies user intention: ", intent)
 
-        state["user_intent"] = intent.lower()
-        return state
+        # state["user_intent"] = intent.lower()
+
+        print("\n****Current State (intent) ******\n")
+        for key, value in state.items():
+            print(f"{key}: {value}")
+        print("state messages: ", len(state["messages"]))
+
+        return {"user_intent": intent.lower()}
 
 
     async def _intent(self, state: AgentState) -> str:
@@ -146,11 +155,11 @@ class ChatAgent:
         llm = get_llm(state["model"])
 
         # Get user message
+        messages = state["messages"]
         last_message = state["messages"][-1] if state["messages"] else ""
-        print("Last message sent to llm: ", last_message)
+        print("\nLast message sent to llm: ", last_message)
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-
         print(f"\nChat conversation: {conversation}")
 
         # Create prompt
@@ -169,7 +178,7 @@ class ChatAgent:
             Your ONLY purpose is to help the user with the a puzzle.
             if user asks for somthing not puzzle related answer in a funny way. 
             make up a very short Middle Ages anecdote
-            User the chat history {conversation} to stay in a ongoing conversation.
+            User the chat history {conversation} to stay in an ongoing conversation.
             """)
 
         prompt = {"system_prompt": system_prompt, "user_prompt": last_message.get("content")}
@@ -186,21 +195,28 @@ class ChatAgent:
 
         # store response in state
         print("Llm response: ", final_response)
-        state["messages"].append({"role": "assistant", "content": final_response})
+        messages = [{"role": "assistant", "content": final_response}]
 
-        print("\n****Current State (chat): ******", state)
+        # Debugging
+        print("\n****Current State (chat 2) ******\n")
+        for key, value in state.items():
+            print(f"{key}: {value}")
         print("state messages: ", len(state["messages"]))
-        return state
+
+        return {"messages": messages}
 
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
+        TOOL = "collect_and_create: "
+        tool_results = state["tool_results"]
+
         # Get LLM
         llm = get_llm(state["model"])
 
         last_message = state["messages"][-1] if state["messages"] else ""
 
-        # get last message
+        # get conversation
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         print("\nCollect and create conversation: ", conversation)
         print("\nCollect and create a new puzzle...")
@@ -271,15 +287,29 @@ class ChatAgent:
                 state["current_puzzle_id"] = puzzle.id
 
                 # Add to tool result
-                state["tool_result"].append(raw_data)
-                state["tool_result"].append(f"<br>Puzzle {puzzle.name} generated successfully")
-                return state
+                state["tool_result"].append(TOOL + raw_data)
+                state["tool_result"].append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
+
+                # debugging
+                print("\n****Current State (chat 2) ******\n")
+                for key, value in state.items():
+                    print(f"{key}: {value}")
+                print("state messages: ", len(state["messages"]))
+
+                return {"tool_result": tool_results}
 
         except Exception as e:
             print(f"Could not create a puzzle. Error: {e}")
-            state["tool_result"].append(raw_data)
-            state["tool_result"].append(f"Could not create a puzzle. Error: {e}")
-            return state
+            state["tool_result"].append(TOOL + raw_data)
+            state["tool_result"].append(TOOL + f"Could not create a puzzle. Error: {e}")
+
+            # debugging
+            print("\n****Current State (chat 2) ******\n")
+            for key, value in state.items():
+                print(f"{key}: {value}")
+            print("state messages: ", len(state["messages"]))
+
+            return {"tool_result": tool_results}
 
 
     async def _collect_info(self, state: AgentState) -> AgentState:
@@ -358,16 +388,19 @@ class ChatAgent:
                 print(f"\t{info}")
             tool_response = f"""{TOOL}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
 
-        # Add collected info to state collected_info
-        state["collected_info"] = collected_info
-        print("\nUpdated collected info of AgentState: ", state["collected_info"])
+        # # Add tool results to tool_results
+        # print("\nAdd tool results to tool result...")
+        # state["tool_result"] = [tool_response]
+        # print("\n+++ Tool result List +++ \n", state["tool_result"])
 
-        # Add tool results to tool_results
-        print("\nAdd tool results to tool result...")
-        state["tool_result"].append(tool_response)
-        print("\n+++ Tool result List +++ \n", state["tool_result"])
+        # debugging
+        print("\n****Current State (chat 2) ******\n")
+        for key, value in state.items():
+            print(f"{key}: {value}")
+        print("state messages: ", len(state["messages"]))
 
-        return state
+        return {"tool_result": tool_response, "collected_info": collected_info}
+
 
     async def process(self, user_message: str) -> str:
         """ Process user message and return response """
@@ -386,33 +419,31 @@ class ChatAgent:
                 "tool_result": []},
                 config = config)
 
-        return result.get("final_response", "How can I help you?")
+        print("\n****Current State (Process) ******\n", result)
+        print("state messages: ", len(result.get("messages")))
+        return result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
 
 
-    async def format_response(self, state: AgentState) -> str:
+    async def format_response(self, state: AgentState) -> AgentState:
         """
         Format final response from tool_result for user.
         if last used tool is chat return last message
         """
         print("\n\nFormat final response from tool_result... ")
+        if state.get("user_intent") == "chat":
+            print("Chat intent - skipping format_response, using existing message")
+            return
 
         llm = get_llm(state["model"])
         system_prompt = f"""
-        You are a technical assistant who takes in a list of different tool results. You sumup the results
-        and explains what the tool result is.
-        Rules:
-        - mention all tool that where used
-        - this are the tool descriptions: {TOOL_DESCRIPTION}
-        - explain what the tool did
-        - and the result of the tool
-        - Looks like a short reasoning.
-        - keep in short in topics
+        You are an assistant who takes in a list of different tool results. If tools require more information 
+        ask user for detail information.
         """
 
         response_parts = ""
-        if state["tool_result"]:
+        if state.get("tool_result"):
             for result in state["tool_result"]:
-                response_parts += f"{result}\n"
+                response_parts += f"{result}"
             print("\nJoin all tool results: ", response_parts)
 
             # get tool_result summery from LLM
@@ -421,14 +452,26 @@ class ChatAgent:
                 "system_prompt": system_prompt,
                 "user_prompt": response_parts,
             }
-            state["final_response"] = await llm.chat(prompt)
-            state["messages"].append({"role": "Rudolfo", "content": state["final_response"]})
+            final_response = await llm.chat(prompt)
+            messages = [{"role": "assistant", "content": final_response}]
+
+            # Debugging
+            print("\n****Current State (Format) ******\n")
+            for key, value in state.items():
+                print(f"{key}: {value}")
+            print("state messages: ", len(state["messages"]))
+            print("\n\n")
+
+            return {"messages": messages}
         else:
             print("\nNo tool result found.")
-            state["final_response"] = state["messages"][-1]["content"]
 
-        print("\n\nFinal response: ", state["final_response"])
-        return state
+        print("\n****Current State (Format) ******\n")
+        for key, value in state.items():
+            print(f"{key}: {value}")
+        print("state messages: ", len(state["messages"]))
+        print("\n\n")
+        return {}
 
 
 
