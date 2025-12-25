@@ -21,7 +21,7 @@ class PuzzleCreate(BaseModel):
     is_working: Optional[bool] = False
 
 
-# Data sent from user to MML
+# Data sent from user to LLM
 class PuzzleGenerate(BaseModel):
     name: str
     model: str

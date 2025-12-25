@@ -252,7 +252,7 @@ class PuzzleServices:
 
     # generate puzzle
     async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate:
-        print("Puzzle Config: ", puzzle_config)
+        print("Puzzle Config (generate puzzle): ", puzzle_config)
 
         # get example puzzles from database
         example_puzzles = self.get_all_puzzle()

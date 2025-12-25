@@ -9,25 +9,22 @@ import json
 # but this version is currently buggy
 import aiosqlite
 
-from exercise.langgraph_exercise_01 import initial_state
-
 # --- START FIX: Monkey Patch aiosqlite ---
 # The new version of aiosqlite removed 'is_alive', but LangGraph still looks for it.
 # manually add it back so the code doesn't crash.
 if not hasattr(aiosqlite.Connection, "is_alive"):
     def is_alive(self):
-        # We assume if the thread is running, the connection is alive
         return self._running
-
     aiosqlite.Connection.is_alive = is_alive
 # --- END FIX ---
+
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from app.models import Session
 from app.agents.agent_tools import AgentTools
 from app.llm.llm_manager import get_llm
 from app.services import SessionService, PuzzleServices
-from app.schemas import PuzzleCreate, PuzzleLLMResponse
+from app.schemas import PuzzleCreate, PuzzleLLMResponse, PuzzleGenerate
 from app.prompts.prompt_game_rules import BASIC_RULES
 from app.core.config import settings
 
@@ -110,17 +107,20 @@ class ChatAgent:
 
         # Get chat history
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
+        if len(conversation) > 3000:
+            conversation = conversation[-3000]  # keep the conversation short
 
-        print(f"\nClassify intent from conversation: {conversation}")
+        # print(f"\nClassify intent from conversation: {conversation}")
 
-        system_prompt = """You are an intent classifier. Analyse user's massage and classify his intent.
-        Return ONLY one word: 'generate', 'create', 'modify' and 'chat'
+        system_prompt = f"""You are an intent classifier. Analyse user's massage and classify his intent.
+        Return ONLY one word: 'create', 'generate', 'modify' and 'chat' 
 
         - generate: The user wants to generate a new puzzle without having to provide all the necessary details.
-        - create: The user wants to create a new puzzle (mentions creating, generating, new puzzle, etc.). 
+        - create: The user wants to create a new puzzle (mentions creating, generating, new puzzle, nodes is..., eges should be...). 
         - modify: User wants to change/update the current puzzle (mentions changing, updating, fixing, improving, etc.)
         - chat: General conversation, questions about rules, or non-puzzle related chat
         
+        if {state.get("collected_info")} ALWAYS choos create over generate AND chat
         If something is unclear, return 'chat' to clarify."""
 
 
@@ -128,18 +128,18 @@ class ChatAgent:
             "system_prompt": system_prompt,
             "user_prompt": last_message.get("content"),
         }
+        # debugging
+        print("\n****Current State (chat 2) ******\n")
+        for key, value in state.items():
+            if key == "messages":
+                for message in value:
+                    print(f"\n {message}")
+            print(f"\n{key}: {value}")
 
         # Simple async call
         print("Analyse user's massage and classify his intent...")
         intent = await llm.chat(prompt)
         print("\nLLM has classifies user intention: ", intent)
-
-        # state["user_intent"] = intent.lower()
-
-        print("\n****Current State (intent) ******\n")
-        for key, value in state.items():
-            print(f"{key}: {value}")
-        print("state messages: ", len(state["messages"]))
 
         return {"user_intent": intent.lower()}
 
@@ -160,7 +160,9 @@ class ChatAgent:
         print("\nLast message sent to llm: ", last_message)
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        print(f"\nChat conversation: {conversation}")
+        if len(conversation) > 3000:
+            conversation = conversation[-3000]  # keep the conversation short
+        # print(f"\nChat conversation: {conversation}")
 
         # Create prompt
         system_prompt = (
@@ -177,7 +179,9 @@ class ChatAgent:
             medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern.
             Your ONLY purpose is to help the user with the a puzzle.
             if user asks for somthing not puzzle related answer in a funny way. 
-            make up a very short Middle Ages anecdote
+            make up a very short Middle Ages anecdote.
+            Always be positive and polite, but with a sarcastic, humorous undertone.
+            When the user asks questions or makes statements, mention how great and wise his questions are with a humorous, slightly ironic undertone.
             User the chat history {conversation} to stay in an ongoing conversation.
             """)
 
@@ -197,19 +201,13 @@ class ChatAgent:
         print("Llm response: ", final_response)
         messages = [{"role": "assistant", "content": final_response}]
 
-        # Debugging
-        print("\n****Current State (chat 2) ******\n")
-        for key, value in state.items():
-            print(f"{key}: {value}")
-        print("state messages: ", len(state["messages"]))
-
         return {"messages": messages}
 
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
         TOOL = "collect_and_create: "
-        tool_results = state["tool_results"]
+        tool_results = state["tool_result"]
 
         # Get LLM
         llm = get_llm(state["model"])
@@ -218,7 +216,8 @@ class ChatAgent:
 
         # get conversation
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        print("\nCollect and create conversation: ", conversation)
+        if len(conversation) > 3000:
+            conversation = conversation[-3000]  # keep the conversation short
         print("\nCollect and create a new puzzle...")
 
 
@@ -290,12 +289,6 @@ class ChatAgent:
                 state["tool_result"].append(TOOL + raw_data)
                 state["tool_result"].append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
 
-                # debugging
-                print("\n****Current State (chat 2) ******\n")
-                for key, value in state.items():
-                    print(f"{key}: {value}")
-                print("state messages: ", len(state["messages"]))
-
                 return {"tool_result": tool_results}
 
         except Exception as e:
@@ -304,10 +297,10 @@ class ChatAgent:
             state["tool_result"].append(TOOL + f"Could not create a puzzle. Error: {e}")
 
             # debugging
-            print("\n****Current State (chat 2) ******\n")
-            for key, value in state.items():
-                print(f"{key}: {value}")
-            print("state messages: ", len(state["messages"]))
+            # print("\n****Current State (chat 2) ******\n")
+            # for key, value in state.items():
+            #     print(f"{key}: {value}")
+            # print("state messages: ", len(state["messages"]))
 
             return {"tool_result": tool_results}
 
@@ -319,8 +312,11 @@ class ChatAgent:
 
         # get last message
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
+        if len(conversation) > 3000:
+            conversation = conversation[-3000]  # keep the conversation short
+        print("conversation: ", conversation)
         print("\nCollecting information...")
-        print("\nConversation length: ", len(conversation))
+        print("\nConversation length (character length): ", len(conversation))
 
 
         print("Collect info: get conversation and extract information from it")
@@ -340,7 +336,8 @@ class ChatAgent:
                     ],
                     "description": "any additional instructions like a special wish from user"
                 }}
-
+                
+                description is optional
                 Return ONLY valid JSON, no explanations."""
 
         llm = get_llm(state["model"])
@@ -362,15 +359,32 @@ class ChatAgent:
         response = json.loads(clean_json_string)
 
         # check collected info:
-        collected_info = {}
+        if state.get("collected_info"): # ToDo: create an initial state in session_services
+            collected_info = state.get("collected_info")
+        else:
+            collected_info = {
+                "name": None,
+                "game_mode": None,
+                "node_count": None,
+                "edge_count": None,
+            "turns": None,
+            "units": None,
+            "description": " "
+            }
+
         is_collected = True
+        has_enemy_unit = False
+        has_player_unit = False
         missing_info = []
         for key, info in response.items():
+            if info is not None:
+                collected_info[key] = info
+
+        # check collected info:
+        for key, info in collected_info.items():
             if info is None:
                 is_collected = False
                 missing_info.append(key)
-            else:
-                collected_info[key] = info
 
         print("\nCollected info: ", collected_info)
 
@@ -380,24 +394,44 @@ class ChatAgent:
             print("\nAll information collected!")
             print("Collected info: ", missing_info)
             print("Generate Puzzle...")
+
+            # convert to PuzzleGenerate
+            puzzle_generated = PuzzleGenerate(
+                name=collected_info["name"],
+                model=state["model"],
+                game_mode=collected_info["game_mode"],
+                node_count=collected_info["node_count"],
+                edge_count=collected_info["edge_count"],
+                turns=collected_info["turns"],
+                units=collected_info["units"],
+                description=collected_info["description"]
+            )
+
             # Call Tool generate Puzzle
+            puzzle_id = await self.tools.generate_puzzle(puzzle_generated)
             tool_response = f"""{TOOL}: Puzzle generated successfully"""
+
+            # Add puzzle.id to current session
+            # self.session_services.add_puzzle_id(puzzle_id, self.session_id)
+
+            return {
+                "current_puzzle_id": puzzle_id,
+                "tool_result": tool_response
+            }
+
         else:
             print("\nfollowing infos are still missing: ")
             for info in missing_info:
                 print(f"\t{info}")
             tool_response = f"""{TOOL}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
 
-        # # Add tool results to tool_results
-        # print("\nAdd tool results to tool result...")
-        # state["tool_result"] = [tool_response]
-        # print("\n+++ Tool result List +++ \n", state["tool_result"])
-
         # debugging
-        print("\n****Current State (chat 2) ******\n")
-        for key, value in state.items():
-            print(f"{key}: {value}")
-        print("state messages: ", len(state["messages"]))
+        # print("\n****Current State (chat 2) ******\n")
+        # for key, value in state.items():
+        #     if key == "conversation":
+        #         print("state messages: ", len(state["messages"]))
+        #     else:
+        #         print(f"{key}: {value}")
 
         return {"tool_result": tool_response, "collected_info": collected_info}
 
@@ -419,8 +453,6 @@ class ChatAgent:
                 "tool_result": []},
                 config = config)
 
-        print("\n****Current State (Process) ******\n", result)
-        print("state messages: ", len(result.get("messages")))
         return result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
 
 
@@ -436,8 +468,12 @@ class ChatAgent:
 
         llm = get_llm(state["model"])
         system_prompt = f"""
-        You are an assistant who takes in a list of different tool results. If tools require more information 
-        ask user for detail information.
+        You are an assistant who takes in a list of different tool results {state.get("tool_reslut")}. 
+        Your name is Rudolfo. 
+        You are a chivalrous advisor from the Middle Ages. Always be positive and polite, but with a sarcastic, humorous undertone.
+        Mention how greate the plans of users are.
+        If tools require more information ask the user for more detail information. 
+        For further information about the puzzle use {BASIC_RULES}
         """
 
         response_parts = ""
@@ -455,22 +491,9 @@ class ChatAgent:
             final_response = await llm.chat(prompt)
             messages = [{"role": "assistant", "content": final_response}]
 
-            # Debugging
-            print("\n****Current State (Format) ******\n")
-            for key, value in state.items():
-                print(f"{key}: {value}")
-            print("state messages: ", len(state["messages"]))
-            print("\n\n")
-
             return {"messages": messages}
         else:
             print("\nNo tool result found.")
-
-        print("\n****Current State (Format) ******\n")
-        for key, value in state.items():
-            print(f"{key}: {value}")
-        print("state messages: ", len(state["messages"]))
-        print("\n\n")
         return {}
 
 

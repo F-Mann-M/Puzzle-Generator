@@ -63,11 +63,11 @@ Enemy units may be static (path length 1) or moving (path length >1).
 #Player and Enemy Unit Types
 all units starting in state 'normal'
 
-##Grunt
+##Grunt (enemy unit)
 normal: 1 point
 exhausted: 0 points
 
-##Swordsman
+##Swordsman (player unit)
 normal: 1 point
 exhausted: 0 points
 
