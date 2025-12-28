@@ -150,3 +150,15 @@ class SessionService:
         query = self.db.query(models.Session).filter(models.Session.id == session_id).first()
         query.puzzle_id = puzzle_id
         self.db.commit()
+
+
+    async def get_puzzle_id(self, session_id: UUID):
+        """Get puzzle id by session id"""
+        if not session_id:
+            return None
+
+        session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+        if session:
+            puzzle_id = session.puzzle_id
+            return puzzle_id
+        return None

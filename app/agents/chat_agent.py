@@ -207,7 +207,7 @@ class ChatAgent:
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
         TOOL = "collect_and_create: "
-        tool_results = state["tool_result"]
+        tool_results = state.get("tool_result")
 
         # Get LLM
         llm = get_llm(state["model"])
@@ -283,18 +283,20 @@ class ChatAgent:
 
                 # Update state
                 print("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
-                state["current_puzzle_id"] = puzzle.id
 
                 # Add to tool result
-                state["tool_result"].append(TOOL + raw_data)
-                state["tool_result"].append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
+                tool_results.append(TOOL + raw_data)
+                tool_results.append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
 
-                return {"tool_result": tool_results}
+                return {
+                    "tool_result": tool_results,
+                    "current_puzzle_id": puzzle.id
+                        }
 
         except Exception as e:
             print(f"Could not create a puzzle. Error: {e}")
-            state["tool_result"].append(TOOL + raw_data)
-            state["tool_result"].append(TOOL + f"Could not create a puzzle. Error: {e}")
+            tool_results.append(TOOL + raw_data)
+            tool_results.append(TOOL + f"Could not create a puzzle. Error: {e}")
 
             # debugging
             # print("\n****Current State (chat 2) ******\n")
@@ -412,7 +414,7 @@ class ChatAgent:
             tool_response = f"""{TOOL}: Puzzle generated successfully"""
 
             # Add puzzle.id to current session
-            # self.session_services.add_puzzle_id(puzzle_id, self.session_id)
+            self.session_services.add_puzzle_id(puzzle_id, self.session_id)
 
             return {
                 "current_puzzle_id": puzzle_id,
@@ -426,7 +428,8 @@ class ChatAgent:
             tool_response = f"""{TOOL}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
 
         # debugging
-        # print("\n****Current State (chat 2) ******\n")
+        print("\n****Current State (chat 2) ******\n")
+        print("puzzle id: ", state["current_puzzle_id"])
         # for key, value in state.items():
         #     if key == "conversation":
         #         print("state messages: ", len(state["messages"]))
@@ -436,7 +439,7 @@ class ChatAgent:
         return {"tool_result": tool_response, "collected_info": collected_info}
 
 
-    async def process(self, user_message: str) -> str:
+    async def process(self, user_message: str) -> tuple[str, UUID | None]:
         """ Process user message and return response """
         print("\nProcess user message: ", user_message)
 
@@ -453,7 +456,10 @@ class ChatAgent:
                 "tool_result": []},
                 config = config)
 
-        return result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
+        message = result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
+        current_puzzle_id = result.get("current_puzzle_id")
+        print("Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)
+        return message, current_puzzle_id
 
 
     async def format_response(self, state: AgentState) -> AgentState:

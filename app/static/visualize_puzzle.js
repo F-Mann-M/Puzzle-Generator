@@ -5,6 +5,7 @@
 // Store puzzle data and selected unit for interactivity
 let storedPuzzleData = null;
 let selectedUnitId = null;
+let initializedSvgs = new Set(); // Track which SVGs have been initialized
 
 // Zoom state
 let currentViewBox = { x: 0, y: 0, width: 100, height: 100 };
@@ -17,27 +18,27 @@ let panStartY = null;
 let panStartViewBoxX = null;
 let panStartViewBoxY = null;
 
-// Initialize when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
-    // --- GET ELEMENTS ---
-    const svg = document.getElementById("puzzle-visualization-svg");
-
-    if (!svg) {
-        console.error("Puzzle visualization SVG element not found");
+// Initialize puzzle visualization for a given SVG element
+function initializePuzzleVisualization(svg) {
+    // Check if this SVG has already been initialized
+    const svgId = svg.id || `svg-${Math.random()}`;
+    if (initializedSvgs.has(svgId)) {
+        console.log("SVG already initialized, skipping:", svgId);
         return;
     }
+    
+    // Mark as initialized
+    initializedSvgs.add(svgId);
 
-    // Get puzzle ID from the page (you'll need to pass it somehow)
-    // Option 1: From a data attribute on the SVG element
+    // Get puzzle ID from the data attribute
     const puzzleId = svg.getAttribute("data-puzzle-id");
     
-    // Option 2: Extract from URL
-    // const puzzleId = window.location.pathname.split('/').filter(p => p).pop();
-    
     if (!puzzleId) {
-        console.error("Puzzle ID not found");
+        console.warn("Puzzle ID not found in data-puzzle-id attribute");
         return;
     }
+
+    console.log("Initializing puzzle visualization for puzzle ID:", puzzleId);
 
     // Fetch puzzle data from API
     fetch(`/puzzles/${puzzleId}/data`)
@@ -49,17 +50,50 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .then(puzzleData => {
             storedPuzzleData = puzzleData;
-            renderPuzzle(puzzleData, null);
+            renderPuzzle(puzzleData, null, svg);
+            // Setup zoom and panning after rendering
+            setupZoom(svg);
+            setupPanning(svg);
         })
         .catch(err => {
             console.error("Error fetching puzzle data:", err);
         });
-    
-    // Setup zoom functionality
-    setupZoom();
-    
-    // Setup panning functionality
-    setupPanning();
+}
+
+// Find and initialize all puzzle SVG elements on the page
+function findAndInitializeSvgs() {
+    const svgs = document.querySelectorAll("#puzzle-visualization-svg");
+    svgs.forEach(svg => {
+        // Only initialize if it has a puzzle ID and hasn't been initialized yet
+        const puzzleId = svg.getAttribute("data-puzzle-id");
+        if (puzzleId && !initializedSvgs.has(svg.id || svg.getAttribute("data-puzzle-id"))) {
+            initializePuzzleVisualization(svg);
+        }
+    });
+}
+
+// Initialize when DOM is ready (for static pages like puzzle-details.html)
+document.addEventListener("DOMContentLoaded", () => {
+    findAndInitializeSvgs();
+});
+
+// Initialize after HTMX swaps content (for dynamic pages like chat.html)
+document.body.addEventListener("htmx:afterSwap", (event) => {
+    // Check if the swapped content contains a puzzle SVG
+    const target = event.detail.target;
+    if (target && (target.id === "puzzle-visualization-container" || target.querySelector("#puzzle-visualization-svg"))) {
+        // Small delay to ensure DOM is fully updated
+        setTimeout(() => {
+            findAndInitializeSvgs();
+        }, 10);
+    }
+});
+
+// Also listen for htmx:load in case the container itself is replaced
+document.body.addEventListener("htmx:load", (event) => {
+    setTimeout(() => {
+        findAndInitializeSvgs();
+    }, 10);
 });
 
 // ======================================================
@@ -69,9 +103,8 @@ function randomColor() {
     return "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
 }
 
-// Update SVG viewBox from currentViewBox
-function updateViewBox() {
-    const svg = document.getElementById("puzzle-visualization-svg");
+// Update SVG viewBox from currentViewBox (now accepts svg parameter)
+function updateViewBox(svg) {
     if (!svg) return;
     svg.setAttribute("viewBox", `${currentViewBox.x} ${currentViewBox.y} ${currentViewBox.width} ${currentViewBox.height}`);
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -85,12 +118,17 @@ function screenToSVG(svg, screenX, screenY) {
     return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-// Handle mousewheel zoom
-function setupZoom() {
-    const svg = document.getElementById("puzzle-visualization-svg");
+// Handle mousewheel zoom (now accepts svg parameter)
+function setupZoom(svg) {
     if (!svg) return;
     
-    svg.addEventListener("wheel", (evt) => {
+    // Remove existing wheel listener if any (to prevent duplicates)
+    const existingHandler = svg._zoomHandler;
+    if (existingHandler) {
+        svg.removeEventListener("wheel", existingHandler);
+    }
+    
+    const zoomHandler = (evt) => {
         evt.preventDefault();
         
         // Convert mouse position to SVG coordinates
@@ -126,17 +164,26 @@ function setupZoom() {
             height: newHeight
         };
         
-        updateViewBox();
-    });
+        updateViewBox(svg);
+    };
+    
+    svg.addEventListener("wheel", zoomHandler);
+    svg._zoomHandler = zoomHandler; // Store reference for potential cleanup
 }
 
-// Handle right-click panning
-function setupPanning() {
-    const svg = document.getElementById("puzzle-visualization-svg");
+// Handle right-click panning (now accepts svg parameter)
+function setupPanning(svg) {
     if (!svg) return;
     
+    // Remove existing handlers if any (to prevent duplicates)
+    if (svg._panMouseDownHandler) {
+        svg.removeEventListener("mousedown", svg._panMouseDownHandler);
+        svg.removeEventListener("mousemove", svg._panMouseMoveHandler);
+        svg.removeEventListener("contextmenu", svg._panContextMenuHandler);
+    }
+    
     // Right-click detection for panning
-    svg.addEventListener("mousedown", (evt) => {
+    const mouseDownHandler = (evt) => {
         // Check for right-click pan (button 2 = right mouse button)
         if (evt.button === 2) {
             // Convert click position to SVG coordinates to check if clicking on a node
@@ -167,10 +214,10 @@ function setupPanning() {
             panStartViewBoxY = currentViewBox.y;
             evt.preventDefault(); // Prevent context menu
         }
-    });
+    };
     
     // Handle panning on mouse move
-    svg.addEventListener("mousemove", (evt) => {
+    const mouseMoveHandler = (evt) => {
         if (panning) {
             const dx = evt.clientX - panStartX;
             const dy = evt.clientY - panStartY;
@@ -190,12 +237,12 @@ function setupPanning() {
             currentViewBox.x = panStartViewBoxX + panOffsetX;
             currentViewBox.y = panStartViewBoxY + panOffsetY;
             
-            updateViewBox();
+            updateViewBox(svg);
         }
-    });
+    };
     
     // Stop panning on mouse up
-    document.addEventListener("mouseup", (evt) => {
+    const mouseUpHandler = (evt) => {
         // Stop panning on right mouse button release
         if (evt.button === 2) {
             panning = false;
@@ -204,10 +251,10 @@ function setupPanning() {
             panStartViewBoxX = null;
             panStartViewBoxY = null;
         }
-    });
+    };
     
     // Prevent context menu on SVG when right-clicking in empty area (for panning)
-    svg.addEventListener("contextmenu", (evt) => {
+    const contextMenuHandler = (evt) => {
         // Only prevent if we're not clicking on a node
         const pt = screenToSVG(svg, evt.clientX, evt.clientY);
         let clickedOnNode = false;
@@ -227,7 +274,17 @@ function setupPanning() {
         if (!clickedOnNode) {
             evt.preventDefault();
         }
-    });
+    };
+    
+    svg.addEventListener("mousedown", mouseDownHandler);
+    svg.addEventListener("mousemove", mouseMoveHandler);
+    document.addEventListener("mouseup", mouseUpHandler);
+    svg.addEventListener("contextmenu", contextMenuHandler);
+    
+    // Store references for cleanup
+    svg._panMouseDownHandler = mouseDownHandler;
+    svg._panMouseMoveHandler = mouseMoveHandler;
+    svg._panContextMenuHandler = contextMenuHandler;
 }
 
 // Predefined colors for units
@@ -238,22 +295,26 @@ function getUnitColor(index) {
 }
 
 // ======================================================
-// Render Puzzle
+// Render Puzzle (now accepts svg parameter)
 // ======================================================
-function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
+function renderPuzzle(puzzleData, selectedUnitIdParam = null, svg = null) {
     // Update module-level selectedUnitId if parameter provided
     if (selectedUnitIdParam !== undefined) {
         selectedUnitId = selectedUnitIdParam;
     }
-    if (!puzzleData || !puzzleData.nodes || !puzzleData.edges || !puzzleData.units) {
-        console.error("Invalid puzzle data structure");
-        return;
+    
+    // Use provided svg or try to find it
+    if (!svg) {
+        svg = document.getElementById("puzzle-visualization-svg");
     }
-
-    // Get SVG element
-    const svg = document.getElementById("puzzle-visualization-svg");
+    
     if (!svg) {
         console.error("Puzzle visualization SVG element not found");
+        return;
+    }
+    
+    if (!puzzleData || !puzzleData.nodes || !puzzleData.edges || !puzzleData.units) {
+        console.error("Invalid puzzle data structure");
         return;
     }
 
@@ -270,7 +331,7 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
         // Empty puzzle - set default viewBox
         currentViewBox = { x: 0, y: 0, width: 100, height: 100 };
         zoomLevel = 1.0;
-        updateViewBox();
+        updateViewBox(svg);
         return;
     }
 
@@ -292,7 +353,7 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
     // Set initial viewBox for proper scaling
     currentViewBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     zoomLevel = 1.0;
-    updateViewBox();
+    updateViewBox(svg);
 
     // Create node ID to index mapping for edges
     const nodeIdToIndex = {};
@@ -557,7 +618,7 @@ function renderPuzzle(puzzleData, selectedUnitIdParam = null) {
         unitCircle.addEventListener("click", () => {
             // Toggle selection: if same unit clicked, deselect; otherwise select new unit
             selectedUnitId = selectedUnitId === unit.id ? null : unit.id;
-            renderPuzzle(storedPuzzleData, selectedUnitId);
+            renderPuzzle(storedPuzzleData, selectedUnitId, svg);
         });
 
         svg.appendChild(unitCircle);

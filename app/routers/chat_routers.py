@@ -1,20 +1,56 @@
-from fastapi import APIRouter, Depends, Request, Body
+from fastapi import APIRouter, Depends, Request, Body, Response, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from pathlib import Path
 from uuid import UUID
 import markdown
+from typing import Optional
 
 from app.core.database import get_db
 from app.schemas import ChatFromRequest
-from app.services import SessionService
+from app.services import SessionService, PuzzleServices
 from app.agents import ChatAgent
 from app import models
 
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 router = APIRouter()
+
+# load puzzle id for visualization
+@router.get("/chat/visualize", response_class=HTMLResponse)
+async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
+    """Get current puzzle id via session_id"""
+
+    print("get puzzle: session id from chat.html: ", session_id)
+
+    # Handle empty string
+    if not session_id or session_id.strip() == "":
+        return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
+
+    # convert session id manually
+    session_uuid = UUID(session_id.strip())
+
+    # Fetch the puzzle from your database/service
+    session_services = SessionService(db)
+    current_puzzle_id = await session_services.get_puzzle_id(session_uuid)
+    print("Get puzzle id for visualization: ", current_puzzle_id)
+
+    # Fetch puzzle
+    puzzle_services = PuzzleServices(db)
+    puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
+
+    # If no puzzle is found, return a placeholder
+    if not current_puzzle_id:
+        return HTMLResponse(content="<div>No puzzle yet.</div>")
+
+    # Return the HTML/SVG string
+    print("return puzzle visualization")
+    return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
+                                f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
+                                f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}"></svg>'
+                                f"<strong>Description:</strong>{puzzle.description}" # |replace('\r\n', '<br>')|replace('\n', '<br>')|replace('\r', '<br>')|safe }"
+                        )
 
 
 # load chat
@@ -32,7 +68,7 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
     )
 
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
-async def get_session(session_id: UUID, db: Session = Depends(get_db)):
+async def get_session(session_id: UUID, db: Session = Depends(get_db), response: Response = Response()):
     """Get chat history by session id"""
     print("session id from chat.html: ", session_id)
 
@@ -57,7 +93,8 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
 @router.post("/chat", response_class=HTMLResponse)
 async def chat(
     chat_data: ChatFromRequest = Body(...),  # parse from JSON body
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    response: Response = Response(), # visualize puzzle container ask for puzzle update
 ):
     """Chat with the AI. Gets user message, returns AI response"""
     print("chat_data from chat.html: ", chat_data)
@@ -73,10 +110,18 @@ async def chat(
     # Initialize agent
     agent = ChatAgent(db, session_id, chat_data.model)
 
-    # Process message through agent
-    llm_response = await agent.process(chat_data.content)
+    # Process message through agent and get response message
+    llm_response, current_puzzle_id = await agent.process(chat_data.content)
     if llm_response:
         print("Received response from agent graph and pass it to database")
+
+    # check for puzzle updates and update visualization (HTMX)
+    if current_puzzle_id:
+        print("Current puzzle id (chat router): ", current_puzzle_id)
+        # fire the event "refreshPuzzle" (HTMX)
+        response.headers["HX-Trigger"] = "refreshPuzzle"
+    else:
+        print("No puzzle id yet")
 
     # store user message and LLM response to database
     await services.add_message(session_id, "user", chat_data.content)
@@ -85,6 +130,7 @@ async def chat(
     # format llm response to proper html output
     print("Format the LLM response into a readable HTML format")
     llm_response_html = markdown.markdown(llm_response)
+
 
     # create and send HTML response
     print("Pass content to front-end...")
@@ -105,22 +151,3 @@ async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     services = SessionService(db)
     services.delete_session(session_id)
     return HTMLResponse(content="", status_code=200)
-
-
-# @router.get("/chat/{session_id}/puzzle", response_class=HTMLResponse)
-# async def get_puzzle(session_id: UUID, db: Session = Depends(get_db)):
-#     """Get puzzle id via session id for visualization in chat"""
-#     session = db.query(models.Session).filter(models.Session.id == session_id).first()
-#
-#     if not session:
-#         return HTMLResponse(content="<div>Session not found.</div>")
-#
-#     puzzle_id = session.puzzle_id
-#     print("puzzle_id: ", puzzle_id)
-#
-#     if not puzzle_id:
-#         return HTMLResponse(content="<div>No puzzle yet.</div>")
-#
-#     return HTMLResponse(
-#         content=f'<svg id="puzzle-visualization-svg" data-puzzle-id="{puzzle_id}" style="width: 100%; height: 100%;"></svg>'
-#     )

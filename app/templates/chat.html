@@ -17,12 +17,14 @@
                  hx-get="/puzzles/chat/{{ session.id }}"
                  hx-target="#chat-container"
                  hx-swap="innerHTML"
-                 hx-on::after-request="document.querySelector('input[name=session_id]').value = '{{ session.id }}'"
-                 style="cursor: pointer;">
+                 hx-on:click="document.getElementById('session_id_input').value = '{{ session.id }}';"
+                 hx-on::after-request="htmx.trigger('body', 'refreshPuzzle');"
+            style="cursor: pointer;">
                 <div class="session-topic">{{ session.topic_name }}</div>
                 <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
                     }}
                 </div>
+                <div class="session-date">Puzzle ID: {{ session.puzzle_id }}</div>
                 <!-- delete session -->
                 <button hx-delete="/puzzles/chat/{{session.id}}/delete"
                         hx-trigger="click"
@@ -50,12 +52,12 @@
               hx-ext="json-enc"
               hx-reset="true"
               hx-on::after-request="
-                // Explicitly clear textarea (hx-reset might not work reliably)
+                // clear textarea
                 document.getElementById('user-input').value = '';
               ">
 
             <!--send hidden session id-->
-            <input type="hidden" name="session_id" id="session_id_input" value="">
+            <input type="hidden" name="session_id" id="session_id_input" value="{{ latest_session_id|string if latest_session_id else '' }}">
 
             <br><br>
             <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
@@ -81,13 +83,17 @@
 
     <!-- Puzzle Visualization (is not working yet) -->
     <div class="puzzle-visualization">
-        <div id="puzzle-visualization-container">
-            {% if puzzle_id %}
-            <svg id="puzzle-visualization-svg" data-puzzle-id="{{ puzzle_id }}"
-                 style="width: 100%; height: 100%;"></svg>
-            {% else %}
-            no puzzle yet.
-            {% endif %}
+        <div id="puzzle-visualization-container"
+            hx-get="/puzzles/chat/visualize"
+            hx-trigger="load, refreshPuzzle from:body"
+            hx-target="this"
+            hx-include="#session_id_input">
+<!--            {% if puzzle_id %}-->
+<!--            <svg id="puzzle-visualization-svg" data-puzzle-id="{{ puzzle_id }}"-->
+<!--                 style="width: 100%; height: 100%;"></svg>-->
+<!--            {% else %}-->
+<!--            no puzzle yet.-->
+<!--            {% endif %}-->
             <!--                <p>{puzzle.description}</p>-->
             </div>
         <script src="/static/visualize_puzzle.js" defer></script>
