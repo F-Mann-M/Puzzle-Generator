@@ -25,33 +25,42 @@ async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=Non
     print("get puzzle: session id from chat.html: ", session_id)
 
     # Handle empty string
-    if not session_id or session_id.strip() == "":
+    if not session_id or session_id.strip() == "" or session_id is None:
         return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
 
-    # convert session id manually
-    session_uuid = UUID(session_id.strip())
+
+    try:
+        # convert session id manually
+        session_uuid = UUID(session_id.strip())
+    except (ValueError, TypeError) as e:
+        print(f"Invalid session id: {session_uuid}, error: {e}")
+        return HTMLResponse(content=f"<div>Invalid session ID: {e}.</div>")
+
 
     # Fetch the puzzle from your database/service
     session_services = SessionService(db)
     current_puzzle_id = await session_services.get_puzzle_id(session_uuid)
     print("Get puzzle id for visualization: ", current_puzzle_id)
 
-    # Fetch puzzle
-    puzzle_services = PuzzleServices(db)
-    puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
-
     # If no puzzle is found, return a placeholder
     if not current_puzzle_id:
+        return HTMLResponse(content="<div>No puzzle yet.</div>")
+
+    try:
+        # Fetch puzzle
+        puzzle_services = PuzzleServices(db)
+        puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
+    except Exception as e:
+        print(f"Error feching puzzle {e}")
         return HTMLResponse(content="<div>No puzzle yet.</div>")
 
     # Return the HTML/SVG string
     print("return puzzle visualization")
     return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
                                 f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
-                                f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}"></svg>'
-                                f"<strong>Description:</strong>{puzzle.description}" # |replace('\r\n', '<br>')|replace('\n', '<br>')|replace('\r', '<br>')|safe }"
+                                f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}" style="width: 100%; min-height: 400px;"></svg>'
+                                f"<strong>Description:</strong>{puzzle.description}<br>"
                         )
-
 
 # load chat
 @router.get("/chat", response_class=HTMLResponse)
@@ -107,11 +116,16 @@ async def chat(
         model=chat_data.model,
     )
 
+    # get puzzle id
+    puzzle_id_from_session = await services.get_puzzle_id(session_id)
+    if puzzle_id_from_session:
+        print("Takes in puzzle id from session: ", puzzle_id_from_session)
+
     # Initialize agent
     agent = ChatAgent(db, session_id, chat_data.model)
 
     # Process message through agent and get response message
-    llm_response, current_puzzle_id = await agent.process(chat_data.content)
+    llm_response, current_puzzle_id = await agent.process(chat_data.content, puzzle_id_from_session)
     if llm_response:
         print("Received response from agent graph and pass it to database")
 

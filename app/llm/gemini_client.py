@@ -1,6 +1,6 @@
 from google import genai
 from app.core.config import settings
-from app.schemas.puzzle_schema import PuzzleLLMResponse
+from app.schemas.puzzle_schema import PuzzleLLMResponse, PuzzleCreate
 
 API_KEY = settings.GEMINI_KEY
 
@@ -18,6 +18,23 @@ class GeminiClient:
                 "system_instruction": prompt["system_prompt"],
                 "response_mime_type": "application/json",
                 "response_schema": PuzzleLLMResponse,
+            },
+        )
+        # Use the response as a JSON string.
+        print(response.text)
+
+        generated_puzzle = response.parsed
+        return generated_puzzle
+
+
+    async def modify(self, prompt: str):
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt["user_prompt"],
+            config={
+                "system_instruction": prompt["system_prompt"],
+                "response_mime_type": "application/json",
+                "response_schema": PuzzleCreate,
             },
         )
         # Use the response as a JSON string.

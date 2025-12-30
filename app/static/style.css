@@ -285,7 +285,7 @@ a, a:visited, a:hover, a:active {
 }
 
 .puzzle-visualization {
-    width: 400px;
+    width: 30%;
     min-width: 300px;
     background-color: #f5f5f5;
     border: 0px solid #ddd;

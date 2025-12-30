@@ -1,4 +1,5 @@
 import operator
+from email.policy import default
 from typing import Annotated, List, TypedDict, Optional, Any
 from uuid import UUID
 from langgraph.graph import END, START, StateGraph
@@ -90,13 +91,6 @@ class ChatAgent:
 
         return builder
 
-    TOOL_DESCRIPTION = """
-        chat: normal chat. Receives user messages and gives back llm response
-        collect_and_create: Generates instantly a new puzzle based on the last user message
-        collect_info: collects detailed information to create a puzzle. It keeps user asking until all information are collected.
-        update_puzzle: Takes in users message and updates an existing puzzle
-        """
-
     async def _classify_intent(self, state: AgentState)-> AgentState:
         """ Classify user intent from conversation"""
 
@@ -110,31 +104,39 @@ class ChatAgent:
         if len(conversation) > 3000:
             conversation = conversation[-3000]  # keep the conversation short
 
-        # print(f"\nClassify intent from conversation: {conversation}")
+        print(f"\nClassify intent from conversation.")
+        intent_create = (" - create: The user wants to create a new puzzle "
+                         "(mentions creating, new puzzle, nodes is..., edges should be...). ")
+        intent_generate = "- generate: The user wants to generate a new puzzle without having to provide all the necessary details."
+        intent_modify = ("- modify: User wants to change/update the current puzzle "
+                         "(mentions changing, updating, fixing, improving, add, delete, remove, currently etc.)")
+        intent_chat = "- chat: General conversation, questions about rules, or non-puzzle related chat"
+        intention = ""
+
+        if state.get("current_puzzle_id"):
+            intention = ("'modify', 'chat'\n\n"
+                         f"{intent_modify}\n"
+                         f"{intent_chat}\n")
+        if state.get("collected_info") and not state.get("current_puzzle_id"):
+            intention = ("'create', 'chat'\n\n"
+                         f"{intent_create}\n"
+                         f"{intent_chat}\n")
+        else:
+            intention = ("'create', 'generate' and 'chat'\n\n"
+                         f"{intent_generate}\n"
+                         f"{intent_chat}\n"
+                         f"{intent_create}")
+
 
         system_prompt = f"""You are an intent classifier. Analyse user's massage and classify his intent.
-        Return ONLY one word: 'create', 'generate', 'modify' and 'chat' 
-
-        - generate: The user wants to generate a new puzzle without having to provide all the necessary details.
-        - create: The user wants to create a new puzzle (mentions creating, generating, new puzzle, nodes is..., eges should be...). 
-        - modify: User wants to change/update the current puzzle (mentions changing, updating, fixing, improving, etc.)
-        - chat: General conversation, questions about rules, or non-puzzle related chat
-        
-        if {state.get("collected_info")} ALWAYS choos create over generate AND chat
+        Return ONLY one word: {intention}
+        ALWAYS prefer 'create', 'modifiy' and 'generate' over 'chat'.
         If something is unclear, return 'chat' to clarify."""
-
 
         prompt = {
             "system_prompt": system_prompt,
             "user_prompt": last_message.get("content"),
         }
-        # debugging
-        print("\n****Current State (chat 2) ******\n")
-        for key, value in state.items():
-            if key == "messages":
-                for message in value:
-                    print(f"\n {message}")
-            print(f"\n{key}: {value}")
 
         # Simple async call
         print("Analyse user's massage and classify his intent...")
@@ -353,6 +355,7 @@ class ChatAgent:
         llm_response = await llm.chat(prompt)
 
         #TODO: Add Schema for output
+        #ToDo: use structured output
 
         # Clean the string to remove markdown backticks
         clean_json_string = llm_response.replace("```json", "").replace("```", "").strip()
@@ -429,20 +432,45 @@ class ChatAgent:
 
         # debugging
         print("\n****Current State (chat 2) ******\n")
-        print("puzzle id: ", state["current_puzzle_id"])
-        # for key, value in state.items():
-        #     if key == "conversation":
-        #         print("state messages: ", len(state["messages"]))
-        #     else:
-        #         print(f"{key}: {value}")
+        print("puzzle id: ", state.get("current_puzzle_id"))
 
         return {"tool_result": tool_response, "collected_info": collected_info}
 
 
-    async def process(self, user_message: str) -> tuple[str, UUID | None]:
+    async def _modify_puzzle(self, state: AgentState) -> AgentState:
+        """Updates an existing puzzle based on feedback"""
+        print("\nModifying Puzzle:")
+        TOOL = "modify: "
+        tool_response = state.get("tool_result")
+
+        # get latest message
+        last_message = state["messages"][-1] if state["messages"] else ""
+        if not last_message:
+            tool_response.append("No messages found. could not extract puzzle related information to modify puzzle.")
+            return {"tool_result": tool_response}
+
+        print("Takes in user message")
+
+        if not state.get("current_puzzle_id"):
+            tool_response.append("No puzzle ID found. Can't modify without puzzle.")
+            return {"tool_result": TOOL + tool_response}
+
+        # extract information form message and modify puzzle
+        tools = AgentTools(self.db)
+        result = tools.update_puzzle(
+            puzzle_id=state.get("current_puzzle_id"),
+            message=last_message,
+            model=state.get("model"),
+        )
+
+        return {"tool_result": TOOL + result.get("tool_result")}
+
+
+
+    async def process(self, user_message: str, puzzle_id: Optional[UUID] = None) -> tuple[str, UUID | None]:
         """ Process user message and return response """
         print("\nProcess user message: ", user_message)
-
+        print("\nProcess puzzle id: ", puzzle_id)
         # Process with graph
         async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
             graph = self.workflow.compile(checkpointer=checkpointer)
@@ -453,9 +481,11 @@ class ChatAgent:
                 {"messages": [{"role": "user", "content": user_message}],
                 "model": self.model,
                 "session_id": self.session_id,
-                "tool_result": []},
+                "tool_result": [],
+                "current_puzzle_id": puzzle_id if puzzle_id else None,},
                 config = config)
-
+            state_snap_shot = await graph.get_state(config)
+            print("\nState Snap shot: ", state_snap_shot)
         message = result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
         current_puzzle_id = result.get("current_puzzle_id")
         print("Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)
