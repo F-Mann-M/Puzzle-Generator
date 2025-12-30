@@ -22,17 +22,19 @@ let panStartViewBoxY = null;
 function initializePuzzleVisualization(svg) {
     // Check if this SVG has already been initialized
     const svgId = svg.id || `svg-${Math.random()}`;
-    if (initializedSvgs.has(svgId)) {
-        console.log("SVG already initialized, skipping:", svgId);
+    const puzzleId = svg.getAttribute("data-puzzle-id");
+    
+    // Use puzzle ID + SVG ID as unique key to handle cases where SVG ID stays same but puzzle changes
+    const uniqueKey = puzzleId ? `${svgId}-${puzzleId}` : svgId;
+    
+    if (initializedSvgs.has(uniqueKey)) {
+        console.log("SVG already initialized, skipping:", uniqueKey);
         return;
     }
     
     // Mark as initialized
-    initializedSvgs.add(svgId);
+    initializedSvgs.add(uniqueKey);
 
-    // Get puzzle ID from the data attribute
-    const puzzleId = svg.getAttribute("data-puzzle-id");
-    
     if (!puzzleId) {
         console.warn("Puzzle ID not found in data-puzzle-id attribute");
         return;
@@ -57,6 +59,8 @@ function initializePuzzleVisualization(svg) {
         })
         .catch(err => {
             console.error("Error fetching puzzle data:", err);
+            // Remove from initialized set on error so it can be retried
+            initializedSvgs.delete(uniqueKey);
         });
 }
 
@@ -64,9 +68,12 @@ function initializePuzzleVisualization(svg) {
 function findAndInitializeSvgs() {
     const svgs = document.querySelectorAll("#puzzle-visualization-svg");
     svgs.forEach(svg => {
-        // Only initialize if it has a puzzle ID and hasn't been initialized yet
+        // Only initialize if it has a puzzle ID
         const puzzleId = svg.getAttribute("data-puzzle-id");
-        if (puzzleId && !initializedSvgs.has(svg.id || svg.getAttribute("data-puzzle-id"))) {
+        const svgId = svg.id || `svg-${Math.random()}`;
+        const uniqueKey = puzzleId ? `${svgId}-${puzzleId}` : svgId;
+        
+        if (puzzleId && !initializedSvgs.has(uniqueKey)) {
             initializePuzzleVisualization(svg);
         }
     });
@@ -82,6 +89,22 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
     // Check if the swapped content contains a puzzle SVG
     const target = event.detail.target;
     if (target && (target.id === "puzzle-visualization-container" || target.querySelector("#puzzle-visualization-svg"))) {
+        // Clear initialization tracking for this container to allow re-initialization
+        const svg = target.querySelector("#puzzle-visualization-svg") || target;
+        if (svg && svg.id) {
+            initializedSvgs.delete(svg.id);
+        }
+        // Also clear by puzzle ID if it exists
+        const puzzleId = svg?.getAttribute("data-puzzle-id");
+        if (puzzleId) {
+            // Remove any entries that match this puzzle ID (in case of ID collisions)
+            for (const id of initializedSvgs) {
+                if (id === puzzleId || id === svg.id) {
+                    initializedSvgs.delete(id);
+                }
+            }
+        }
+        
         // Small delay to ensure DOM is fully updated
         setTimeout(() => {
             findAndInitializeSvgs();
@@ -91,9 +114,17 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
 
 // Also listen for htmx:load in case the container itself is replaced
 document.body.addEventListener("htmx:load", (event) => {
-    setTimeout(() => {
-        findAndInitializeSvgs();
-    }, 10);
+    const target = event.detail.target;
+    if (target && (target.id === "puzzle-visualization-container" || target.querySelector("#puzzle-visualization-svg"))) {
+        // Clear initialization tracking
+        const svg = target.querySelector("#puzzle-visualization-svg") || target;
+        if (svg && svg.id) {
+            initializedSvgs.delete(svg.id);
+        }
+        setTimeout(() => {
+            findAndInitializeSvgs();
+        }, 10);
+    }
 });
 
 // ======================================================

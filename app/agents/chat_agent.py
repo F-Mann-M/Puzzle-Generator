@@ -484,8 +484,6 @@ class ChatAgent:
                 "tool_result": [],
                 "current_puzzle_id": puzzle_id if puzzle_id else None,},
                 config = config)
-            state_snap_shot = await graph.get_state(config)
-            print("\nState Snap shot: ", state_snap_shot)
         message = result.get("messages")[-1]["content"] if result["messages"] else "How can I help you?"
         current_puzzle_id = result.get("current_puzzle_id")
         print("Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)

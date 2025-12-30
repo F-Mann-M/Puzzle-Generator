@@ -215,3 +215,5 @@ exercise/
 .DS_Store
 app/.DS_Store
 data/puzzle.db
+to_do.py
+data/checkpoints.sqlite
