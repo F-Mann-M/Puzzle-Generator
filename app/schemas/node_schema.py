@@ -1,27 +1,28 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 
 
 class NodeCreate(BaseModel):
-    node_index: int
+    model_config = ConfigDict(from_attributes=True)
+    index: int
     x_position: int
     y_position: int
     puzzle_id: UUID
 
+
 # for llm generation
 class NodeGenerate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     index: int
     x: float
     y: float
 
 
 class NodeRead(NodeCreate):
+    model_config = ConfigDict(from_attributes=True)
     id: UUID
 
 
 class NodeUpdate(NodeRead):
+    model_config = ConfigDict(from_attributes=True)
     pass
-
-    class Config:
-        # orm_mode = True
-        from_attributes = True

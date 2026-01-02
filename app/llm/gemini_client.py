@@ -28,7 +28,7 @@ class GeminiClient:
         return generated_puzzle
 
 
-    async def structured(self, prompt: str, schema_class: type[BaseModel]):
+    async def structured(self, prompt: str, schema: type[BaseModel]):
         """Takes in prompt and schema class to generate structured output"""
         response = self.client.models.generate_content(
             model=self.model_name,
@@ -36,7 +36,7 @@ class GeminiClient:
             config={
                 "system_instruction": prompt["system_prompt"],
                 "response_mime_type": "application/json",
-                "response_schema": schema_class,
+                "response_schema": schema,
             },
         )
         # Use the response as a JSON string.

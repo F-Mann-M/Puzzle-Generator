@@ -43,7 +43,7 @@ class AgentState(TypedDict):
     user_intent: Optional[str] # "generate", "create", "modify", "chat"
     collected_info: dict[str, Any] # "game_mode", "node_count", "enemy_unit_count", "enemy_type", "player_unit_count", "description"
     current_puzzle_id: Optional[UUID] # if puzzle generated and stored get id
-    tool_result: List[str] # collect result messages from tools
+    tool_result: Annotated[List[str], operator.add] # collect result messages from tools
     final_response: Optional[str] # final response for user
     session_id: UUID
     model: str # model used... pass llm_manager.py
@@ -119,6 +119,7 @@ class ChatAgent:
         builder.add_edge("collect_and_create", "format_response")
         builder.add_edge("collect_info", "format_response")
         builder.add_edge("chat", "format_response")
+        builder.add_edge("modify_puzzle", "format_response")
         builder.add_edge("format_response", END)
 
         return builder
@@ -184,7 +185,10 @@ class ChatAgent:
         intent = await llm.chat(prompt)
         print("\nLLM has classifies user intention: ", intent)
 
-        return {"user_intent": intent.lower()}
+        return {
+            "user_intent": intent.lower(),
+            "tool_result": [], # make sure tool result is reseted
+                }
 
 
     async def _intent(self, state: AgentState) -> str:
@@ -477,39 +481,33 @@ class ChatAgent:
         """Updates an existing puzzle based on feedback"""
         print("\nModifying Puzzle:")
         TOOL = "modify: "
-        tool_response = state.get("tool_result") # load list []
 
         # get latest message
-        print("modify_puzzle: Takes in user message")
+        print(f"{TOOL} Takes in user message")
         last_message = state["messages"][-1]["content"] if state["messages"] else ""
         if not last_message:
-            tool_response.append(f"{TOOL} No messages found. Could not extract puzzle related information to modify puzzle.")
-            return {"tool_result": tool_response}
+            return {"tool_result": [f"{TOOL} No messages found. Could not extract puzzle related information to modify puzzle."]}
 
         # Get Puzzle ID
-        print("modify_puzzle: load puzzle id from states...")
+        print(f"{TOOL} load puzzle id from states...")
         puzzle_id = state.get("current_puzzle_id")
-
         if not puzzle_id:
-            tool_response.append(f"{TOOL} No puzzle ID found. Can't modify without puzzle.")
-            return {"tool_result": tool_response}
+            return {"tool_result": [f"{TOOL} No puzzle ID found. Can't modify without puzzle."]}
 
         try:
             # extract information form message and modify puzzle
-            print("modify_puzzle: current puzzle id: ", puzzle_id)
-            print("modify_puzzle: call Agent tool 'update_puzzle'...")
+            print(f"{TOOL} current puzzle id: ", puzzle_id)
+            print(f"{TOOL} call Agent tool 'update_puzzle'...")
             tools = AgentTools(self.db)
             result = await tools.update_puzzle(
                 puzzle_id=puzzle_id,
                 message=last_message,
                 model=state.get("model"),
             )
+            return result
+
         except Exception as e:
-            tool_response.append(f"{TOOL} Error while loading agent tool: {e}")
-            return {"tool_result": tool_response}
-
-        return {"tool_result": result.get("tool_result")}
-
+            return {"tool_result": [f"{TOOL} Error while loading agent tool: {e}"]}
 
 
     async def process(self, user_message: str) -> tuple[str, UUID | None]:
@@ -567,19 +565,15 @@ class ChatAgent:
             return {"message": "Tool result is empty!"}
 
         # convert tool result to string
-        response_parts = ""
-        for result in tool_result:
-            response_parts += f"\n{result} "
-        print("\nJoin all tool results: ", response_parts)
+        combined_results = "\n".join(tool_result)
+        print("\nJoin all tool results: ", combined_results)
 
         llm = get_llm(state["model"])
         system_prompt = f"""
-        You are an assistant who takes in a list of different tool results {response_parts}.
+        You are an assistant who takes in a list of different tool results {combined_results}.
         Your name is Rudolfo. 
         You are a chivalrous advisor from the Middle Ages. Always be positive and polite, but with a sarcastic, humorous undertone.
         Mention how greate the plans of users are.
-        If tools require more information ask the user for more detail information. 
-        For further information about the puzzle use {BASIC_RULES}
         """
 
         try:
@@ -587,20 +581,24 @@ class ChatAgent:
             print("Send tools results to LLM...")
             prompt = {
                 "system_prompt": system_prompt,
-                "user_prompt": response_parts,
+                "user_prompt": "Explain the modifications",
             }
 
             final_response = await llm.chat(prompt)
             messages = [{"role": "assistant", "content": final_response}]
 
-            return {"messages": messages} # since the state["messages"] has an LangGraph reducer message is appended to state
+            return {
+                "messages": messages,
+                "tool_result": [], # reset tool results
+                    }
 
         except Exception as e:
             print(f"format_response: Error while generating LLM response: {e}")
             return {"messages":
                         [{
                             "role": "assistent",
-                            "content": f"format_response: Error while generating LLM response: {e}"
+                            "content": f"format_response: Error while generating LLM response: {e}",
+                            "tool_result": [],
                         }]
             }
 
