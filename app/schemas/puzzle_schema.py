@@ -1,12 +1,9 @@
 from pydantic import BaseModel
-from typing import Optional, Any, List
-from uuid import UUID
-from datetime import datetime
+from typing import Optional, List
 
-from app.schemas.unit_schema import UnitGenerate, UnitRead, UnitUpdate
-from app.schemas.edge_schema import EdgeGenerate, EdgeRead, EdgeUpdate
-from app.schemas.node_schema import NodeRead, NodeGenerate, NodeUpdate
-from app.schemas.path_nodes_schema import PathNodesUpdate
+from app.schemas.unit_schema import UnitGenerate
+from app.schemas.edge_schema import EdgeGenerate
+from app.schemas.node_schema import NodeGenerate
 
 # Data sent by user
 class PuzzleCreate(BaseModel):

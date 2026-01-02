@@ -9,16 +9,7 @@ Each node has at least one edge that connects to another edge.
 There must be no separate nodes or edges. All nodes are connected to each other via edges.
 Units from two factions (player and enemy) move along paths over a limited number of turns and coins.
 
-The generator must always output valid JSON matching the PuzzleLLMResponse schema exactly.
 
-Core Schema Definitions
-PuzzleLLMResponse
-{
-  "nodes": [NodeGenerate],
-  "edges": [EdgeGenerate],
-  "units": [UnitGenerate],
-  "coins": int
-}
 
 NodeGenerate:
 index: integer starting from 0

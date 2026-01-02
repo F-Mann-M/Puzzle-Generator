@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4
 
+from app.models import Puzzle
 from app.schemas import PuzzleCreate, PuzzleGenerate
 from app.llm import get_llm
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
@@ -296,10 +297,18 @@ class PuzzleServices:
 
         return new_puzzle
 
-    # Serialize puzzle data to JSON
+    # Serialize puzzle data to dict
     def serialize_puzzle(self, puzzle_id):
+        """Loads Puzzle by ID and serializes it. Returns a Puzzle dict."""
+        print("\nSerializing Puzzle: ", puzzle_id)
+        try:
+            puzzle = self.get_puzzle_by_id(puzzle_id)
+            print(f"serializing_puzzle: Loaded puzzle {type(puzzle)}")
+        except Exception as e:
+            print(f"serializing_puzzle: Error loading puzzle by ID {e}")
+            return None
 
-        puzzle = self.get_puzzle_by_id(puzzle_id)
+        print("serializing_puzzle: serializing...")
         puzzle_data = {
             "nodes": [
                 {
@@ -337,7 +346,11 @@ class PuzzleServices:
                 for unit in puzzle.units
             ]
         }
+        if not puzzle_data:
+            print("serializing_puzzle: failed to serialize puzzle")
+            return None
 
+        print("serializing_puzzle: serializing successfully: \n")
         return puzzle_data
 
 

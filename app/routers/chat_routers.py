@@ -28,12 +28,11 @@ async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=Non
     if not session_id or session_id.strip() == "" or session_id is None:
         return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
 
-
     try:
         # convert session id manually
         session_uuid = UUID(session_id.strip())
     except (ValueError, TypeError) as e:
-        print(f"Invalid session id: {session_uuid}, error: {e}")
+        print(f"Invalid session id: {session_id}, error: {e}")
         return HTMLResponse(content=f"<div>Invalid session ID: {e}.</div>")
 
 
@@ -59,7 +58,7 @@ async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=Non
     return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
                                 f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
                                 f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}" style="width: 100%; min-height: 400px;"></svg>'
-                                f"<strong>Description:</strong>{puzzle.description}<br>"
+                                f"<strong>Description:</strong><br>{puzzle.description}<br>"
                         )
 
 # load chat
@@ -76,23 +75,32 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
         }
     )
 
+
+# load session
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
-async def get_session(session_id: UUID, db: Session = Depends(get_db), response: Response = Response()):
-    """Get chat history by session id"""
+async def get_session(session_id: UUID, db: Session = Depends(get_db)):
+    """Get chat history by session id """
     print("session id from chat.html: ", session_id)
 
-    services = SessionService(db)
-    session_messages = services.get_session_messages(session_id)
+    # Initialize ChatAgent
+    agent = ChatAgent(db, str(session_id), "gpt-4o-mini") # Use gpt-40-mini as default value
 
-    if not session_messages:
+    # Load states from LangGraph checkpointer
+    state_history = await agent.get_history()
+
+    if not state_history:
         return HTMLResponse(content="Session has no content yet.")
 
     message_html = ""
-    for message in session_messages:
-        if message.role == "user":
-            message_html += f'<div class="user_message"><strong>You:</strong> {message.content}</div>'
+    for message in state_history:
+        # Access by key because LangGraph history uses dicts or message objects
+        role = message.get("role") if isinstance(message, dict) else message.type
+        content = message.get("content") if isinstance(message, dict) else message.content
+
+        if role == "user":
+            message_html += f'<div class="user_message"><strong>You:</strong> {content}</div>'
         else:
-            message_content = markdown.markdown(message.content)
+            message_content = markdown.markdown(content)
             message_html += f'<div class="ai_response"><strong>Rudolfo:</strong> {message_content}</div>'
 
     return HTMLResponse(content=message_html)
@@ -117,15 +125,15 @@ async def chat(
     )
 
     # get puzzle id
-    puzzle_id_from_session = await services.get_puzzle_id(session_id)
-    if puzzle_id_from_session:
-        print("Takes in puzzle id from session: ", puzzle_id_from_session)
+    # puzzle_id_from_session = await services.get_puzzle_id(session_id)
+    # if puzzle_id_from_session:
+    #     print("Takes in puzzle id from session: ", puzzle_id_from_session)
 
     # Initialize agent
-    agent = ChatAgent(db, session_id, chat_data.model)
+    agent = ChatAgent(db, session_id=str(session_id), model=chat_data.model)
 
     # Process message through agent and get response message
-    llm_response, current_puzzle_id = await agent.process(chat_data.content, puzzle_id_from_session)
+    llm_response, current_puzzle_id = await agent.process(chat_data.content)
     if llm_response:
         print("Received response from agent graph and pass it to database")
 
@@ -137,14 +145,13 @@ async def chat(
     else:
         print("No puzzle id yet")
 
-    # store user message and LLM response to database
-    await services.add_message(session_id, "user", chat_data.content)
-    await services.add_message(session_id, "assistant", llm_response)
+    # # store user message and LLM response to database
+    # await services.add_message(session_id, "user", chat_data.content)
+    # await services.add_message(session_id, "assistant", llm_response)
 
     # format llm response to proper html output
     print("Format the LLM response into a readable HTML format")
     llm_response_html = markdown.markdown(llm_response)
-
 
     # create and send HTML response
     print("Pass content to front-end...")
@@ -153,7 +160,7 @@ async def chat(
 
     # Include session_id update script in the response
     # Update session_id in the hidden input
-    session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
+    session_script = f'<script>document.getElementById("session_id_input").value = "{chat_data.session_id}";</script>'
     
     return HTMLResponse(content=user_msg + ai_msg + session_script)
 

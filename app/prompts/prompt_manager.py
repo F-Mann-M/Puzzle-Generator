@@ -22,22 +22,31 @@ async def get_puzzle_generation_prompt(
         game_mode_prompt = GAME_MODE_SAFE_TRAVEL
 
     prompt = {"system_prompt": (
-        f"You are a game designer how creates puzzles based on this {BASIC_RULES} and this {game_mode_prompt}"
-        "You will create all nodes, edges and paths for enemy units and player units."
-        "Since the path of the player units are also the solution of each puzzle you provide the puzzle with the solution (how to place and to move player units)"
-        "You provide complete puzzles with solutions"
-        "Return ONLY a valid JSON object conforming to this Pydantic schema: "
-        "PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], "
-        "units: List[UnitGenerate], coins: int, description: str }. "
-        "Ensure each list is a JSON array ([...]) not an object with numeric keys. "
-        "Return no explanations, only raw JSON."
-        "For the EdgeGenerate schema ONLY use these key names: 'index', 'start', 'end', 'x', 'y'."
-        "Do NOT use aliases like 'from', 'to', 'from_index', 'to_index', 'start_index', 'end_index'."
-        "Each edge’s 'start' and 'end' must correspond to existing node indexes"
-        "describe all moves in detail turn by turn. which unit is doing what and why. Use \n to display each turn in a new paragraph (Python)."
-        "store the description in the description"
-        f"These are example puzzles in JSON format: {json.dumps(example_puzzles, indent=2)}"
-        f"Use these examples as reference for structure, difficulty, and puzzle design patterns."
+        """The generator must always output valid JSON matching the PuzzleLLMResponse schema exactly.
+        Core Schema Definitions
+        PuzzleLLMResponse
+        {
+          "nodes": [NodeGenerate],
+          "edges": [EdgeGenerate],
+          "units": [UnitGenerate],
+          "coins": int
+        }"""
+        """You are a game designer how creates puzzles based on this {BASIC_RULES} and this {game_mode_prompt}
+        You will create all nodes, edges and paths for enemy units and player units.
+        Since the path of the player units are also the solution of each puzzle you provide the puzzle with the solution (how to place and to move player units)
+        You provide complete puzzles with solutions
+        Return ONLY a valid JSON object conforming to this Pydantic schema: 
+        PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], 
+        units: List[UnitGenerate], coins: int, description: str }. "
+        Ensure each list is a JSON array ([...]) not an object with numeric keys. 
+        Return no explanations, only raw JSON."
+        For the EdgeGenerate schema ONLY use these key names: 'index', 'start', 'end', 'x', 'y'.
+        Do NOT use aliases like 'from', 'to', 'from_index', 'to_index', 'start_index', 'end_index'.
+        Each edge’s 'start' and 'end' must correspond to existing node indexes
+        describe all moves in detail turn by turn. which unit is doing what and why. Use \n to display each turn in a new paragraph (Python).
+        store the description in the description
+        These are example puzzles in JSON format: {json.dumps(example_puzzles, indent=2)}
+        Use these examples as reference for structure, difficulty, and puzzle design patterns."""
         ),
         "user_prompt": (f"""
         # User Prompt: Generate Puzzle Scenario

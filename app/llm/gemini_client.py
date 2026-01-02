@@ -1,6 +1,7 @@
 from google import genai
 from app.core.config import settings
 from app.schemas.puzzle_schema import PuzzleLLMResponse, PuzzleCreate
+from pydantic import BaseModel
 
 API_KEY = settings.GEMINI_KEY
 
@@ -27,14 +28,15 @@ class GeminiClient:
         return generated_puzzle
 
 
-    async def modify(self, prompt: str):
+    async def structured(self, prompt: str, schema_class: type[BaseModel]):
+        """Takes in prompt and schema class to generate structured output"""
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt["user_prompt"],
             config={
                 "system_instruction": prompt["system_prompt"],
                 "response_mime_type": "application/json",
-                "response_schema": PuzzleCreate,
+                "response_schema": schema_class,
             },
         )
         # Use the response as a JSON string.

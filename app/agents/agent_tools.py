@@ -6,6 +6,7 @@ from app.services import PuzzleServices
 from app.llm.llm_manager import get_llm
 from uuid import UUID
 from typing import Any
+from app.agents.
 
 class AgentTools:
 
@@ -22,27 +23,35 @@ class AgentTools:
 
     async def update_puzzle(self, puzzle_id: UUID, message: str, model: str) -> dict[str, Any]:
         """ Update an existing puzzle"""
-        print("Takes in current puzzle data")
-        TOOL = "modify"
+        print("\nupdate_puzzle: Takes in current puzzle data and message: ", message)
+        TOOL = "update_puzzle: "
         tool_response = []
-        # get puzzle data by puzzle id
         puzzle_services = PuzzleServices(self.db)
-        puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
-        if not puzzle:
-            raise HTTPException(status_code=404, detail="Puzzle not found")
 
-        # serialize puzzle data to hand it over to LLM
-        print("Serialize current puzzle data")
-        current_puzzle = await puzzle_services.serialize_puzzle(puzzle)
+        # Get puzzle meta data
+        print("update_puzzle: Get puzzle by ID")
+        try:
+            puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
+        except Exception as e:
+            print("Error fetching puzzle: ", e)
+            return {f"tool_result": f"{TOOL} Error fetching puzzle: {e}"}
+
+        # validate and convert puzzle data to hand it over to LLM
+        print("validate and convert puzzle object")
+        current_puzzle = PuzzleCreate.model_validate(puzzle)
+        if not current_puzzle:
+            tool_response.append(f"{TOOL} Could not validate puzzle")
+            return {f"tool_result": tool_response}
 
         # convert puzzle in to JSON
         current_puzzle_json = json.dumps(current_puzzle)
+        print("update_puzzle: convert to JSON \n", current_puzzle_json)
 
         # update existing puzzle
         llm = get_llm(model)
         system_prompt = f"""
         You are an assistant who extracts puzzle modification parameters from this message.
-        and modify this existing puzzle data {current_puzzle_json}. 
+        and modify this existing puzzle data {current_puzzle_json}.
         Use the existing puzzle data to understand what kind of data have do added, deleted, changed or modified.
         This are the rules {BASIC_RULES} for the puzzle. 
         Mind this rules while adding modifications to the existing puzzle data.
@@ -50,29 +59,30 @@ class AgentTools:
         """
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
 
-        print("Extracting data from user message and modifying existing puzzle data...")
+        print("update_puzzle: Extracting data from user message and modifying existing puzzle data...")
         try:
-            updated_puzzle_data = await llm.modify(prompt)
+            updated_puzzle_data = await llm.structured(prompt=prompt, schema_class=PuzzleCreate)
             if not updated_puzzle_data:
                 raise Exception("Failed to modify puzzle data: ")
 
-            print("Updating current puzzle data...")
+            print("update_puzzle: Updating current puzzle data...")
             puzzle_updated = puzzle_services.update_puzzle(puzzle_id, updated_puzzle_data)
             if not puzzle_updated:
-                raise Exception("Failed to update existing puzzle data: ")
-            print("Successfully updated puzzle data")
+                raise Exception("update_puzzle: Failed to update existing puzzle data: ")
+            print("update_puzzle: Successfully updated puzzle data")
 
         except Exception as e:
-            print(f"Failed to update puzzle data: {e}")
+            print(f"update_puzzle: Failed to update puzzle data: {e}")
             tool_response.append(f"{TOOL}: Error: {e}")
-            return {"tool_result": TOOL + tool_response}
+            print("update_puzzle: tool_response: ", tool_response)
+            return {"tool_result": tool_response}
 
         # generate tool result message
         puzzle_serialized = puzzle_services.serialize_puzzle(puzzle_id)
         puzzle_updated_json = json.dumps(puzzle_serialized)
         tool_response.append(f"{TOOL}: Updated puzzle successfully!")
 
-        print("Generating tool response...")
+        print("update_puzzle: Generating tool response...")
         try:
             system_prompt_summary = f"""
             You are an assistant who compares this old puzzle data {current_puzzle_json}
@@ -81,15 +91,15 @@ class AgentTools:
             summary_prompt = {"system_prompt": system_prompt_summary, "user_prompt": puzzle_updated_json}
             tool_summary = await llm.modify(summary_prompt)
             if not tool_summary:
-                raise Exception("Failed to modify summary data: ")
+                raise Exception("Failed to generate summary data: ")
 
-            print("Generated tool response: \n", tool_summary)
+            print("update_puzzle: Generated tool response: \n", tool_summary)
 
             tool_response.append(f"{TOOL}: {tool_summary}")
             return {"tool_result": tool_response}
 
         except Exception as e:
-            print(f"Failed to generate tool response: {e}")
+            print(f"update_puzzle: Failed to generate tool response: {e}")
             tool_response.append(f"{TOOL}: Error: {e}")
             return {"tool_result": tool_response}
 
@@ -115,5 +125,4 @@ class AgentTools:
 # list puzzle
 # delete puzzle
 
-# check if chat generate a puzzle
 
