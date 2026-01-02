@@ -86,7 +86,7 @@ class OpenAIClient:
         """ Generates puzzle (structured output)"""
         print("openai_client: Thinking...")
         #print("system_prompt: ", prompt.get("system_prompt"))
-        print("openai_client: User Prompt: ", prompt.get("user_prompt"))
+        #print("openai_client: User Prompt: ", prompt.get("user_prompt"))
 
         try:
             response = await self.client.chat.completions.create(

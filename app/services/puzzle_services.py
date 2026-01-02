@@ -157,9 +157,13 @@ class PuzzleServices:
 
     def update_puzzle(self, puzzle_id, puzzle_data: PuzzleCreate):
         """Update existing puzzle by deleting old data and recreating with new data"""
+        print("\nPuzzle Data (PuzzleCreate): \n", puzzle_data)
+
         puzzle = self.get_puzzle_by_id(puzzle_id)
         if not puzzle:
             raise HTTPException(status_code=404, detail="Puzzle not found")
+        print("\nPuzzle: \n", puzzle)
+
 
         # Update puzzle metadata
         puzzle.name = puzzle_data.name
@@ -171,7 +175,7 @@ class PuzzleServices:
         puzzle.edge_count = len([edge for edge in puzzle_data.edges])
         puzzle.coins = puzzle_data.coins
         puzzle.description = puzzle_data.description
-        puzzle.is_working = puzzle_data.is_working
+        puzzle.is_working = puzzle_data.is_working if puzzle_data.is_working else False
         self.db.flush()
 
         # Delete old nodes, edges, and units
@@ -257,6 +261,7 @@ class PuzzleServices:
 
         # get example puzzles from database
         example_puzzles = self.get_all_puzzle()
+
 
         # Serialize each puzzle to JSON format to use it as examples in few shot prompt
         serialized_examples = []

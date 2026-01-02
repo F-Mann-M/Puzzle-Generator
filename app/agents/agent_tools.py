@@ -5,7 +5,8 @@ from app.schemas import PuzzleGenerate, PuzzleCreate, NodeCreate, EdgeCreate, Un
 from app.services import PuzzleServices
 from app.llm.llm_manager import get_llm
 from uuid import UUID
-from typing import Any
+from typing import Any, Union
+from app.models import Puzzle
 
 
 class AgentTools:
@@ -19,6 +20,20 @@ class AgentTools:
         puzzle_generated = await services.generate_puzzle(puzzle_config)
         new_puzzle = services.create_puzzle(puzzle_generated)
         return new_puzzle.id
+
+
+    async def get_node_index(self, node_id, puzzle) -> Union[int, dict]:
+        """Take in node ID and Puzzle Object and return index of node with node_id"""
+        print("Start/End node ID: ", node_id)
+        for node in puzzle.nodes:
+            print("Node ID: ", node.id)
+            if str(node.id) == str(node_id):
+                print(f"Node ID: {node.id} matches with node ID: {node_id}")
+                print(f"Index: {node.node_index}")
+                return node.node_index
+        print(f"No index found for node {node_id}")
+        return {"tool_result": "can not find index"}
+
 
     async def update_puzzle(self, puzzle_id: UUID, message: str, model: str) -> dict[str, Any]:
         """ Update an existing puzzle"""
@@ -34,65 +49,43 @@ class AgentTools:
             print(f"{TOOL} Error fetching puzzle: {e}")
             return {f"tool_result": [f"{TOOL} Error fetching puzzle: {e}"]}
 
-        # # validate and convert puzzle data to hand it over to LLM
-        # print(f"{TOOL} validate and convert puzzle object")
-        # print(f"DEBUG: PuzzleCreate config: {PuzzleCreate.model_config}")
-        # print(f"DEBUG: NodeCreate config: {NodeCreate.model_config}")
-        # print(f"DEBUG: NodeCreate config: {UnitCreate.model_config}")
-        # print(f"DEBUG: NodeCreate config: {EdgeCreate.model_config}")
-        # print(f"DEBUG: NodeCreate config: {PuzzleExport.model_config}")
-        # try:
-        #     current_puzzle = PuzzleExport.model_validate(puzzle, from_attributes=True)
-        # except Exception as e:
-        #     print(f"{TOOL} Error validating puzzle: {e}")
-
-        print(f"{TOOL} serialise puzzle manually...")
-        current_puzzle = {
-            "name": puzzle.name,
-            "model": model,
-            "game_mode": puzzle.game_mode,
-            "coins": puzzle.coins,
-            "nodes": [
-                {
-                    "id": str(node.id),
-                    "node_index": node.node_index,
-                    "x_position": node.x_position,
-                    "y_position": node.y_position,
-                    "puzzle_id": str(puzzle_id)
-                }
-                for node in sorted(puzzle.nodes, key=lambda n: n.node_index)
-            ],
-            "edges": [
-                {
-                    "edge_index": edge.edge_index,
-                    "start_node_id": str(edge.start_node_id),
-                    "end_node_id": str(edge.end_node_id),
-                    "puzzle_id": str(puzzle_id)
-                }
-                for edge in sorted(puzzle.edges, key=lambda e: e.edge_index)
-            ],
-            "units": [
-                {
-                    "id": str(unit.id),
-                    "unit_type": unit.unit_type,
-                    "faction": unit.faction,
-                    "puzzle_id": str(puzzle_id),
-                    "path": {
-                        "path_node": [
-                            {
-                                "node_id": str(path_node.node_id),
-                                "order_index": path_node.order_index,
-                                "node_index": path_node.node_index
-                            }
-                            for path_node in sorted(unit.path.path_node, key=lambda pn: pn.order_index)
-                        ]
-                    } if unit.path and unit.path.path_node else {"path_node": []}
-                }
-                for unit in puzzle.units
-            ],
-            "description": puzzle.description,
-        }
-        print(f"{TOOL} puzzle serialised: \n{current_puzzle}")
+        current_puzzle = Puzzle
+        print(f"{TOOL} serialise puzzle...")
+        try:
+            current_puzzle = {
+                "name": puzzle.name,
+                "model": model,
+                "game_mode": puzzle.game_mode,
+                "coins": puzzle.coins,
+                "nodes": [
+                    {
+                        "index": node.node_index,
+                        "x": node.x_position,
+                        "y": node.y_position,
+                    }
+                    for node in sorted(puzzle.nodes, key=lambda n: n.node_index)
+                ],
+                "edges": [
+                    {
+                        "index": edge.edge_index,
+                        "start": await self.get_node_index(str(edge.start_node_id), puzzle),
+                        "end": await self.get_node_index(str(edge.end_node_id),puzzle),
+                    }
+                    for edge in sorted(puzzle.edges, key=lambda e: e.edge_index)
+                ],
+                "units": [
+                    {
+                        "type": unit.unit_type,
+                        "faction": unit.faction,
+                        "path": ([path_node.node_index for path_node in sorted(unit.path.path_node, key=lambda pn: pn.order_index)]),
+                    }
+                    for unit in puzzle.units
+                ],
+                "description": puzzle.description,
+            }
+            print(f"{TOOL} puzzle serialised: \n{current_puzzle}")
+        except Exception as e:
+            print(f"{TOOL} Error serialising puzzle: {e}")
 
         # convert puzzle in to JSON
         try:
@@ -100,6 +93,7 @@ class AgentTools:
             print(f"{TOOL} convert to JSON \n {current_puzzle_json}")
         except Exception as e:
             print(f"{TOOL} Error converting puzzle: {e}")
+            return {"tool_result": [f"{TOOL} Error converting puzzle: {e}"]}
 
         # update existing puzzle
         llm = get_llm(model)

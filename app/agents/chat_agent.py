@@ -43,7 +43,7 @@ class AgentState(TypedDict):
     user_intent: Optional[str] # "generate", "create", "modify", "chat"
     collected_info: dict[str, Any] # "game_mode", "node_count", "enemy_unit_count", "enemy_type", "player_unit_count", "description"
     current_puzzle_id: Optional[UUID] # if puzzle generated and stored get id
-    tool_result: Annotated[List[str], operator.add] # collect result messages from tools
+    tool_result: List[str] # collect result messages from tools
     final_response: Optional[str] # final response for user
     session_id: UUID
     model: str # model used... pass llm_manager.py
@@ -71,9 +71,6 @@ class ChatAgent:
             graph = self.workflow.compile(checkpointer=checkpointer)
             print("get_history: Pass database URL to StateGraph")
             config = {"configurable": {"thread_id": str(self.session_id)}}
-            # config = RunnableConfig(
-            #     configurable={"thread_id": str(self.session_id)})
-            print("get_history: Configure state graph/pass session ID as thread ID")
 
             # get latest state SnapShot
             print("get_history: Get state history...")
@@ -131,7 +128,8 @@ class ChatAgent:
         print("\nClassify intent...")
         print(f"\nCurrent State: \n"
               f"Current Puzzle ID: {state.get('current_puzzle_id')}\n"
-              f"Collected Infors: {state.get('collected_info')}\n")
+              f"Collected Infors: {state.get('collected_info')}\n"
+              f"Tool result: {state.get('tool_result')}\n")
 
         # Get llm
         llm = get_llm(state["model"])
@@ -393,9 +391,6 @@ class ChatAgent:
         # Simple async call
         print("\nLLM Response collects info")
         llm_response = await llm.chat(prompt)
-
-        #TODO: Add Schema for output
-        #ToDo: use structured output
 
         # Clean the string to remove markdown backticks
         clean_json_string = llm_response.replace("```json", "").replace("```", "").strip()
