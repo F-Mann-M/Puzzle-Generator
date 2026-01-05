@@ -11,7 +11,6 @@ from app.core.database import get_db
 from app.schemas import ChatFromRequest
 from app.services import SessionService, PuzzleServices
 from app.agents import ChatAgent
-from app import models
 
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
@@ -30,16 +29,21 @@ async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=Non
 
     try:
         # convert session id manually
-        session_uuid = UUID(session_id.strip())
+        if session_id:
+            session_uuid = UUID(session_id.strip())
+        else:
+            return
     except (ValueError, TypeError) as e:
         print(f"Invalid session id: {session_id}, error: {e}")
-        return HTMLResponse(content=f"<div>Invalid session ID: {e}.</div>")
+        return HTMLResponse(content=f'<div><style color="red">Invalid session ID: {e}.</style></div>')
 
 
-    # Fetch the puzzle from your database/service
+    # Fetch the puzzle from database/service
     session_services = SessionService(db)
-    current_puzzle_id = await session_services.get_puzzle_id(session_uuid)
-    print("Get puzzle id for visualization: ", current_puzzle_id)
+    current_puzzle_id = session_services.get_puzzle_id(session_uuid)
+    if current_puzzle_id:
+        print("Get puzzle id for visualization: ", current_puzzle_id)
+
 
     # If no puzzle is found, return a placeholder
     if not current_puzzle_id:
@@ -50,7 +54,7 @@ async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=Non
         puzzle_services = PuzzleServices(db)
         puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
     except Exception as e:
-        print(f"Error feching puzzle {e}")
+        print(f"Error fetching puzzle {e}")
         return HTMLResponse(content="<div>No puzzle yet.</div>")
 
     # Return the HTML/SVG string
@@ -116,6 +120,7 @@ async def chat(
     """Chat with the AI. Gets user message, returns AI response"""
     print("chat_data from chat.html: ", chat_data)
     services = SessionService(db)
+    triggers = [] # checks for new puzzle or session to update sidebar and visualization
 
     # get or create new session (get id, create topic name, store in database)
     session_id = await services.get_or_create_session(
@@ -124,12 +129,7 @@ async def chat(
         model=chat_data.model,
     )
 
-    # get puzzle id
-    # puzzle_id_from_session = await services.get_puzzle_id(session_id)
-    # if puzzle_id_from_session:
-    #     print("Takes in puzzle id from session: ", puzzle_id_from_session)
-
-    # Initialize agent
+     # Initialize agent
     agent = ChatAgent(db, session_id=str(session_id), model=chat_data.model)
 
     # Process message through agent and get response message
@@ -140,14 +140,20 @@ async def chat(
     # check for puzzle updates and update visualization (HTMX)
     if current_puzzle_id:
         print("Current puzzle id (chat router): ", current_puzzle_id)
-        # fire the event "refreshPuzzle" (HTMX)
-        response.headers["HX-Trigger"] = "refreshPuzzle"
+        triggers.append("refreshPuzzle")
+        await services.update_session_title(
+            puzzle_id=current_puzzle_id,
+            session_id=session_id,
+        )
     else:
         print("No puzzle id yet")
 
-    # # store user message and LLM response to database
-    # await services.add_message(session_id, "user", chat_data.content)
-    # await services.add_message(session_id, "assistant", llm_response)
+    # If a new session is created refresh sidebar
+    if not chat_data.session_id:  # means: new session was just created
+        triggers.append("refreshSidebar")
+
+    # fire the events (HTMX)
+    response.headers["HX-Trigger"] = ", ".join(triggers)
 
     # format llm response to proper html output
     print("Format the LLM response into a readable HTML format")
@@ -158,13 +164,12 @@ async def chat(
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
 
-    # Include session_id update script in the response
     # Update session_id in the hidden input
-    session_script = f'<script>document.getElementById("session_id_input").value = "{chat_data.session_id}";</script>'
+    session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
     
     return HTMLResponse(content=user_msg + ai_msg + session_script)
 
-
+# delete session
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
 async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     """Delete chat by session id"""
@@ -172,3 +177,15 @@ async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     services = SessionService(db)
     services.delete_session(session_id)
     return HTMLResponse(content="", status_code=200)
+
+
+# Load sidebar as single page
+@router.get("/chat/sidebar", response_class=HTMLResponse)
+async def get_sidebar(request: Request, db: Session = Depends(get_db)):
+    """Get chat sidebar by session id, reload in separate html"""
+    services = SessionService(db)
+    all_sessions = services.get_all_sessions()
+    return templates.TemplateResponse(
+        "partials/chat_sidebar_items.html", # Move the loop into a partial file
+        {"request": request, "all_sessions": all_sessions}
+    )

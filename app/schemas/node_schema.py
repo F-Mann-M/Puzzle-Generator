@@ -3,7 +3,10 @@ from uuid import UUID
 
 
 class NodeCreate(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid'
+    )
     index: int
     x_position: int
     y_position: int
@@ -12,7 +15,10 @@ class NodeCreate(BaseModel):
 
 # for llm generation
 class NodeGenerate(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid'
+    )
     index: int
     x: float
     y: float

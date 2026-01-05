@@ -34,7 +34,7 @@ TOOL_DESCRIPTION = """
         chat: normal chat. Receives user messages and gives back llm response
         collect_and_create: Generates instantly a new puzzle based on the last user message
         collect_info: collects detailed information to create a puzzle. It keeps user asking until all information are collected.
-        update_puzzle: Takes in users message and updates an existing puzzle
+        modify_puzzle: Takes in users message and updates an existing puzzle
         """
 
 
@@ -76,7 +76,7 @@ class ChatAgent:
             print("get_history: Get state history...")
             try:
                 state = await graph.aget_state(config)
-                print("state_history loaded", state)
+                print("state_history loaded")
 
                 print("get_history: return messages to router")
                 if state.values and "messages" in state.values:
@@ -128,7 +128,7 @@ class ChatAgent:
         print("\nClassify intent...")
         print(f"\nCurrent State: \n"
               f"Current Puzzle ID: {state.get('current_puzzle_id')}\n"
-              f"Collected Infors: {state.get('collected_info')}\n"
+              f"Collected Infos: {state.get('collected_info')}\n"
               f"Tool result: {state.get('tool_result')}\n")
 
         # Get llm
@@ -196,41 +196,38 @@ class ChatAgent:
 
     async def _chat(self, state: AgentState) -> AgentState:
         """ handel ongoing chat"""
+        TOOL = "Chat_agent.chat:"
         # Get llm
         llm = get_llm(state["model"])
 
         # Get user message
-        messages = state["messages"]
-        last_message = state["messages"][-1] if state["messages"] else ""
-        print("\nLast message sent to llm: ", last_message)
+        last_message = state["messages"][-1]["content"] if state["messages"] else ""
+        print(f"\n{TOOL} Last message sent to llm: ", last_message)
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000]  # keep the conversation short
-        # print(f"\nChat conversation: {conversation}")
+        print(f"\n{TOOL} conversation: {conversation}")
 
         # Create prompt
         system_prompt = (
             f"""You are an helpfully assistant.
-            you are a noble advisor.
+            you are a advisor.
             Your name is Rudolfo
-            You only address the user as a nobel person.
             The users Name is Goetz. He is a robber knight.
             The users Character is based on the knight Götz von Berlichen
             If user asks for the rules of the game use {BASIC_RULES}.
-            You ONLY answer questions related to the puzzle rules or Middle Ages.
-            You can tell a bit about the medieval everyday life,
-            you can make up funny gossip from Berlichenstein Castle, 
-            medieval war strategies, anecdotes from the 'Three-Legged Chicken' tavern.
+            You ONLY answer questions related to the puzzle rules.
             Your ONLY purpose is to help the user with the a puzzle.
             if user asks for somthing not puzzle related answer in a funny way. 
             make up a very short Middle Ages anecdote.
             Always be positive and polite, but with a sarcastic, humorous undertone.
+            keep it short.
             When the user asks questions or makes statements, mention how great and wise his questions are with a humorous, slightly ironic undertone.
-            User the chat history {conversation} to stay in an ongoing conversation.
+            User chat history {conversation} to generate an ongoing chat.
             """)
 
-        prompt = {"system_prompt": system_prompt, "user_prompt": last_message.get("content")}
+        prompt = {"system_prompt": system_prompt, "user_prompt": last_message}
 
         # Get LLM response
         print("loading ai response...")
@@ -261,8 +258,8 @@ class ChatAgent:
 
         # get conversation
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        if len(conversation) > 3000:
-            conversation = conversation[-3000]  # keep the conversation short
+        if len(conversation) > 5000:
+            conversation = conversation[-5000]  # keep the conversation short
         print("\nCollect and create a new puzzle...")
 
 
@@ -364,6 +361,7 @@ class ChatAgent:
         print("Collect info: get conversation and extract information from it")
         system_prompt = f"""Extract puzzle generation parameters from this conversation:
                 {conversation}
+                Be aware of suggestions for puzzle details in the previous conversation - like name, node count, etc extract them.
 
                 Extract and return a JSON object with these fields (use null if not mentioned):
                 {{
@@ -475,7 +473,7 @@ class ChatAgent:
     async def _modify_puzzle(self, state: AgentState) -> AgentState:
         """Updates an existing puzzle based on feedback"""
         print("\nModifying Puzzle:")
-        TOOL = "modify: "
+        TOOL = "ChatAgent.modify: "
 
         # get latest message
         print(f"{TOOL} Takes in user message")
@@ -498,6 +496,7 @@ class ChatAgent:
                 puzzle_id=puzzle_id,
                 message=last_message,
                 model=state.get("model"),
+                session_id=state.get("session_id"),
             )
             return result
 
@@ -560,7 +559,7 @@ class ChatAgent:
             return {"message": "Tool result is empty!"}
 
         # convert tool result to string
-        combined_results = "\n".join(tool_result)
+        combined_results = "".join(tool_result)
         print("\nJoin all tool results: ", combined_results)
 
         llm = get_llm(state["model"])

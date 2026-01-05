@@ -10,35 +10,15 @@
     <!-- Left Sidebar: Sessions List -->
     <div class="sessions-sidebar">
         <h3>Sessions</h3>
-        <div class="sessions-list">
-            {% if all_sessions %}
-            {% for session in all_sessions %}
-            <div class="session-item {% if latest_session_id == session.id %}active{% endif %}"
-                 hx-get="/puzzles/chat/{{ session.id }}"
-                 hx-target="#chat-container"
-                 hx-swap="innerHTML"
-                 hx-on:click="document.getElementById('session_id_input').value = '{{ session.id }}';"
-                 hx-on::after-request="htmx.trigger('body', 'refreshPuzzle');"
-            style="cursor: pointer;">
-                <div class="session-topic">{{ session.topic_name }}</div>
-                <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
-                    }}
-                </div>
-                <div class="session-date">Puzzle ID: {{ session.puzzle_id }}</div>
-                <!-- delete session -->
-                <button hx-delete="/puzzles/chat/{{session.id}}/delete"
-                        hx-trigger="click"
-                        hx-target="closest .session-item"
-                        hx-swap="outerHTML">
-                    Delete
-                </button>
-            </div>
-            {% endfor %}
-            {% else %}
-            <p>No sessions yet</p>
-            {% endif %}
+        <div id="sessions-list-container"
+             class="sessions-list"
+             hx-get="/puzzles/chat/sidebar"
+             hx-trigger="refreshSidebar from:body"
+             hx-swap="innerHTML">
+            {% include "partials/chat_sidebar_items.html" %}
         </div>
     </div>
+
 
     <!-- Chat Container -->
     <div class="chat-main">
@@ -57,7 +37,8 @@
               ">
 
             <!--send hidden session id-->
-            <input type="hidden" name="session_id" id="session_id_input" value="{{ latest_session_id|string if latest_session_id else '' }}">
+            <input type="hidden" name="session_id" id="session_id_input"
+                   value="{{ latest_session_id|string if latest_session_id else '' }}">
 
             <br><br>
             <textarea type="text" id="user-input" name="content" placeholder="Type your message..." required
@@ -84,16 +65,15 @@
     <!-- Puzzle Visualization -->
     <div class="puzzle-visualization">
         <div id="puzzle-visualization-container"
-            hx-get="/puzzles/chat/visualize"
-            hx-trigger="load, refreshPuzzle from:body"
-            hx-target="this"
+             hx-get="/puzzles/chat/visualize"
+             hx-trigger="load, refreshPuzzle from:body"
+             hx-target="this"
              hx-swap="innerHTML"
-            hx-include="#session_id_input">
-            </div>
+             hx-include="#session_id_input">
+        </div>
     </div>
-</div>
-<script src = "/static/visualize_puzzle.js" defer></script>
-<br>
+    <script src="/static/visualize_puzzle.js" defer></script>
+    <br>
 </div>
 
 {% endblock %}

@@ -1,8 +1,7 @@
 from uuid import uuid4, UUID
-
 from app.llm import get_llm
 from app import models
-
+from app.services import PuzzleServices
 
 
 class SessionService:
@@ -26,6 +25,8 @@ class SessionService:
 
         if session_id:
             existing = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+            if existing.puzzle_id:
+                await self.update_session_title(existing.puzzle_id, session_id)
             print("Continue session with id:", existing.id)
             return existing.id
         else:
@@ -110,35 +111,21 @@ class SessionService:
         print(f"session successfully deleted: {session_id}")
 
 
-    def get_chat_history(self, session_id):
-        """
-        Gets a chat history by session id. It is limited to the last 3500 characters (around 1000 token)
-        It's like a dummy memory.
-        Nice to have: would be to use an operation to extract important information,
-        puzzles, feedback and results from the chat history, categorise it and use RAG to store information
-        ...or somthing like that :D
-        """
-        #  get messages
-        chat_messages = self.get_session_messages(session_id)
-        chat_history = ""
-        for message in chat_messages:
-            chat_history += f"{message.role}: {message.content} \n"
-        if chat_history:
-            print("Chat history loaded")
-        else:
-            print("Chat history not found")
-
-        # limit characters to 3500 characters
-        if len(chat_history) > 3500:  # around 1000 token
-            chat_history = chat_history[-3500:]
-
-        print(f"Chat history length: {len(chat_history)}")
-
-        return chat_history
+    # async def get_chat_history(self, session_id, model: str):
+    #     """Get chat history from chat agent states"""
+    #     TOOL = "session_services.get_chat_history:"
+    #     print(f"{TOOL} get chat history from chat agent")
+    #     agent = ChatAgent(self, self.db, str(session_id), model)  # Use gpt-40-mini as default value
+    #
+    #     # Load states from LangGraph checkpointer
+    #     chat_history = await agent.get_history()
+    #
+    #     return chat_history
 
 
-    def update_topic_name(self, session_id, model):
-        chat_history = self.get_chat_history(session_id)
+    async def update_topic_name(self, session_id, model):
+        TOOL = "session_services.update_topic_name:"
+        chat_history = await self.get_chat_history(session_id, model)
         topic_name = self.create_topic_name(chat_history, model)
         session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
         session.topic_name = topic_name
@@ -152,7 +139,7 @@ class SessionService:
         self.db.commit()
 
 
-    async def get_puzzle_id(self, session_id: UUID):
+    def get_puzzle_id(self, session_id: UUID):
         """Get puzzle id by session id"""
         if not session_id:
             return None
@@ -162,3 +149,35 @@ class SessionService:
             puzzle_id = session.puzzle_id
             return puzzle_id
         return None
+
+
+    def fetch_puzzle_name(self, puzzle_id: UUID) -> str:
+        """fetch puzzle name by puzzle_id and return it as string"""
+        TOOL = "fetch_puzzle_name:"
+        print(f"{TOOL} fetching puzzle name to update session topic")
+        try:
+            puzzle_services = PuzzleServices(self.db)
+            puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
+            print(f"{TOOL} puzzle name: {puzzle.name}")
+            return puzzle.name
+        except Exception as e:
+            print(f"{TOOL} Error: {e}")
+
+
+    async def update_session_title(self, puzzle_id: UUID, session_id: UUID) -> None:
+        """Change session title to puzzle name, if there is a puzzle id"""
+        TOOL = "update_session_title: "
+        print(f"{TOOL} updating session title to puzzle name...")
+        try:
+            puzzle_name = self.fetch_puzzle_name(puzzle_id=puzzle_id)
+            print(f"{TOOL} Puzzle name: {puzzle_name}")
+            if not puzzle_name:
+                puzzle_name = "no title yet"
+            session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
+            print(f"{TOOL} Current session title: {session.topic_name}")
+            print(f"{TOOL} New session title: {puzzle_name}")
+            session.topic_name = puzzle_name
+            self.db.commit()
+        except Exception as e:
+            print(f"could not update session topic: {e}")
+

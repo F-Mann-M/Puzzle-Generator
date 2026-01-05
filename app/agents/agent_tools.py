@@ -1,12 +1,12 @@
 from fastapi import HTTPException
 import json
 from app.prompts.prompt_game_rules import BASIC_RULES
-from app.schemas import PuzzleGenerate, PuzzleCreate, NodeCreate, EdgeCreate, UnitCreate, PuzzleExport
-from app.services import PuzzleServices
+from app.schemas import PuzzleGenerate, PuzzleCreate
+from app.services import PuzzleServices, SessionService
 from app.llm.llm_manager import get_llm
 from uuid import UUID
 from typing import Any, Union
-from app.models import Puzzle
+from app.models import Puzzle, Session
 
 
 class AgentTools:
@@ -35,10 +35,15 @@ class AgentTools:
         return {"tool_result": "can not find index"}
 
 
-    async def update_puzzle(self, puzzle_id: UUID, message: str, model: str) -> dict[str, Any]:
+    async def update_puzzle(self, puzzle_id: Union[UUID, str], message: str, model: str, session_id: Union[UUID, str]) -> dict[str, Any]:
         """ Update an existing puzzle"""
-        TOOL = "update_puzzle: "
+        TOOL = "ChatAgent.update_puzzle: "
         print(f"\n{TOOL} Takes in current puzzle data and message: ", message)
+
+        # Ensure puzzle_id is a UUID object, not a string
+        puzzle_id = self.ensure_uuid(puzzle_id)
+        session_id = self.ensure_uuid(session_id)
+
         puzzle_services = PuzzleServices(self.db)
 
         # Get puzzle data
@@ -49,6 +54,7 @@ class AgentTools:
             print(f"{TOOL} Error fetching puzzle: {e}")
             return {f"tool_result": [f"{TOOL} Error fetching puzzle: {e}"]}
 
+        # Serialise puzzle data
         current_puzzle = Puzzle
         print(f"{TOOL} serialise puzzle...")
         try:
@@ -115,14 +121,27 @@ class AgentTools:
                 raise Exception("Failed to generate modified puzzle data")
 
             print(f"{TOOL} Updating current puzzle data...")
-            puzzle_updated = puzzle_services.update_puzzle(puzzle_id, updated_puzzle_data)
+            puzzle_updated = puzzle_services.update_puzzle(
+                puzzle_id=puzzle_id,
+                puzzle_data=updated_puzzle_data)
             if not puzzle_updated:
-                raise Exception("update_puzzle: Failed to update existing puzzle data: ")
+                raise Exception(f"{TOOL} Failed to update existing puzzle data.")
+
+            # Update Session topic to puzzle name
+            print(f"{TOOL} Updated current session name to: '{puzzle_updated.name}'")
+            session = self.db.query(Session).filter(Session.id == session_id).first()
+            if not session.topic_name:
+                raise Exception(f"{TOOL}: Failed load Session object")
+            print(f"{TOOL} Current session topic: '{session.topic_name}'")
+            session.topic_name = puzzle_updated.name
+            self.db.commit()
+
             print(f"{TOOL} Successfully updated puzzle data")
 
         except Exception as e:
             print(f"{TOOL} Failed to update puzzle data: {e}")
             return {"tool_result": [f"{TOOL}: Error: {e}"]}
+
 
         # generate tool result message
         puzzle_serialized = puzzle_services.serialize_puzzle(puzzle_id)
@@ -146,6 +165,14 @@ class AgentTools:
         except Exception as e:
             print(f"{TOOL} Failed to generate tool response: {e}")
             return {"tool_result": [f"{TOOL}: Error: {e}"]}
+
+
+    def ensure_uuid(self, val):
+        if isinstance(val, UUID):
+            return val
+        if isinstance(val, str):
+            return UUID(val.strip())
+        return val
 
     def validate_puzzle(self):
         """ Validate an existing puzzle"""

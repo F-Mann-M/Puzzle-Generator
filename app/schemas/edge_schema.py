@@ -4,7 +4,10 @@ from uuid import UUID
 
 
 class EdgeCreate(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid'
+    )
     edge_index: int
     start_node_id: UUID
     end_node_id: UUID
@@ -13,7 +16,10 @@ class EdgeCreate(BaseModel):
 
 # for llm generation
 class EdgeGenerate(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid'
+    )
     index: int
     start: int
     end: int

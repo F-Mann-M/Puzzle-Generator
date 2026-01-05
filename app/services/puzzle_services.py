@@ -2,7 +2,7 @@ from app import models
 from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from app.models import Puzzle
 from app.schemas import PuzzleCreate, PuzzleGenerate
@@ -155,10 +155,10 @@ class PuzzleServices:
             self.db.commit()
 
 
-    def update_puzzle(self, puzzle_id, puzzle_data: PuzzleCreate):
+    def update_puzzle(self, puzzle_id: UUID, puzzle_data: PuzzleCreate):
         """Update existing puzzle by deleting old data and recreating with new data"""
-        print("\nPuzzle Data (PuzzleCreate): \n", puzzle_data)
-
+        TOOL = "PuzzleServices.update_puzzle:"
+        print(f"\n{TOOL} Puzzle Data (PuzzleCreate): \n", puzzle_data)
         puzzle = self.get_puzzle_by_id(puzzle_id)
         if not puzzle:
             raise HTTPException(status_code=404, detail="Puzzle not found")
@@ -166,6 +166,7 @@ class PuzzleServices:
 
 
         # Update puzzle metadata
+        print(f"{TOOL} update puzzle meta data...")
         puzzle.name = puzzle_data.name
         puzzle.model = puzzle_data.model
         puzzle.enemy_count = len([enemy for enemy in puzzle_data.units if enemy["faction"] == "enemy"])
