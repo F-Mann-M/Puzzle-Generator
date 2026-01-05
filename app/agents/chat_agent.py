@@ -170,8 +170,8 @@ class ChatAgent:
 
         system_prompt = f"""You are an intent classifier. Analyse user's massage and classify his intent.
         Return ONLY one word: {intention}
-        ALWAYS prefer 'modifiy' over 'create', 'create' over 'generate' and 'generate' over 'chat'.
         If something is unclear, return 'chat' to clarify."""
+        # ALWAYS prefer 'modifiy' over 'create', 'create' over 'generate' and 'generate' over 'chat'.
 
         prompt = {
             "system_prompt": system_prompt,
