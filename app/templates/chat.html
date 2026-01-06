@@ -9,7 +9,7 @@
 <div class="chat-layout">
     <!-- Left Sidebar: Sessions List -->
     <div class="sessions-sidebar">
-        <h3>Sessions</h3>
+    <h3>Sessions</h3>
         <div id="sessions-list-container"
              class="sessions-list"
              hx-get="/puzzles/chat/sidebar"
@@ -17,7 +17,7 @@
              hx-swap="innerHTML">
             {% include "partials/chat_sidebar_items.html" %}
         </div>
-    </div>
+</div>
 
 
     <!-- Chat Container -->
@@ -31,10 +31,9 @@
               hx-swap="beforeend"
               hx-ext="json-enc"
               hx-reset="true"
-              hx-on::after-request="
-                // clear textarea
-                document.getElementById('user-input').value = ''; htmx.trigger('body', 'refreshPuzzle');
-              ">
+              hx-on::after-request="document.getElementById('user-input').value = '';
+              htmx.trigger('body', 'refreshPuzzle');
+              htmx.trigger('body', 'refreshSidebar');">
 
             <!--send hidden session id-->
             <input type="hidden" name="session_id" id="session_id_input"

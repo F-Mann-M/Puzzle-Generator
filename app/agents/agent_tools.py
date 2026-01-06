@@ -127,15 +127,6 @@ class AgentTools:
             if not puzzle_updated:
                 raise Exception(f"{TOOL} Failed to update existing puzzle data.")
 
-            # Update Session topic to puzzle name
-            print(f"{TOOL} Updated current session name to: '{puzzle_updated.name}'")
-            session = self.db.query(Session).filter(Session.id == session_id).first()
-            if not session.topic_name:
-                raise Exception(f"{TOOL}: Failed load Session object")
-            print(f"{TOOL} Current session topic: '{session.topic_name}'")
-            session.topic_name = puzzle_updated.name
-            self.db.commit()
-
             print(f"{TOOL} Successfully updated puzzle data")
 
         except Exception as e:

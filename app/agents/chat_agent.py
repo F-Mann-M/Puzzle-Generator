@@ -206,7 +206,7 @@ class ChatAgent:
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
-            conversation = conversation[-3000]  # keep the conversation short
+            conversation = conversation[-3000:]  # keep the conversation short
         print(f"\n{TOOL} conversation: {conversation}")
 
         # Create prompt
@@ -219,11 +219,9 @@ class ChatAgent:
             If user asks for the rules of the game use {BASIC_RULES}.
             You ONLY answer questions related to the puzzle rules.
             Your ONLY purpose is to help the user with the a puzzle.
-            if user asks for somthing not puzzle related answer in a funny way. 
-            make up a very short Middle Ages anecdote.
+            if user asks for something not puzzle related answer in a funny way or make up a very short Middle Ages anecdote.
             Always be positive and polite, but with a sarcastic, humorous undertone.
             keep it short.
-            When the user asks questions or makes statements, mention how great and wise his questions are with a humorous, slightly ironic undertone.
             User chat history {conversation} to generate an ongoing chat.
             """)
 
@@ -248,7 +246,7 @@ class ChatAgent:
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
-        TOOL = "collect_and_create: "
+        TOOL = "ChatAgent.collect_and_create: "
         tool_results = state.get("tool_result")
 
         # Get LLM
@@ -258,8 +256,8 @@ class ChatAgent:
 
         # get conversation
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        if len(conversation) > 5000:
-            conversation = conversation[-5000]  # keep the conversation short
+        if len(conversation) > 3000:
+            conversation = conversation[-3000:]  # keep the conversation short
         print("\nCollect and create a new puzzle...")
 
 
@@ -298,7 +296,7 @@ class ChatAgent:
 
         # Simple async call
         raw_data = await llm.chat(prompt)
-        print("\nLLM Response collected puzzle info to create puzzle: ", raw_data)
+        print(f"\n{TOOL} LLM Response collected puzzle info to create puzzle: ", raw_data)
 
         try:
             # convert to JSON Object
@@ -316,9 +314,9 @@ class ChatAgent:
             )
             if puzzle_config:
                 # Create new puzzle and store to database
-                print("\nCreate new puzzle (collect and create node)...")
+                print(f"\n{TOOL} Create new puzzle (collect and create node)...")
                 puzzle = self.puzzle_services.create_puzzle(puzzle_config)
-                print("\nNew Puzzle created successfully (collect and create node)")
+                print(f"\n{TOOL} New Puzzle created successfully (collect and create node)")
 
                 # Add puzzle.id to current session
                 session_id = UUID(self.session_id.strip())
@@ -352,7 +350,7 @@ class ChatAgent:
         # get last message
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
-            conversation = conversation[-3000]  # keep the conversation short
+            conversation = conversation[-3000:]  # keep the conversation short
         print("conversation: ", conversation)
         print("\nCollecting information...")
         print("\nConversation length (character length): ", len(conversation))

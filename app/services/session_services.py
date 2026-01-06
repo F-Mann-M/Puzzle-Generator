@@ -151,33 +151,24 @@ class SessionService:
         return None
 
 
-    def fetch_puzzle_name(self, puzzle_id: UUID) -> str:
-        """fetch puzzle name by puzzle_id and return it as string"""
-        TOOL = "fetch_puzzle_name:"
-        print(f"{TOOL} fetching puzzle name to update session topic")
-        try:
-            puzzle_services = PuzzleServices(self.db)
-            puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
-            print(f"{TOOL} puzzle name: {puzzle.name}")
-            return puzzle.name
-        except Exception as e:
-            print(f"{TOOL} Error: {e}")
-
-
-    async def update_session_title(self, puzzle_id: UUID, session_id: UUID) -> None:
+    async def update_session_title(self, puzzle_id: UUID, session_id: UUID) -> bool:
         """Change session title to puzzle name, if there is a puzzle id"""
         TOOL = "update_session_title: "
         print(f"{TOOL} updating session title to puzzle name...")
         try:
-            puzzle_name = self.fetch_puzzle_name(puzzle_id=puzzle_id)
-            print(f"{TOOL} Puzzle name: {puzzle_name}")
-            if not puzzle_name:
-                puzzle_name = "no title yet"
+            puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
+            print(f"{TOOL} New puzzle title: {puzzle.name}")
             session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
             print(f"{TOOL} Current session title: {session.topic_name}")
-            print(f"{TOOL} New session title: {puzzle_name}")
-            session.topic_name = puzzle_name
-            self.db.commit()
+
+            if puzzle and session:
+                if session.topic_name != puzzle.name:
+                    session.topic_name = puzzle.name
+                    self.db.commit()
+                    print(f"{TOOL} Changed session title to new puzzle name: {puzzle.name}")
+                    return True  # Trigger sidebar update in chat router
         except Exception as e:
-            print(f"could not update session topic: {e}")
+            print(f"{TOOL} could not update session topic: {e}")
+
+        return False
 

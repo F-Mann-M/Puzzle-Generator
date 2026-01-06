@@ -80,6 +80,19 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
     )
 
 
+# Load sidebar as single page
+@router.get("/chat/sidebar", response_class=HTMLResponse)
+async def get_sidebar(request: Request, db: Session = Depends(get_db)):
+    """Get chat sidebar by session id, reload in separate html"""
+    services = SessionService(db)
+    print("reload all sessions...")
+    all_sessions = services.get_all_sessions()
+    return templates.TemplateResponse(
+        "partials/chat_sidebar_items.html", # Move the loop into a partial file
+        {"request": request, "all_sessions": all_sessions}
+    )
+
+
 # load session
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
 async def get_session(session_id: UUID, db: Session = Depends(get_db)):
@@ -110,15 +123,16 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
     return HTMLResponse(content=message_html)
 
 
-# Chat:
+# Chat
 @router.post("/chat", response_class=HTMLResponse)
 async def chat(
     chat_data: ChatFromRequest = Body(...),  # parse from JSON body
     db: Session = Depends(get_db),
     response: Response = Response(), # visualize puzzle container ask for puzzle update
 ):
-    """Chat with the AI. Gets user message, returns AI response"""
-    print("chat_data from chat.html: ", chat_data)
+    """Chat with the AI. Gets user message, returns AI response, triggers refresh of list of puzzles and visualization"""
+    TOOL = "chat_routers:"
+    print(f"{TOOL} chat_data from chat.html: ", chat_data)
     services = SessionService(db)
     triggers = [] # checks for new puzzle or session to update sidebar and visualization
 
@@ -135,32 +149,39 @@ async def chat(
     # Process message through agent and get response message
     llm_response, current_puzzle_id = await agent.process(chat_data.content)
     if llm_response:
-        print("Received response from agent graph and pass it to database")
+        print(f"{TOOL} Received response from agent graph and pass it to database")
 
-    # check for puzzle updates and update visualization (HTMX)
+    # check for puzzle updates and update visualization to trigger HTMX
+    topic_changed = False
     if current_puzzle_id:
-        print("Current puzzle id (chat router): ", current_puzzle_id)
+        print(f"{TOOL} Current puzzle id: ", current_puzzle_id)
         triggers.append("refreshPuzzle")
-        await services.update_session_title(
+        print(f"{TOOL} refresh puzzle visualization")
+        topic_changed = await services.update_session_title(
             puzzle_id=current_puzzle_id,
             session_id=session_id,
         )
-    else:
-        print("No puzzle id yet")
 
-    # If a new session is created refresh sidebar
-    if not chat_data.session_id:  # means: new session was just created
+    # If a new session is created refresh sidebar to add new session to list of sessions
+    is_new_session = not chat_data.session_id or str(chat_data.session_id).strip() == "" # means: new session was just created
+    print(f"{TOOL} is_new_session: ", is_new_session)
+    if topic_changed or is_new_session:
         triggers.append("refreshSidebar")
+        print(f"{TOOL} refresh sidebar")
+    else:
+        print(f"{TOOL} No new session reload sidebar anyway")
+
 
     # fire the events (HTMX)
+    print(f"{TOOL} fire triggers: ", triggers)
     response.headers["HX-Trigger"] = ", ".join(triggers)
 
     # format llm response to proper html output
-    print("Format the LLM response into a readable HTML format")
+    print(f"{TOOL} Format the LLM response into a readable HTML format")
     llm_response_html = markdown.markdown(llm_response)
 
     # create and send HTML response
-    print("Pass content to front-end...")
+    print(f"{TOOL} Pass content to front-end...")
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
 
@@ -178,14 +199,3 @@ async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     services.delete_session(session_id)
     return HTMLResponse(content="", status_code=200)
 
-
-# Load sidebar as single page
-@router.get("/chat/sidebar", response_class=HTMLResponse)
-async def get_sidebar(request: Request, db: Session = Depends(get_db)):
-    """Get chat sidebar by session id, reload in separate html"""
-    services = SessionService(db)
-    all_sessions = services.get_all_sessions()
-    return templates.TemplateResponse(
-        "partials/chat_sidebar_items.html", # Move the loop into a partial file
-        {"request": request, "all_sessions": all_sessions}
-    )

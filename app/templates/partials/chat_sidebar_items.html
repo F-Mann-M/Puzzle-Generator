@@ -1,11 +1,11 @@
 {% if all_sessions %}
 {% for session in all_sessions %}
-<div class="session-item {% if latest_session_id == session.id %}active{% endif %}"
+<div class="session-item"
      hx-get="/puzzles/chat/{{ session.id }}"
      hx-target="#chat-container"
      hx-swap="innerHTML"
      hx-on:click="document.getElementById('session_id_input').value = '{{ session.id }}';"
-     hx-on::after-request="htmx.trigger('body', 'refreshPuzzle');"
+     hx-on::after-request="htmx.trigger('body', 'refreshPuzzle'); htmx.trigger('body', 'refreshSidebar');"
      style="cursor: pointer;">
     <div class="session-topic">{{ session.topic_name }}</div>
     <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
