@@ -10,6 +10,7 @@ from pathlib import Path
 
 # import form project
 from app.core.database import get_db
+from app import models
 from app.schemas import PuzzleCreate, PuzzleGenerate, ChatFromRequest
 from app.services import PuzzleServices, SessionService
 
@@ -38,9 +39,24 @@ async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
 # Update puzzle
 @router.put("/{puzzle_id}", response_class=HTMLResponse)
 async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Depends(get_db)):
-    """Update an existing puzzle"""
+    """Update an existing puzzle and related session topic"""
+    TOOL = "puzzle_router.update_puzzle:"
     services = PuzzleServices(db)
+    print(f"{TOOL} updating puzzle...")
     updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
+
+    print(f"{TOOL} get linked session...")
+    linked_session = db.query(models.Session).filter(models.Session.puzzle_id == updated_puzzle.id).all()
+
+    for session in linked_session:
+        if session.topic_name != updated_puzzle.name:
+            session.topic_name = updated_puzzle.name
+            print(f"{TOOL} update session topic '{session.topic_name}'")
+            print(f"{TOOL} with puzzle name '{updated_puzzle.name}'")
+            db.add(session)
+    if linked_session:
+        db.commit()
+
     return RedirectResponse(url=f"/puzzles/{updated_puzzle.id}", status_code=303)
 
 

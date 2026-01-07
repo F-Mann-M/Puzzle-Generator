@@ -1,0 +1,60 @@
+
+<div class="editor-integrated">
+<!--<strong>Puzzle Editor</strong><br><br>-->
+
+<!-- Store puzzle metadata in data attributes for JavaScript -->
+<div data-puzzle-name="{{ puzzle.name }}"
+     data-puzzle-game-mode="{{ puzzle.game_mode }}"
+     data-puzzle-coins="{{ puzzle.coins or '' }}"
+     data-puzzle-description="{{ puzzle.description or '' }}"
+     style="display: none;"></div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+    <button id="add-node-btn">Add Node</button>
+    <button id="add-edge-btn">Add Edge</button>
+
+    <select id="faction-select">
+        <option value="enemy">Enemy</option>
+        <option value="player">Player</option>
+    </select>
+    <button id="place-unit-btn">Place Unit</button>
+    <button id="edit-path-btn">Edit Paths</button>
+
+    <select id="unit-type-select"></select>
+
+    <button id="export-btn" type="button">Update Puzzle</button>
+</div>
+
+<!-- Editor Canvas -->
+<div id="editor-container">
+    <svg id="editor-svg"
+     data-puzzle-id="{{ puzzle.id }}"
+     data-puzzle-name="{{ puzzle.name }}"
+     data-puzzle-game-mode="{{ puzzle.game_mode }}"
+     data-puzzle-coins="{{ puzzle.coins or 0 }}"
+     data-puzzle-description="{{ puzzle.description or '' }}"
+     style="width: 100%; height: 400px; border: 1px solid #ccc;"></svg>
+</div>
+<br>
+<form id="editor-form" method="POST" action="/puzzles">
+    <label for="name">Puzzle Title:</label>
+    <input type="text" name="name" id="name" placeholder="Puzzle Name" value="{{ puzzle.name }}" required>
+    <label for="game_mode">Game Mode:</label>
+    <select name="game_mode" id="game_mode" required>
+        <option value="">-- {{ puzzle.game_mode }} --</option>
+        <option value="Skirmish" {% if puzzle.game_mode == 'Skirmish' %}selected{% endif %}>Skirmish</option>
+        <option value="Safe travel" {% if puzzle.game_mode == 'Safe travel' %}selected{% endif %}>Safe travel</option>
+        <option value="Plunder" {% if puzzle.game_mode == 'Plunder' %}selected{% endif %}>Plunder</option>
+    </select>
+    <label for="coins">Coins:</label>
+    <input type="number" name="coins" id="coins" placeholder="Coins" value="{{ puzzle.coins or '' }}">
+    <label for="is_working">Is the puzzle working?</label>
+        <select name="is_working" id="is_working">
+            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Yes</option>
+            <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>No</option>
+        </select><br><br>
+
+    <textarea name="description" id="description" placeholder="Description">{{ puzzle.description or '' }}</textarea>
+
+</form>

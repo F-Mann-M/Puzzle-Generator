@@ -158,6 +158,7 @@ a, a:visited, a:hover, a:active {
 
 #editor-container {
     width: 100%;
+    min-width: 600px;
     height: 400px;
     border: 2px solid #444;
     background: #fafafa;
@@ -263,7 +264,7 @@ a, a:visited, a:hover, a:active {
 }
 
 .session-item.active {
-    background-color: #4a90e2;
+    background-color: #666666;
     color: white;
     border-color: #357abd;
 }

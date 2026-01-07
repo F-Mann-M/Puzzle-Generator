@@ -1,6 +1,6 @@
 {% if all_sessions %}
 {% for session in all_sessions %}
-<div class="session-item"
+<div class="session-item {% if latest_session_id|string == session.id|string %}active{% endif %}"
      hx-get="/puzzles/chat/{{ session.id }}"
      hx-target="#chat-container"
      hx-swap="innerHTML"

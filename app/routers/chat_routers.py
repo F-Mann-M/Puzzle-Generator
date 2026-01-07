@@ -16,54 +16,93 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 
 router = APIRouter()
 
-# load puzzle id for visualization
-@router.get("/chat/visualize", response_class=HTMLResponse)
-async def get_puzzle_by_session_id(session_id: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
-    """Get current puzzle id via session_id"""
 
-    print("get puzzle: session id from chat.html: ", session_id)
+@router.get("/chat/editor", response_class=HTMLResponse)
+async def get_integrated_editor(
+        session_id: Optional[str] = Query(default=None),
+        db: Session = Depends(get_db),
+        request: Request = None
+):
+    """Loads Puzzle Editor"""
 
-    # Handle empty string
-    if not session_id or session_id.strip() == "" or session_id is None:
+    if not session_id or session_id.strip() == "":
         return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
 
     try:
-        # convert session id manually
-        if session_id:
-            session_uuid = UUID(session_id.strip())
-        else:
-            return
-    except (ValueError, TypeError) as e:
-        print(f"Invalid session id: {session_id}, error: {e}")
-        return HTMLResponse(content=f'<div><style color="red">Invalid session ID: {e}.</style></div>')
+        # manual conversion
+        session_uuid = UUID(session_id.strip())
+    except (ValueError, TypeError):
+        return HTMLResponse(content="<div>Invalid session format.</div>")
 
 
-    # Fetch the puzzle from database/service
     session_services = SessionService(db)
-    current_puzzle_id = session_services.get_puzzle_id(session_uuid)
-    if current_puzzle_id:
-        print("Get puzzle id for visualization: ", current_puzzle_id)
+    puzzle_id = session_services.get_puzzle_id(session_uuid)
+
+    if not puzzle_id:
+        return HTMLResponse(content="<div>Create a puzzle via chat to start editing.</div>")
+
+    puzzle_services = PuzzleServices(db)
+    puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
+
+    return templates.TemplateResponse(
+        "partials/editor_partial.html",
+        {
+            "request": request,
+            "puzzle": puzzle,
+        }
+    )
 
 
-    # If no puzzle is found, return a placeholder
-    if not current_puzzle_id:
-        return HTMLResponse(content="<div>No puzzle yet.</div>")
+# load puzzle id for visualization
+# @router.get("/chat/visualize", response_class=HTMLResponse)
+# async def get_puzzle_by_session_id(
+#         session_id: Optional[str] = Query(default=None),
+#         db: Session = Depends(get_db)):
+#     """Get current puzzle id via session_id"""
+#
+#     print("get puzzle: session id from chat.html: ", session_id)
+#
+#     # Handle empty string
+#     if not session_id or session_id.strip() == "" or session_id is None:
+#         return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
+#
+#     try:
+#         # convert session id manually
+#         if session_id:
+#             session_uuid = UUID(session_id.strip())
+#         else:
+#             return
+#     except (ValueError, TypeError) as e:
+#         print(f"Invalid session id: {session_id}, error: {e}")
+#         return HTMLResponse(content=f'<div><style color="red">Invalid session ID: {e}.</style></div>')
 
-    try:
-        # Fetch puzzle
-        puzzle_services = PuzzleServices(db)
-        puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
-    except Exception as e:
-        print(f"Error fetching puzzle {e}")
-        return HTMLResponse(content="<div>No puzzle yet.</div>")
-
-    # Return the HTML/SVG string
-    print("return puzzle visualization")
-    return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
-                                f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
-                                f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}" style="width: 100%; min-height: 400px;"></svg>'
-                                f"<strong>Description:</strong><br>{puzzle.description}<br>"
-                        )
+    #
+    # # Fetch the puzzle from database/service
+    # session_services = SessionService(db)
+    # current_puzzle_id = session_services.get_puzzle_id(session_uuid)
+    # if current_puzzle_id:
+    #     print("Get puzzle id for visualization: ", current_puzzle_id)
+    #
+    #
+    # # If no puzzle is found, return a placeholder
+    # if not current_puzzle_id:
+    #     return HTMLResponse(content="<div>No puzzle yet.</div>")
+    #
+    # try:
+    #     # Fetch puzzle
+    #     puzzle_services = PuzzleServices(db)
+    #     puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
+    # except Exception as e:
+    #     print(f"Error fetching puzzle {e}")
+    #     return HTMLResponse(content="<div>No puzzle yet.</div>")
+    #
+    # # Return the HTML/SVG string
+    # print("return puzzle visualization")
+    # return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
+    #                             f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
+    #                             f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}" style="width: 100%; min-height: 400px;"></svg>'
+    #                             f"<strong>Description:</strong><br>{puzzle.description}<br>"
+    #                     )
 
 # load chat
 @router.get("/chat", response_class=HTMLResponse)
@@ -71,25 +110,38 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
     """Get chat page and load all sessions."""
     services = SessionService(db)
     all_sessions = services.get_all_sessions()
+
+    latest_session = 0
+    if all_sessions:
+        lastest_session = all_sessions[0].id
     return templates.TemplateResponse(
         "chat.html",
         {
             "request": request,
             "all_sessions": all_sessions,
+            "lastest_session_id": lastest_session,
         }
     )
 
 
 # Load sidebar as single page
 @router.get("/chat/sidebar", response_class=HTMLResponse)
-async def get_sidebar(request: Request, db: Session = Depends(get_db)):
+async def get_sidebar(#
+        request: Request,
+        session_id: Optional[str] = Query(None),
+        db: Session = Depends(get_db)):
     """Get chat sidebar by session id, reload in separate html"""
-    services = SessionService(db)
+
     print("reload all sessions...")
+    services = SessionService(db)
     all_sessions = services.get_all_sessions()
+
     return templates.TemplateResponse(
-        "partials/chat_sidebar_items.html", # Move the loop into a partial file
-        {"request": request, "all_sessions": all_sessions}
+        "partials/chat_sidebar_items.html", {
+            "request": request,
+            "all_sessions": all_sessions,
+            "latest_session_id": session_id,
+        }
     )
 
 
@@ -130,7 +182,12 @@ async def chat(
     db: Session = Depends(get_db),
     response: Response = Response(), # visualize puzzle container ask for puzzle update
 ):
-    """Chat with the AI. Gets user message, returns AI response, triggers refresh of list of puzzles and visualization"""
+    """Chat with the AI.
+    Gets user message,
+    returns AI response,
+    updates session topic,
+    triggers refresh of list of puzzles and visualization
+    """
     TOOL = "chat_routers:"
     print(f"{TOOL} chat_data from chat.html: ", chat_data)
     services = SessionService(db)
@@ -156,7 +213,7 @@ async def chat(
     if current_puzzle_id:
         print(f"{TOOL} Current puzzle id: ", current_puzzle_id)
         triggers.append("refreshPuzzle")
-        print(f"{TOOL} refresh puzzle visualization")
+        print(f"{TOOL} refresh puzzle editor")
         topic_changed = await services.update_session_title(
             puzzle_id=current_puzzle_id,
             session_id=session_id,
@@ -169,7 +226,7 @@ async def chat(
         triggers.append("refreshSidebar")
         print(f"{TOOL} refresh sidebar")
     else:
-        print(f"{TOOL} No new session reload sidebar anyway")
+        print(f"{TOOL} No new session")
 
 
     # fire the events (HTMX)
