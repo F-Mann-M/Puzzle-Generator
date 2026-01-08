@@ -6,18 +6,36 @@
 
 <div class="chat-layout">
 
-    <!-- Left Sidebar: Sessions List -->
+    <!-- Left Sidebar: Header and Sessions List -->
+    <div class="sidebar-wrapper">
+        <!-- Sidebar Header with Menu -->
+        <div class="sidebar-header">
+            <!-- Burger Menu -->
+            <div class="burger-menu">
+                <button class="burger-btn" id="burger-btn">☰</button>
+                <div class="burger-dropdown" id="burger-dropdown">
+                    <a href="/">Home</a>
+                    <a href="/puzzles">Puzzles</a>
+                    <a href="/puzzles/create-puzzle">Create Puzzle</a>
+                    <a href="/puzzles/generate">Generate Puzzle</a>
+                </div>
+            </div>
+            <!-- Menu -->
+<!--            <a href="/puzzles/" class="sidebar-btn">Puzzles</a>-->
+            <a href="/puzzles/chat" class="sidebar-btn">New Session</a>
+        </div>
 
-    <div class="sessions-sidebar">
-
-        <h3>Sessions</h3>
-        <div id="sessions-list-container"
-             class="sessions-list"
-             hx-get="/puzzles/chat/sidebar"
-             hx-trigger="refreshSidebar from:body"
-             hx-swap="innerHTML"
-             hx-include="#session_id_input">
-            {% include "partials/chat_sidebar_items.html" %}
+        <!-- Sessions List -->
+        <div class="sessions-sidebar">
+            <h3>Sessions</h3>
+            <div id="sessions-list-container"
+                 class="sessions-list"
+                 hx-get="/puzzles/chat/sidebar"
+                 hx-trigger="refreshSidebar from:body"
+                 hx-swap="innerHTML"
+                 hx-include="#session_id_input">
+                {% include "partials/chat_sidebar_items.html" %}
+            </div>
         </div>
     </div>
 
@@ -25,7 +43,7 @@
     <!-- Chat Container -->
     <div class="chat-main">
         <div id="chat-container">
-            Welcome to the council. I'm Rudolfo. I will help to come up with the best puzzles.
+            <div class="ai_response"><strong>Rudolfo:</strong> Hello! How can I help you?</div>
         </div>
         <form id="chat-form"
               hx-post="chat"
@@ -48,7 +66,6 @@
             <!-- choose Model -->
             <label for="model">Model:</label>
             <select id="model" name="model" required>
-                <option value="gpt-5o-mini">GPT 4o mini</option>
                 <option value="gpt-4o-mini">GPT 4o mini</option>
                 <option value="gpt-4.1-mini">GPT 4.1 mini</option>
                 <option value="gemini-3-pro-preview">Gemini 3 pro preview</option>
@@ -74,8 +91,30 @@
          hx-include="#session_id_input">
          </div>
 </div>
-<script src="/static/editor.js" defer></script>
+    <script src="/static/editor.js" defer></script>
 
 </div>
+
+<script>
+    // Burger menu toggle
+    document.addEventListener('DOMContentLoaded', function() {
+        const burgerBtn = document.getElementById('burger-btn');
+        const burgerDropdown = document.getElementById('burger-dropdown');
+        
+        if (burgerBtn && burgerDropdown) {
+            burgerBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                burgerDropdown.classList.toggle('show');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!burgerBtn.contains(e.target) && !burgerDropdown.contains(e.target)) {
+                    burgerDropdown.classList.remove('show');
+                }
+            });
+        }
+    });
+</script>
 
 {% endblock %}

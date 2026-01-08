@@ -4,7 +4,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from pathlib import Path
 
 
@@ -30,9 +30,20 @@ async def show_create_puzzle(request: Request):
 # Create puzzle
 @router.post("/", response_class=HTMLResponse)
 async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
-    """Create a new puzzle"""
+    """Create a new puzzle, store in database and create new session"""
+    # Create puzzle and store in database
     services = PuzzleServices(db)
     new_puzzle = services.create_puzzle(puzzle)
+
+    # Create new session with puzzle id and puzzle name as topic name
+    new_session = models.Session(
+        id=uuid4(),
+        topic_name=new_puzzle.name,
+        puzzle_id=new_puzzle.id,
+    )
+    db.add(new_session)
+    db.commit()
+
     return RedirectResponse(url=f"/puzzles/{new_puzzle.id}", status_code=303)
 
 
@@ -41,13 +52,17 @@ async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
 async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Depends(get_db)):
     """Update an existing puzzle and related session topic"""
     TOOL = "puzzle_router.update_puzzle:"
+
+    # Updating existing puzzle
     services = PuzzleServices(db)
     print(f"{TOOL} updating puzzle...")
     updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
 
+    # Load sessions with puzzle_id and update session topic
+    # there should be only one session
+    # ToDo: if there isn't a session yet create new one
     print(f"{TOOL} get linked session...")
     linked_session = db.query(models.Session).filter(models.Session.puzzle_id == updated_puzzle.id).all()
-
     for session in linked_session:
         if session.topic_name != updated_puzzle.name:
             session.topic_name = updated_puzzle.name

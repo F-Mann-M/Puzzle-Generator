@@ -24,9 +24,14 @@ async def get_integrated_editor(
         request: Request = None
 ):
     """Loads Puzzle Editor"""
-
+    # when there is no session yet load empty editor (create button instead update)
     if not session_id or session_id.strip() == "":
-        return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
+        return templates.TemplateResponse(
+            "/create-puzzle.html",
+            {
+                "request": request,
+            }
+        )
 
     try:
         # manual conversion
@@ -39,7 +44,7 @@ async def get_integrated_editor(
     puzzle_id = session_services.get_puzzle_id(session_uuid)
 
     if not puzzle_id:
-        return HTMLResponse(content="<div>Create a puzzle via chat to start editing.</div>")
+        print("No puzzle found")
 
     puzzle_services = PuzzleServices(db)
     puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
@@ -113,7 +118,7 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
 
     latest_session = 0
     if all_sessions:
-        lastest_session = all_sessions[0].id
+        lastest_session = services.get_latest_session()
     return templates.TemplateResponse(
         "chat.html",
         {

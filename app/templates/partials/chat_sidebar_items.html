@@ -8,10 +8,8 @@
      hx-on::after-request="htmx.trigger('body', 'refreshPuzzle'); htmx.trigger('body', 'refreshSidebar');"
      style="cursor: pointer;">
     <div class="session-topic">{{ session.topic_name }}</div>
-    <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''
-        }}
-    </div>
-    <div class="session-date">Puzzle ID: {{ session.puzzle_id }}</div>
+    <div class="session-date">{{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else ''}}</div>
+<!--    <div class="session-date">Puzzle ID: {{ session.puzzle_id }}</div>-->
     <!-- delete session -->
     <button hx-delete="/puzzles/chat/{{session.id}}/delete"
             hx-trigger="click consume"
