@@ -29,7 +29,11 @@ async def show_create_puzzle(request: Request):
 
 # Create puzzle
 @router.post("/", response_class=HTMLResponse)
-async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
+async def create_puzzle(
+    puzzle: PuzzleCreate, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """Create a new puzzle, store in database and create new session"""
     # Create puzzle and store in database
     services = PuzzleServices(db)
@@ -44,6 +48,17 @@ async def create_puzzle(puzzle: PuzzleCreate, db: Session = Depends(get_db)):
     db.add(new_session)
     db.commit()
 
+    # Check if request (from editor.js) is from chat context (via header)
+    from_chat = request.headers.get("X-From-Chat") == "true" if request else False
+    
+    if from_chat:
+        # Return JSON response with session_id for chat context
+        return JSONResponse(content={
+            "session_id": str(new_session.id),
+            "puzzle_id": str(new_puzzle.id),
+            "success": True
+        })
+    
     return RedirectResponse(url=f"/puzzles/{new_puzzle.id}", status_code=303)
 
 

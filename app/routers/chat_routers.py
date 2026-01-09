@@ -26,10 +26,12 @@ async def get_integrated_editor(
     """Loads Puzzle Editor"""
     # when there is no session yet load empty editor (create button instead update)
     if not session_id or session_id.strip() == "":
+        print("no session id yet")
         return templates.TemplateResponse(
-            "/create-puzzle.html",
+            "partials/editor_partial.html",
             {
                 "request": request,
+                "puzzle": None,
             }
         )
 
@@ -37,7 +39,7 @@ async def get_integrated_editor(
         # manual conversion
         session_uuid = UUID(session_id.strip())
     except (ValueError, TypeError):
-        return HTMLResponse(content="<div>Invalid session format.</div>")
+        print("invalid session id")
 
 
     session_services = SessionService(db)
@@ -45,6 +47,7 @@ async def get_integrated_editor(
 
     if not puzzle_id:
         print("No puzzle found")
+
 
     puzzle_services = PuzzleServices(db)
     puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
@@ -152,7 +155,7 @@ async def get_sidebar(#
 
 # load session
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
-async def get_session(session_id: UUID, db: Session = Depends(get_db)):
+async def get_session(session_id: UUID, db: Session = Depends(get_db), response: Response = Response()):
     """Get chat history by session id """
     print("session id from chat.html: ", session_id)
 
@@ -163,6 +166,8 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
     state_history = await agent.get_history()
 
     if not state_history:
+        # Even if no history, trigger refreshPuzzle to update editor
+        response.headers["HX-Trigger"] = "refreshPuzzle"
         return HTMLResponse(content="Session has no content yet.")
 
     message_html = ""
@@ -177,6 +182,9 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db)):
             message_content = markdown.markdown(content)
             message_html += f'<div class="ai_response"><strong>Rudolfo:</strong> {message_content}</div>'
 
+    # Trigger refreshPuzzle to update editor when session is loaded
+    response.headers["HX-Trigger"] = "refreshPuzzle"
+    
     return HTMLResponse(content=message_html)
 
 

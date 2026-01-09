@@ -73,10 +73,12 @@ async function initEditor() {
 
     if (!svg) return; // Exit if no editor found
 
-    // Reset Tool State
+    // Reset state
     currentTool = null;
     pendingEdgeStart = null;
     selectedUnit = null;
+    isEditMode = false; // Reset edit mode
+    puzzleId = null; // Reset puzzle ID
 
     // Setup Toolbar Listeners
     if (addNodeBtn) addNodeBtn.onclick = () => { selectTool("add-node"); };
@@ -487,7 +489,7 @@ async function exportPuzzle(evt) {
         game_mode: formData.get("game_mode"),
         coins: Number(formData.get("coins") || 0),
         description: formData.get("description") || "",
-        is_working: formData.get("is_working") === "True",
+        is_working: formData.get("is_working") === "False",
 
         // Map Frontend (x) back to Backend expected format
         nodes: nodes.filter(n => !n.deleted).map(n => ({
@@ -512,22 +514,91 @@ async function exportPuzzle(evt) {
     try {
         const method = isEditMode ? "PUT" : "POST";
         const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
+        
+        // Check if we're in chat context
+        const isChatContext = document.getElementById("chat-container") !== null;
+        
+        // Prepare headers
+        const headers = { "Content-Type": "application/json" };
+        
+        // If creating new puzzle in chat context, add header to get session_id back
+        if (!isEditMode && isChatContext) {
+            headers["X-From-Chat"] = "true";
+        }
 
         const response = await fetch(url, {
             method: method,
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify(payload)
         });
 
+        // Handle JSON response from chat context (new puzzle creation)
+        if (!isEditMode && isChatContext && response.ok) {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const data = await response.json();
+                if (data.success && data.session_id) {
+                    console.log("Puzzle created in chat context. Session ID:", data.session_id);
+                    
+                    // Update session_id input
+                    const sessionInput = document.getElementById("session_id_input");
+                    if (sessionInput) {
+                        sessionInput.value = data.session_id;
+                    }
+                    
+                    // Trigger refreshSidebar first to show new session
+                    if (window.htmx) {
+                        htmx.trigger("body", "refreshSidebar");
+                    }
+                    
+                    // Load the session in chat container (this will also trigger refreshPuzzle via HX-Trigger header)
+                    const chatContainer = document.getElementById("chat-container");
+                    if (chatContainer && window.htmx) {
+                        // Wait a bit for sidebar to update, then load session
+                        setTimeout(() => {
+                            htmx.ajax("GET", `/puzzles/chat/${data.session_id}`, {
+                                target: "#chat-container",
+                                swap: "innerHTML"
+                            });
+
+                        // Also explicitly trigger refreshPuzzle after a delay to ensure editor reloads
+                        setTimeout(() => {
+                            if (window.htmx) {
+                                htmx.trigger("body", "refreshPuzzle");
+                            }
+                        }, 200);
+                    }, 100);
+                }
+                    
+                    return; // Exit early, don't redirect
+                }
+            }
+        }
+
+        // Handle update (PUT request) in chat context
+        if (isEditMode && isChatContext && response.ok) {
+            console.log("Puzzle updated in chat context");
+            
+            // Trigger refreshSidebar and refreshPuzzle to update editor
+            if (window.htmx) {
+                htmx.trigger("body", "refreshSidebar");
+                // Wait a bit then refresh editor to reload updated puzzle
+                setTimeout(() => {
+                    htmx.trigger("body", "refreshPuzzle");
+                }, 100);
+            }
+            
+            return; // Stay in chat context
+        }
+
         if (response.redirected) {
             // --- FIX: Check context before redirecting ---
-            const isChatContext = document.getElementById("chat-container") !== null;
-
             if (isChatContext) {
                 console.log("Puzzle updated. Staying in chat context.");
 
                 if (window.htmx) {
                     htmx.trigger("body", "refreshSidebar");
+                    htmx.trigger("body", "refreshPuzzle");
                 }
 
                 console.log("Puzzle updated. Staying in chat context.");
@@ -539,8 +610,11 @@ async function exportPuzzle(evt) {
             alert("Error saving puzzle: " + await response.text());
         } else {
             // Fallback for non-redirecting success codes
-            if (document.getElementById("chat-container")) {
-                 if (window.htmx) htmx.trigger("body", "refreshSidebar");
+            if (isChatContext) {
+                 if (window.htmx) {
+                     htmx.trigger("body", "refreshSidebar");
+                     htmx.trigger("body", "refreshPuzzle");
+                 }
             } else {
                  window.location.reload();
             }

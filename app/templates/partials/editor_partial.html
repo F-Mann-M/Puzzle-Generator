@@ -23,7 +23,10 @@
 
     <select id="unit-type-select"></select>
 
-    <button id="export-btn" type="button">Update Puzzle</button>
+    <button id="export-btn" type="button">
+        {% if puzzle %}Update Puzzle{% else %}Create Puzzle{% endif %}
+    </button>
+
 </div>
 
 <!-- Editor Canvas -->
@@ -51,8 +54,8 @@
     <input type="number" name="coins" id="coins" placeholder="Coins" value="{{ puzzle.coins or '' }}">
     <label for="is_working">Is the puzzle working?</label>
         <select name="is_working" id="is_working">
-            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Yes</option>
             <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>No</option>
+            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Yes</option>
         </select><br><br>
 
     <textarea name="description" id="description" placeholder="Description">{{ puzzle.description or '' }}</textarea>
