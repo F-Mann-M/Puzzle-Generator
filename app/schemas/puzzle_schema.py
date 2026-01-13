@@ -12,14 +12,16 @@ class PuzzleCreate(BaseModel):
     model: str
     game_mode: str
     coins: Optional[int]
-    nodes: List[dict]
-    edges: List[dict]
-    units: List[dict]
+    nodes: List[NodeGenerate]
+    edges: List[EdgeGenerate]
+    units: List[UnitGenerate]
     description: Optional[str] = ""
     is_working: Optional[bool] = False
 
     # read SQLAlchemy object also like dicts
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid")
 
 
 # Data sent from user to LLM
@@ -36,7 +38,7 @@ class PuzzleGenerate(BaseModel):
     # read SQLAlchemy object also like dicts
     model_config = ConfigDict(
         from_attributes=True,
-        extra='forbid'
+        extra="forbid"
     )
 
 
@@ -48,7 +50,9 @@ class PuzzleLLMResponse(BaseModel):
     description: Optional[str] = ""
 
     # read SQLAlchemy object also like dicts
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid")
 
 # to load and convert puzzle object for llm
 class PuzzleExport(PuzzleCreate):

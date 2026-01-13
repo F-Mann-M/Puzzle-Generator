@@ -39,15 +39,25 @@ async def get_integrated_editor(
         # manual conversion
         session_uuid = UUID(session_id.strip())
     except (ValueError, TypeError):
-        print("invalid session id")
-
+        return templates.TemplateResponse(
+            "partials/editor_partial.html",
+            {
+                "request": request,
+                "puzzle": None,
+            }
+        )
 
     session_services = SessionService(db)
     puzzle_id = session_services.get_puzzle_id(session_uuid)
 
     if not puzzle_id:
-        print("No puzzle found")
-
+        return templates.TemplateResponse(
+            "partials/editor_partial.html",
+            {
+                "request": request,
+                "puzzle": None,
+            }
+        )
 
     puzzle_services = PuzzleServices(db)
     puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
@@ -61,56 +71,6 @@ async def get_integrated_editor(
     )
 
 
-# load puzzle id for visualization
-# @router.get("/chat/visualize", response_class=HTMLResponse)
-# async def get_puzzle_by_session_id(
-#         session_id: Optional[str] = Query(default=None),
-#         db: Session = Depends(get_db)):
-#     """Get current puzzle id via session_id"""
-#
-#     print("get puzzle: session id from chat.html: ", session_id)
-#
-#     # Handle empty string
-#     if not session_id or session_id.strip() == "" or session_id is None:
-#         return HTMLResponse(content="<div>Select a session to view the puzzle.</div>")
-#
-#     try:
-#         # convert session id manually
-#         if session_id:
-#             session_uuid = UUID(session_id.strip())
-#         else:
-#             return
-#     except (ValueError, TypeError) as e:
-#         print(f"Invalid session id: {session_id}, error: {e}")
-#         return HTMLResponse(content=f'<div><style color="red">Invalid session ID: {e}.</style></div>')
-
-    #
-    # # Fetch the puzzle from database/service
-    # session_services = SessionService(db)
-    # current_puzzle_id = session_services.get_puzzle_id(session_uuid)
-    # if current_puzzle_id:
-    #     print("Get puzzle id for visualization: ", current_puzzle_id)
-    #
-    #
-    # # If no puzzle is found, return a placeholder
-    # if not current_puzzle_id:
-    #     return HTMLResponse(content="<div>No puzzle yet.</div>")
-    #
-    # try:
-    #     # Fetch puzzle
-    #     puzzle_services = PuzzleServices(db)
-    #     puzzle = puzzle_services.get_puzzle_by_id(current_puzzle_id)
-    # except Exception as e:
-    #     print(f"Error fetching puzzle {e}")
-    #     return HTMLResponse(content="<div>No puzzle yet.</div>")
-    #
-    # # Return the HTML/SVG string
-    # print("return puzzle visualization")
-    # return HTMLResponse(content=f'<strong>Name:</strong> {puzzle.name}<br>'
-    #                             f'<strong>Game Mode:</strong> {puzzle.game_mode}<br>'
-    #                             f'<svg id="puzzle-visualization-svg" data-puzzle-id="{current_puzzle_id}" style="width: 100%; min-height: 400px;"></svg>'
-    #                             f"<strong>Description:</strong><br>{puzzle.description}<br>"
-    #                     )
 
 # load chat
 @router.get("/chat", response_class=HTMLResponse)
@@ -167,8 +127,9 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
 
     if not state_history:
         # Even if no history, trigger refreshPuzzle to update editor
-        response.headers["HX-Trigger"] = "refreshPuzzle"
-        return HTMLResponse(content="Session has no content yet.")
+        html_response = HTMLResponse(content="Session has no content yet.")
+        html_response.headers["HX-Trigger"] = "refreshPuzzle"
+        return html_response
 
     message_html = ""
     for message in state_history:
@@ -183,9 +144,10 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
             message_html += f'<div class="ai_response"><strong>Rudolfo:</strong> {message_content}</div>'
 
     # Trigger refreshPuzzle to update editor when session is loaded
-    response.headers["HX-Trigger"] = "refreshPuzzle"
+    html_response = HTMLResponse(content=message_html)
+    html_response.headers["HX-Trigger"] = "refreshPuzzle"
     
-    return HTMLResponse(content=message_html)
+    return html_response
 
 
 # Chat
@@ -256,9 +218,12 @@ async def chat(
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
 
     # Update session_id in the hidden input
-    session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
+    session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'    
     
-    return HTMLResponse(content=user_msg + ai_msg + session_script)
+    html_response = HTMLResponse(content=user_msg + ai_msg + session_script)
+    html_response.headers["HX-Trigger"] = "refreshPuzzle"
+    return html_response
+
 
 # delete session
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
@@ -267,5 +232,8 @@ async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     print("delete: session id from chat.html: ", session_id)
     services = SessionService(db)
     services.delete_session(session_id)
-    return HTMLResponse(content="", status_code=200)
+    html_response = HTMLResponse(content="", status_code=200)
+    html_response.headers["HX-Trigger"] = "refreshSidebar, refreshPuzzle, clearChat"
+
+    return html_response
 

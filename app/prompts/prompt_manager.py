@@ -4,14 +4,15 @@ from typing import Optional
 
 
 async def get_puzzle_generation_prompt(
+        db,
         example_puzzles,
         game_mode: str,
         node_count: int,
         edge_count: Optional[int],
         turns: int,
         units: list,
-        description: str, 
-        db) -> dict:
+        description: Optional[int] = "",
+        ) -> dict:
 
     
     # define game mode
@@ -22,31 +23,54 @@ async def get_puzzle_generation_prompt(
         game_mode_prompt = GAME_MODE_SAFE_TRAVEL
 
     prompt = {"system_prompt": (
-        """The generator must always output valid JSON matching the PuzzleLLMResponse schema exactly.
-        Core Schema Definitions
-        PuzzleLLMResponse
-        {
-          "nodes": [NodeGenerate],
-          "edges": [EdgeGenerate],
-          "units": [UnitGenerate],
-          "coins": int
-        }"""
-        """You are a game designer how creates puzzles based on this {BASIC_RULES} and this {game_mode_prompt}
-        You will create all nodes, edges and paths for enemy units and player units.
-        Since the path of the player units are also the solution of each puzzle you provide the puzzle with the solution (how to place and to move player units)
-        You provide complete puzzles with solutions
-        Return ONLY a valid JSON object conforming to this Pydantic schema: 
-        PuzzleLLMResponse { nodes: List[NodeGenerate], edges: List[EdgeGenerate], 
-        units: List[UnitGenerate], coins: int, description: str }. "
-        Ensure each list is a JSON array ([...]) not an object with numeric keys. 
-        Return no explanations, only raw JSON."
-        For the EdgeGenerate schema ONLY use these key names: 'index', 'start', 'end', 'x', 'y'.
-        Do NOT use aliases like 'from', 'to', 'from_index', 'to_index', 'start_index', 'end_index'.
-        Each edge’s 'start' and 'end' must correspond to existing node indexes
-        describe all moves in detail turn by turn. which unit is doing what and why. Use \n to display each turn in a new paragraph (Python).
-        store the description in the description
+        f"""
+        You are a game designer who creates puzzles based on these {BASIC_RULES} and this {game_mode_prompt}.
+        You will create all nodes, edges, and paths for enemy units and player units.
+        Since the paths of the player units are also the solution of each puzzle, you must provide the puzzle with the solution (how to place and move player units).
+        Mind further instruction in {description}
+        
+        The generator must always output valid JSON matching the PuzzleLLMResponse schema exactly.
+        
+        ### JSON Schema Definitions (TypeScript)
+        
+        interface PuzzleLLMResponse {{
+          nodes: NodeGenerate[];
+          edges: EdgeGenerate[];
+          units: UnitGenerate[];
+          coins: number;
+          description: string; // Describe moves in detail turn by turn. Use \\n for new paragraphs.
+        }}
+        
+        interface NodeGenerate {{
+          index: number;
+          x: number;
+          y: number;
+        }}
+        
+        interface EdgeGenerate {{
+          index: number; // Must be an integer
+          start: number; // Index of the start node
+          end: number;   // Index of the end node
+          // STRICTLY FORBIDDEN: Do NOT include 'x' or 'y' in edges.
+        }}
+        
+        interface UnitGenerate {{
+          type: string;
+          faction: string;
+          path: number[]; // List of node indices
+        }}
+        
+        ### Constraints
+        1. Return ONLY a valid JSON object conforming to the schema above.
+        2. Return no explanations, only raw JSON.
+        3. For Edges: strictly use keys 'index', 'start', 'end'. 
+        4. Do NOT use aliases like 'from', 'to', 'source', 'target'.
+        5. Do NOT include coordinates (x, y) in Edges.
+        6. Ensure each list is a JSON array ([...]), not an object with keys.
+        
         These are example puzzles in JSON format: {json.dumps(example_puzzles, indent=2)}
-        Use these examples as reference for structure, difficulty, and puzzle design patterns."""
+        Use these examples as reference for structure, difficulty, and puzzle design patterns.
+        """
         ),
         "user_prompt": (f"""
         # User Prompt: Generate Puzzle Scenario
@@ -67,9 +91,8 @@ async def get_puzzle_generation_prompt(
         Units:
         {json.dumps(units, indent=2)}
         
-        Return only valid JSON for PuzzleLLMResponse.
+        Return ONLY valid JSON for PuzzleLLMResponse.
         """)
-
     }
     print(f"Prompt built successfully (nodes={node_count}, edges={edge_count}, units={len(units)}")
     return prompt

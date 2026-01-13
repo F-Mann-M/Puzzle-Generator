@@ -53,6 +53,7 @@ async def create_puzzle(
     
     if from_chat:
         # Return JSON response with session_id for chat context
+        # Updates the chat via editor.js
         return JSONResponse(content={
             "session_id": str(new_session.id),
             "puzzle_id": str(new_puzzle.id),

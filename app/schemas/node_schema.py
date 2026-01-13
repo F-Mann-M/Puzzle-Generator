@@ -17,11 +17,11 @@ class NodeCreate(BaseModel):
 class NodeGenerate(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
-        extra='forbid'
+        extra="forbid"
     )
     index: int
-    x: float
-    y: float
+    x: int
+    y: int
 
 
 class NodeRead(NodeCreate):

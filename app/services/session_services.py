@@ -45,17 +45,17 @@ class SessionService:
 
         return new_session.id
 
-
-    async def add_message(self, session_id: UUID, role: str, content: str):
-        """ Takes in message of a session and adds it to the database"""
-        new_message = models.Message(
-            session_id=session_id,
-            role=role,
-            content=content,
-        )
-        self.db.add(new_message)
-        self.db.commit()
-        print(f"Added message from {role} to database")
+    #
+    # async def add_message(self, session_id: UUID, role: str, content: str):
+    #     """ Takes in message of a session and adds it to the database"""
+    #     new_message = models.Message(
+    #         session_id=session_id,
+    #         role=role,
+    #         content=content,
+    #     )
+    #     self.db.add(new_message)
+    #     self.db.commit()
+    #     print(f"Added message from {role} to database")
 
 
     def get_session_messages(self, session_id: UUID):

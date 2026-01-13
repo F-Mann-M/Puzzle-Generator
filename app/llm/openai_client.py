@@ -1,11 +1,9 @@
 from pydantic import BaseModel
 from app.core.config import settings
 from openai import AsyncOpenAI
-from typing import Type
+from typing import Type, Any
+import json
 
-from app.schemas.puzzle_schema import PuzzleLLMResponse, PuzzleCreate
-
-# ToDo: merge generate and modify in llm_clients
 
 API_KEY = settings.OPENAI_API_KEY
 
@@ -15,47 +13,21 @@ class OpenAIClient:
         self.client = AsyncOpenAI(api_key=API_KEY)
         self.model_name = model_name
 
+    def _clean_data(self, data: Any, schema: Type[BaseModel]) -> Any:
+        """
+        Removes fields from 'data' that are not defined in the Pydantic 'schema'.
+        This prevents 'Extra inputs are not permitted' errors when extra='forbid' is used.
+        """
+        if not isinstance(data, dict):
+            return data
 
-    async def generate(self, prompt: dict):
-        """ Generates puzzle (structured output)"""
-        print("Thinking...")
-        # print("system_prompt: ", prompt.get("system_prompt"))
-        # print("User Prompt: ", prompt.get("user_prompt"))
+        # Get the list of valid field names from the schema
+        valid_keys = schema.model_fields.keys()
 
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "system", "content": prompt.get("system_prompt")},
-                          {"role": "user", "content": prompt.get("user_prompt")}],
-                response_format={"type": "json_object"},
-            )
-        except TypeError:
-            response = await self.client.chat.completions.create(model=self.model_name, messages=prompt)
+        # Create a new dict with ONLY the valid keys
+        clean_data = {k: v for k, v in data.items() if k in valid_keys}
 
-        content = response.choices[0].message.content
-        print("openai_client: Raw JSON:\n", content) # Debugging
-
-        puzzle = None
-
-        # ---------- VALIDATION ----------
-        try:
-            puzzle = PuzzleLLMResponse.model_validate_json(content)
-            print("\n openai_client: Parsed Puzzle:") # Debugging
-            print(puzzle)
-        except Exception as e:
-            print("\n openai_client: Validation failed:", e)
-
-        # ---------- TOKEN USAGE ----------
-        if response.usage:
-            usage = response.usage
-            print(
-                "\n\n\n TOKEN USAGE"
-                f"\nTokens — prompt: {usage.prompt_tokens}, "
-                f"\ncompletion: {usage.completion_tokens}, "
-                f"\ntotal: {usage.total_tokens}"
-            )
-
-        return puzzle
+        return clean_data
 
 
     # Chat Function
@@ -105,9 +77,16 @@ class OpenAIClient:
 
         # ---------- VALIDATION ----------
         try:
-            puzzle = schema.model_validate_json(content)
-            print("\n Parsed Puzzle:") # Debugging
-            print(puzzle)
+            # 1. Parse JSON string to Dict
+            raw_data = json.loads(content)
+
+            # 2. Remove forbidden fields based on the dynamic schema passed in
+            clean_data = self._clean_data(raw_data, schema)
+
+            # 3. Validate
+            puzzle = schema.model_validate(clean_data)
+
+            print("\n Parsed Puzzle successfully")
         except Exception as e:
             print("\n Validation failed:", e)
 

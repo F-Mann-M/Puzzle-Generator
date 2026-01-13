@@ -10,7 +10,6 @@ There must be no separate nodes or edges. All nodes are connected to each other 
 Units from two factions (player and enemy) move along paths over a limited number of turns and coins.
 
 
-
 NodeGenerate:
 index: integer starting from 0
 x, y: float coordinates for visualization
@@ -106,7 +105,18 @@ Coins reaching 0 ends the game immediately.
 
 ## Game Modes
 skirmish
-save_travel
+safe_travel
+
+# Skirmish Mode
+* Goal: defeat **all enemies**.
+* Win condition: at least one player unit survives.
+* Player must plan paths that **cross** or **intersect** enemy paths to trigger battles.
+* Player may define starting positions or use predefined ones.
+
+# Safe Travel Mode
+* Goal: move designated player units to a specific target node.
+* Start nodes are fixed.
+* Emphasis on route planning and avoidance of losing battles.
 
 ## Special Edges
 Snake Edge
@@ -120,10 +130,7 @@ Ensure consistency between unit paths, edge availability, node spacing, turn lim
 Paths must always follow the edges that exist.
 Edges must never overlap.
 Puzzles must be solvable, logical, and strategically interesting.
-
-## Output Format
-Always return valid JSON strictly matching the PuzzleLLMResponse schema.
-Do not include explanations, comments, or additional text outside the JSON object."""
+"""
 
 GAME_MODE_SKIRMISH = """
 * Goal: defeat **all enemies**.

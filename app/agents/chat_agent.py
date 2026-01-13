@@ -2,7 +2,7 @@ import operator
 from typing import Annotated, List, TypedDict, Optional, Any
 from uuid import UUID
 from langgraph.graph import END, START, StateGraph
-from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel
 
 import json
 
@@ -211,17 +211,14 @@ class ChatAgent:
 
         # Create prompt
         system_prompt = (
-            f"""You are an helpfully assistant.
-            you are a advisor.
+            f"""
+            you are an assistant.
             Your name is Rudolfo
-            The users Name is Goetz. He is a robber knight.
-            The users Character is based on the knight Götz von Berlichen
             If user asks for the rules of the game use {BASIC_RULES}.
-            You ONLY answer questions related to the puzzle rules.
+            You ONLY answer questions related to the puzzle rules, how to improve puzzle, find puzzle relates solutions and patterns.
             Your ONLY purpose is to help the user with the a puzzle.
-            if user asks for something not puzzle related answer in a funny way or make up a very short Middle Ages anecdote.
-            Always be positive and polite, but with a sarcastic, humorous undertone.
-            keep it short.
+            if user asks for something not puzzle related answer in a funny way.
+            Keep answers short and clear. 
             User chat history {conversation} to generate an ongoing chat.
             """)
 
@@ -258,7 +255,7 @@ class ChatAgent:
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000:]  # keep the conversation short
-        print("\nCollect and create a new puzzle...")
+        print(f"\n{TOOL} Collect and create a new puzzle...")
 
 
         system_prompt = f"""
@@ -295,12 +292,16 @@ class ChatAgent:
         }
 
         # Simple async call
-        raw_data = await llm.chat(prompt)
-        print(f"\n{TOOL} LLM Response collected puzzle info to create puzzle: ", raw_data)
-
+        puzzle_generated = type[BaseModel]
         try:
-            # convert to JSON Object
-            puzzle_generated = PuzzleLLMResponse.model_validate_json(raw_data)
+            print(f"\n{TOOL} Calling LLM.structured() with PuzzleLLMResponse schema...")
+            puzzle_generated = await llm.structured(prompt=prompt, schema=PuzzleLLMResponse)
+
+            if puzzle_generated is None:
+                raise Exception("LLM raise None for structured data")
+
+            print(f"\n{TOOL} generated data: {puzzle_generated}")
+
 
             puzzle_config = PuzzleCreate(
                 name="Generated Puzzle", # ToDo: generate puzzle name
@@ -314,7 +315,7 @@ class ChatAgent:
             )
             if puzzle_config:
                 # Create new puzzle and store to database
-                print(f"\n{TOOL} Create new puzzle (collect and create node)...")
+                print(f"\n{TOOL} Create new puzzle...")
                 puzzle = self.puzzle_services.create_puzzle(puzzle_config)
                 print(f"\n{TOOL} New Puzzle created successfully (collect and create node)")
 
@@ -326,7 +327,7 @@ class ChatAgent:
                 print("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
 
                 # Add to tool result
-                tool_results.append(TOOL + raw_data)
+                tool_results.append(TOOL + str(puzzle_generated))
                 tool_results.append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
 
                 return {
@@ -335,28 +336,32 @@ class ChatAgent:
                         }
 
         except Exception as e:
-            print(f"Could not create a puzzle. Error: {e}")
-            tool_results.append(TOOL + raw_data)
+            print(f"{TOOL} Could not create a puzzle. Error: {e}")
+            puzzle_json = puzzle_generated.model_dump_json()
+            tool_results.append(TOOL + puzzle_json)
             tool_results.append(TOOL + f"Could not create a puzzle. Error: {e}")
 
             return {"tool_result": tool_results}
 
 
     async def _collect_info(self, state: AgentState) -> AgentState:
-        """ Collect information about the agent """
-        TOOL = "collect_info"
+        """ Collect all necessary information from user to create a new puzzle. """
+        TOOL = "Chat_agent.collect_info:"
+        print(f"\n\n{TOOL} Collecting information from user to create a new puzzle...")
         last_message = state["messages"][-1] if state["messages"] else ""
+
+        # TODO: add list for tool response
 
         # get last message
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000:]  # keep the conversation short
-        print("conversation: ", conversation)
-        print("\nCollecting information...")
-        print("\nConversation length (character length): ", len(conversation))
+        # print(f"{TOOL} conversation: ", conversation)
+        # print(f"{TOOL}\nCollecting information...")
+        #print(f"{TOOL} Conversation length (character length): ", len(conversation))
 
 
-        print("Collect info: get conversation and extract information from it")
+        print(f"{TOOL} Collect info: get conversation and extract information from it...")
         system_prompt = f"""Extract puzzle generation parameters from this conversation:
                 {conversation}
                 Be aware of suggestions for puzzle details in the previous conversation - like name, node count, etc extract them.
@@ -385,7 +390,7 @@ class ChatAgent:
         }
 
         # Simple async call
-        print("\nLLM Response collects info")
+        print(f"\n {TOOL}LLM Response collects info...")
         llm_response = await llm.chat(prompt)
 
         # Clean the string to remove markdown backticks
@@ -395,7 +400,7 @@ class ChatAgent:
         response = json.loads(clean_json_string)
 
         # check collected info:
-        if state.get("collected_info"): # ToDo: create an initial state in session_services
+        if state.get("collected_info"):
             collected_info = state.get("collected_info")
         else:
             collected_info = {
@@ -405,10 +410,11 @@ class ChatAgent:
                 "edge_count": None,
             "turns": None,
             "units": None,
-            "description": " "
+            "description": " ",
             }
 
         is_collected = True
+        # todo: check if there is at least one player and one enemy unit
         has_enemy_unit = False
         has_player_unit = False
         missing_info = []
@@ -422,30 +428,41 @@ class ChatAgent:
                 is_collected = False
                 missing_info.append(key)
 
-        print("\nCollected info: ", collected_info)
+        if missing_info:
+            print(f"{TOOL} missing info", missing_info)
 
         # Generate Puzzle or ask user for more information
         tool_response = ""
         if is_collected:
-            print("\nAll information collected!")
-            print("Collected info: ", missing_info)
-            print("Generate Puzzle...")
+            print(f"\n{TOOL} All information collected!")
+            print(f"{TOOL} Collected info: ", collected_info)
 
-            # convert to PuzzleGenerate
-            puzzle_generated = PuzzleGenerate(
-                name=collected_info["name"],
-                model=state["model"],
-                game_mode=collected_info["game_mode"],
-                node_count=collected_info["node_count"],
-                edge_count=collected_info["edge_count"],
-                turns=collected_info["turns"],
-                units=collected_info["units"],
-                description=collected_info["description"]
-            )
+            try:
+                # convert to PuzzleGenerate schema
+                puzzle_generated = PuzzleGenerate(
+                    name=collected_info["name"],
+                    model=state["model"],
+                    game_mode=collected_info["game_mode"],
+                    node_count=collected_info["node_count"],
+                    edge_count=collected_info["edge_count"],
+                    turns=collected_info["turns"],
+                    units=collected_info["units"],
+                    description=collected_info.get("description", "")
+                )
+                if not puzzle_generated:
+                    raise Exception(f"{TOOL} Could not convert into PuzzleGenerate schema. Error: {e}")
 
-            # Call Tool generate Puzzle
-            puzzle_id = await self.tools.generate_puzzle(puzzle_generated)
-            tool_response = f"""{TOOL}: Puzzle generated successfully"""
+                # Call Tool generate Puzzle
+                print(f"{TOOL} Generate Puzzle...")
+                puzzle_id = await self.tools.generate_puzzle(puzzle_generated)
+                if not puzzle_id:
+                    raise Exception(f"{TOOL} Could not generate Puzzle.")
+
+                tool_response = f"""{TOOL} Puzzle generated successfully"""
+
+            except Exception as e:
+                print(f"{TOOL} Could not generate Puzzle. Error: {e}")
+                return {"tool_result": f"{TOOL} Could not generate Puzzle. Error: {e}"}
 
             # Add puzzle.id to current session
             self.session_services.add_puzzle_id(puzzle_id, UUID(self.session_id))
@@ -544,28 +561,27 @@ class ChatAgent:
         Format final response from tool_result for user.
         if last used tool is chat return last message
         """
-        print("\n\nFormat final response from tool_result... ")
+        TOOL = "ChatAgent.format_response:"
+        print(f"\n\n{TOOL} Format final response from tool_result... ")
         if state.get("user_intent") == "chat":
-            print("Chat intent - skipping format_response, using existing message")
+            print(f"{TOOL} Chat intent - skipping format_response, using existing message")
             return
 
         # get tool result
         tool_result = state.get("tool_result")
         print(f"format_response: tool_result: {tool_result}")
         if not tool_result:
-            print("format_response: tool_result is empty!")
+            print(f"{TOOL} tool_result is empty!")
             return {"message": "Tool result is empty!"}
 
         # convert tool result to string
         combined_results = "".join(tool_result)
-        print("\nJoin all tool results: ", combined_results)
+        print(f"\n{TOOL} Join all tool results: ", combined_results)
 
         llm = get_llm(state["model"])
         system_prompt = f"""
-        You are an assistant who takes in a list of different tool results {combined_results}.
-        Your name is Rudolfo. 
-        You are a chivalrous advisor from the Middle Ages. Always be positive and polite, but with a sarcastic, humorous undertone.
-        Mention how greate the plans of users are.
+        You are an assistant who takes in a list of tool results {combined_results}
+        Use the {BASIC_RULES} to explain modification and requests. 
         """
 
         try:
@@ -585,11 +601,11 @@ class ChatAgent:
                     }
 
         except Exception as e:
-            print(f"format_response: Error while generating LLM response: {e}")
+            print(f"{TOOL} Error while generating LLM response: {e}")
             return {"messages":
                         [{
                             "role": "assistent",
-                            "content": f"format_response: Error while generating LLM response: {e}",
+                            "content": f"{TOOL} Error while generating LLM response: {e}",
                             "tool_result": [],
                         }]
             }

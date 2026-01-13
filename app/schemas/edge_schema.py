@@ -6,7 +6,7 @@ from uuid import UUID
 class EdgeCreate(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
-        extra='forbid'
+        extra="forbid"
     )
     edge_index: int
     start_node_id: UUID
@@ -18,7 +18,7 @@ class EdgeCreate(BaseModel):
 class EdgeGenerate(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
-        extra='forbid'
+        extra="forbid"
     )
     index: int
     start: int

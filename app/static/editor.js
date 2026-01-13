@@ -73,7 +73,17 @@ async function initEditor() {
 
     if (!svg) return; // Exit if no editor found
 
-    // Reset state
+    // --- FIX START: CLEAR DATA ARRAYS ---
+    // Ensure previous puzzle data is wiped from memory
+    nodes = [];
+    edges = [];
+    units = [];
+    nextNodeId = 0;
+    nextEdgeId = 0;
+    nextUnitId = 0;
+    // --- FIX END ---
+
+    // Reset UI state
     currentTool = null;
     pendingEdgeStart = null;
     selectedUnit = null;
@@ -104,7 +114,9 @@ async function initEditor() {
 
     // Check for Edit Mode (Data Loading)
     const newPuzzleId = svg.getAttribute("data-puzzle-id");
-    if (newPuzzleId) {
+
+    // Validate ID is not empty or "None" (string from Jinja)
+    if (newPuzzleId && newPuzzleId !== "None" && newPuzzleId.trim() !== "") {
         console.log("Editor initialized for Puzzle ID:", newPuzzleId);
         isEditMode = true;
         puzzleId = newPuzzleId;
@@ -122,7 +134,7 @@ function selectTool(tool) {
     render(); // Re-render to show/hide helpers if needed
 }
 
-// --- 4. INTERACTION LOGIC (The Core Fix) ---
+// --- 4. INTERACTION LOGIC ---
 function setupInteractions() {
     if (!svg) return;
 
@@ -514,13 +526,13 @@ async function exportPuzzle(evt) {
     try {
         const method = isEditMode ? "PUT" : "POST";
         const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
-        
+
         // Check if we're in chat context
         const isChatContext = document.getElementById("chat-container") !== null;
-        
+
         // Prepare headers
         const headers = { "Content-Type": "application/json" };
-        
+
         // If creating new puzzle in chat context, add header to get session_id back
         if (!isEditMode && isChatContext) {
             headers["X-From-Chat"] = "true";
@@ -539,18 +551,18 @@ async function exportPuzzle(evt) {
                 const data = await response.json();
                 if (data.success && data.session_id) {
                     console.log("Puzzle created in chat context. Session ID:", data.session_id);
-                    
+
                     // Update session_id input
                     const sessionInput = document.getElementById("session_id_input");
                     if (sessionInput) {
                         sessionInput.value = data.session_id;
                     }
-                    
+
                     // Trigger refreshSidebar first to show new session
                     if (window.htmx) {
                         htmx.trigger("body", "refreshSidebar");
                     }
-                    
+
                     // Load the session in chat container (this will also trigger refreshPuzzle via HX-Trigger header)
                     const chatContainer = document.getElementById("chat-container");
                     if (chatContainer && window.htmx) {
@@ -569,7 +581,7 @@ async function exportPuzzle(evt) {
                         }, 200);
                     }, 100);
                 }
-                    
+
                     return; // Exit early, don't redirect
                 }
             }
@@ -578,7 +590,7 @@ async function exportPuzzle(evt) {
         // Handle update (PUT request) in chat context
         if (isEditMode && isChatContext && response.ok) {
             console.log("Puzzle updated in chat context");
-            
+
             // Trigger refreshSidebar and refreshPuzzle to update editor
             if (window.htmx) {
                 htmx.trigger("body", "refreshSidebar");
@@ -587,12 +599,12 @@ async function exportPuzzle(evt) {
                     htmx.trigger("body", "refreshPuzzle");
                 }, 100);
             }
-            
+
             return; // Stay in chat context
         }
 
         if (response.redirected) {
-            // --- FIX: Check context before redirecting ---
+            // Check context before redirecting
             if (isChatContext) {
                 console.log("Puzzle updated. Staying in chat context.");
 
@@ -600,8 +612,6 @@ async function exportPuzzle(evt) {
                     htmx.trigger("body", "refreshSidebar");
                     htmx.trigger("body", "refreshPuzzle");
                 }
-
-                console.log("Puzzle updated. Staying in chat context.");
             } else {
                 // Normal behavior for 'update-puzzle.html': Follow the redirect
                 window.location.href = response.url;

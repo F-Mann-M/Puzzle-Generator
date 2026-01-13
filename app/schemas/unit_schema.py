@@ -21,14 +21,14 @@ class UnitCreate(BaseModel):
         return v if isinstance(v, list) else []
 
 class UnitGenerate(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
     type: str
     faction: str
     path: List[int]
 
 
 class UnitRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
     type: str
     faction: str
@@ -37,7 +37,7 @@ class UnitRead(BaseModel):
 
 
 class UnitUpdate(UnitCreate):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
     id: UUID
     type: str
 

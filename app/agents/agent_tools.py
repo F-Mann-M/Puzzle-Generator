@@ -18,35 +18,42 @@ class AgentTools:
         """ Generate a new puzzle"""
         services = PuzzleServices(self.db)
         puzzle_generated = await services.generate_puzzle(puzzle_config)
+
+        if puzzle_generated is None:
+            raise Exception("agent_tool.generate_puzzle: Failed to generate puzzle data from LLM.")
+
         new_puzzle = services.create_puzzle(puzzle_generated)
         return new_puzzle.id
 
 
     async def get_node_index(self, node_id, puzzle) -> Union[int, dict]:
         """Take in node ID and Puzzle Object and return index of node with node_id"""
+
+        TOOL = "agent_tools.generate_puzzle:"
         print("Start/End node ID: ", node_id)
         for node in puzzle.nodes:
-            print("Node ID: ", node.id)
             if str(node.id) == str(node_id):
-                print(f"Node ID: {node.id} matches with node ID: {node_id}")
-                print(f"Index: {node.node_index}")
+                print(f"{TOOL} Node ID: {node.id} matches with node ID: {node_id}")
                 return node.node_index
-        print(f"No index found for node {node_id}")
+        print(f"{TOOL} No index found for node {node_id}")
         return {"tool_result": "can not find index"}
 
 
-    async def update_puzzle(self, puzzle_id: Union[UUID, str], message: str, model: str, session_id: Union[UUID, str]) -> dict[str, Any]:
+    async def update_puzzle(
+            self,
+            puzzle_id: Union[UUID, str],
+            message: str,
+            model: str,
+            session_id: Union[UUID, str]) -> dict[str, Any]:
         """ Update an existing puzzle"""
         TOOL = "ChatAgent.update_puzzle: "
         print(f"\n{TOOL} Takes in current puzzle data and message: ", message)
 
         # Ensure puzzle_id is a UUID object, not a string
         puzzle_id = self.ensure_uuid(puzzle_id)
-        session_id = self.ensure_uuid(session_id)
-
-        puzzle_services = PuzzleServices(self.db)
 
         # Get puzzle data
+        puzzle_services = PuzzleServices(self.db)
         print(f"{TOOL} Get puzzle by ID")
         try:
             puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
@@ -74,6 +81,8 @@ class AgentTools:
                 "edges": [
                     {
                         "index": edge.edge_index,
+                        # go through node UUIDs of the current puzzle and compare with start_node_id/ end_node_id
+                        # to get the index of the node
                         "start": await self.get_node_index(str(edge.start_node_id), puzzle),
                         "end": await self.get_node_index(str(edge.end_node_id),puzzle),
                     }
@@ -83,7 +92,12 @@ class AgentTools:
                     {
                         "type": unit.unit_type,
                         "faction": unit.faction,
-                        "path": ([path_node.node_index for path_node in sorted(unit.path.path_node, key=lambda pn: pn.order_index)]),
+                        "path": (
+                            [
+                                # get node index for nodes of the path
+                                # and sort them to keep it in the right order
+                                path_node.node_index for path_node in sorted(unit.path.path_node, key=lambda pn: pn.order_index)
+                            ]),
                     }
                     for unit in puzzle.units
                 ],
@@ -133,11 +147,13 @@ class AgentTools:
             print(f"{TOOL} Failed to update puzzle data: {e}")
             return {"tool_result": [f"{TOOL}: Error: {e}"]}
 
+        # serialize data, compare them and sort out the differences
 
         # generate tool result message
         puzzle_serialized = puzzle_services.serialize_puzzle(puzzle_id)
         puzzle_updated_json = json.dumps(puzzle_serialized)
-        print(f"{TOOL}: Updated puzzle successfully!")
+
+
 
         print(f"{TOOL} Generating tool response...")
         try:
