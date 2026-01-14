@@ -1,6 +1,6 @@
+from concurrent.futures import thread
 from uuid import uuid4, UUID
 import logging
-from utils.logger_config import configure_logging
 from app.llm import get_llm
 from app import models
 from app.core.config import settings
@@ -48,20 +48,6 @@ class SessionService:
         logger.debug(f"New session was created. \nSession id: ", new_session.id)
 
         return new_session.id
-
-    def get_session_messages(self, session_id: UUID):
-        """ Gets session by id"""
-        logger.debug(f"Query for session messages with session id: {session_id}")
-        try:
-            session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
-            logger.debug("Fetch session messages successfully")
-            if not session:
-                raise Exception("No session found")
-        except Exception as e:
-            logger.error(f"Error: {e}", exc_info=True)
-            return []
-
-        return session
 
 
     def get_latest_session(self):
@@ -132,16 +118,6 @@ class SessionService:
             logger.error(f"Error deleting LangGraph checkpoints: {e}", exc_info=True)
 
 
-    async def update_topic_name(self, session_id, model):
-        TOOL = "session_services.update_topic_name:"
-        chat_history = await self.get_chat_history(session_id, model)
-        topic_name = self.create_topic_name(chat_history, model)
-        session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
-        session.topic_name = topic_name
-        self.db.commit()
-        logger.debug(f"updated topic name: {topic_name}")
-
-
     def add_puzzle_id(self, puzzle_id: UUID, session_id: UUID):
         query = self.db.query(models.Session).filter(models.Session.id == session_id).first()
         query.puzzle_id = puzzle_id
@@ -181,3 +157,77 @@ class SessionService:
 
         return False
 
+
+    async def ensure_puzzles_have_sessions(self):
+        """
+        Startup Check: Iterates through all puzzles.
+        If a puzzle has no linked session, creates one automatically.
+        """
+
+        logger.info(f"Checking for orphaned puzzles...")
+
+        # Get all puzzles
+        puzzles = self.db.query(models.Puzzle).all()
+        created_count = 0
+
+        for puzzle in puzzles:
+            # Check if a session already exists for this puzzle
+            existing_session = self.db.query(models.Session).filter(
+                models.Session.puzzle_id == puzzle.id
+            ).first()
+
+            if not existing_session:
+                logger.info(f"Creating missing session for puzzle '{puzzle.name}'")
+
+                # 3. Create new session linked to the puzzle
+                new_session = models.Session(
+                    id=uuid4(),
+                    topic_name=puzzle.name,  # Use puzzle name as default topic
+                    puzzle_id=puzzle.id
+                )
+                self.db.add(new_session)
+                created_count += 1
+
+        # Commit only if changes were made
+        if created_count > 0:
+            self.db.commit()
+            logger.info(f"Successfully created {created_count} missing sessions.")
+        else:
+            logger.info(f"All puzzles are correctly linked to sessions.")
+
+
+    async def ensure_checkpointer_have_sessions(self):
+        logger.info("Checking for orphaned checkpointers...")
+
+        # get all sessions
+        try:
+            valid_session_ids = [str(session.id) for session in self.db.query(models.Session).all()]
+            logger.info(f"Current session ids: {valid_session_ids}")
+        except Exception as e:
+            logger.error(f"Error checking for orphaned checkpointers: {e}", exc_info=True)
+
+        # get thread_ids
+        try:
+            async with aiosqlite.connect(settings.CHECKPOINTS_URL) as conn:
+                # Get existing threads
+                async with conn.execute("SELECT DISTINCT thread_id FROM checkpoints") as cursor:
+                    existing_threads = await cursor.fetchall()
+
+                # Identify orphans
+                orphan_threads = [thread[0] for thread in existing_threads if thread[0] not in valid_session_ids]
+
+                if not orphan_threads:
+                    logger.info("No orphan threads found.")
+                    return
+
+                logger.debug(f"{len(orphan_threads)} orphan threads found. Deleting...")
+
+                # delete orphan threads
+                for thread_id in orphan_threads:
+                    await conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (str(thread_id),))
+
+                await conn.commit()
+                logger.info(f"Orphan threads successfully deleted: {orphan_threads}")
+
+        except Exception as e:
+            logger.error(f"Error cleaning orphaned checkpointers: {e}", exc_info=True)

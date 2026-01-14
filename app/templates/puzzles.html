@@ -18,6 +18,7 @@
         <th>Actions</th>
     </tr>
     {% for puzzle in puzzles %}
+
     <tr>
         <td>{{ puzzle.name }}</td>
         <td>{{ puzzle.model }}</td>
@@ -26,19 +27,18 @@
         <td>{{ puzzle.player_unit_count }}</td>
         <td>{{ puzzle.is_working }}</td>
         <td>
-            <a href="/puzzles/{{ puzzle.id }}">
-                <button>View</button>
-            </a>
-            <a href="/puzzles/{{ puzzle.id }}/update">
-                <button>Edit</button>
-            </a>
+            <a href="/puzzles/chat/puzzle/{{ puzzle.id }}">
+                <button>Edit</button></a>
+<!--            <a href="/puzzles/{{ puzzle.id }}/update">-->
+<!--                <button>Edit</button>-->
+<!--            </a>-->
             <button hx-delete="{{puzzle.id}}/delete"
                     hx-trigger="click"
                     hx-target="closest tr"
                     hx-swap="outerHTML">
                 Delete
             </button>
-        </td>
+        </td></a>
 
         </form>
 

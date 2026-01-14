@@ -7,8 +7,8 @@ from uuid import UUID
 import markdown
 from typing import Optional
 import logging
-from utils.logger_config import configure_logging
 
+from app import models
 from app.core.database import get_db
 from app.schemas import ChatFromRequest
 from app.services import SessionService, PuzzleServices
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 router = APIRouter()
+
 
 
 @router.get("/chat/editor", response_class=HTMLResponse)
@@ -75,6 +76,36 @@ async def get_integrated_editor(
     )
 
 
+@router.get("/chat/puzzle/{puzzle_id}", response_class=HTMLResponse)
+async def get_chat(puzzle_id: UUID, db: Session = Depends(get_db), request: Request = None):
+    """Loads Chat from Puzzle"""
+    logger.info(f"Loading Chat from Puzzle list: {puzzle_id}")
+
+    try:
+        session = db.query(models.Session).filter(models.Session.puzzle_id == puzzle_id).first()
+    except Exception as e:
+        logger.error(f"Error getting Chat from Puzzle: {e}")
+        session = None
+
+    services = SessionService(db)
+    all_sessions = services.get_all_sessions()
+    
+    latest_session_id = None
+    if session:
+        latest_session_id = session.id
+    else:
+        logger.debug(f"No session for Puzzle {puzzle_id}")
+    
+    return templates.TemplateResponse(
+        "chat.html",
+        {
+            "request": request,
+            "all_sessions": all_sessions,
+            "latest_session_id": latest_session_id,
+        }
+    )
+
+
 
 # load chat
 @router.get("/chat", response_class=HTMLResponse)
@@ -83,7 +114,6 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
     services = SessionService(db)
     all_sessions = services.get_all_sessions()
 
-    latest_session = 0
     if all_sessions:
         lastest_session = services.get_latest_session()
     return templates.TemplateResponse(
@@ -232,9 +262,10 @@ async def chat(
 # delete session
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
 async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
-    """Delete chat and related puzzle by session id"""
+    """Delete session, related puzzle and LangGraph memory by session id"""
     logger.debug("delete: session id from chat.html: ", session_id)
     session_services = SessionService(db)
+
     await session_services.delete_session(session_id)
     html_response = HTMLResponse(content="", status_code=200)
     html_response.headers["HX-Trigger"] = "refreshSidebar, refreshPuzzle, clearChat"
