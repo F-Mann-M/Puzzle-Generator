@@ -35,6 +35,7 @@ from app.core.config import settings
 
 # get logger
 logger = logging.getLogger(__name__)
+
 TOOL_DESCRIPTION = """
         chat: normal chat. Receives user messages and gives back llm response
         collect_and_create: Generates instantly a new puzzle based on the last user message
@@ -71,6 +72,7 @@ class ChatAgent:
 
         async with (AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer):
             logger.info("get_history: AsyncSqliteSaver connection established.")
+            logger.debug(f"get_history: current session id: {self.session_id}")
 
             # Initiate the Graph
             graph = self.workflow.compile(checkpointer=checkpointer)
@@ -86,6 +88,8 @@ class ChatAgent:
                 logger.info("get_history: return messages to router")
                 if state.values and "messages" in state.values:
                     return state.values["messages"]
+                else:
+                    return None
 
             except Exception as e:
                 logger.error(f"Error! Could not load chat history: {e}")
@@ -201,18 +205,18 @@ class ChatAgent:
 
     async def _chat(self, state: AgentState) -> AgentState:
         """ handel ongoing chat"""
-        TOOL = "Chat_agent.chat:"
+        current_tool = "Chat_agent.chat:"
         # Get llm
         llm = get_llm(state["model"])
 
         # Get user message
         last_message = state["messages"][-1]["content"] if state["messages"] else ""
-        logger.info(f"\n{TOOL} Last message sent to llm: ", last_message)
+        logger.info(f"\n{current_tool} Last message sent to llm: ", last_message)
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000:]  # keep the conversation short
-        logger.info(f"\n{TOOL} conversation: {conversation}")
+        logger.info(f"\n{current_tool} conversation: {conversation}")
 
         # Create prompt
         system_prompt = (
@@ -248,7 +252,7 @@ class ChatAgent:
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
-        TOOL = "ChatAgent.collect_and_create: "
+        current_tool = "ChatAgent.collect_and_create: "
         tool_results = state.get("tool_result")
 
         # Get LLM
@@ -260,7 +264,7 @@ class ChatAgent:
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000:]  # keep the conversation short
-        logger.info(f"\n{TOOL} Collect and create a new puzzle...")
+        logger.info(f"\n{current_tool} Collect and create a new puzzle...")
 
 
         system_prompt = f"""
@@ -299,13 +303,13 @@ class ChatAgent:
         # Simple async call
         puzzle_generated = type[BaseModel]
         try:
-            logger.info(f"\n{TOOL} Calling LLM.structured() with PuzzleLLMResponse schema...")
+            logger.info(f"\n{current_tool} Calling LLM.structured() with PuzzleLLMResponse schema...")
             puzzle_generated = await llm.structured(prompt=prompt, schema=PuzzleLLMResponse)
 
             if puzzle_generated is None:
                 raise Exception("LLM raise None for structured data")
 
-            logger.info(f"\n{TOOL} generated data: {puzzle_generated}")
+            logger.info(f"\n{current_tool} generated data: {puzzle_generated}")
 
 
             puzzle_config = PuzzleCreate(
@@ -320,9 +324,9 @@ class ChatAgent:
             )
             if puzzle_config:
                 # Create new puzzle and store to database
-                logger.info(f"\n{TOOL} Create new puzzle...")
+                logger.info(f"\n{current_tool} Create new puzzle...")
                 puzzle = self.puzzle_services.create_puzzle(puzzle_config)
-                logger.info(f"\n{TOOL} New Puzzle created successfully (collect and create node)")
+                logger.info(f"\n{current_tool} New Puzzle created successfully (collect and create node)")
 
                 # Add puzzle.id to current session
                 session_id = UUID(self.session_id.strip())
@@ -332,8 +336,8 @@ class ChatAgent:
                 logger.info("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
 
                 # Add to tool result
-                tool_results.append(TOOL + str(puzzle_generated))
-                tool_results.append(TOOL + f"<br>Puzzle {puzzle.name} generated successfully")
+                tool_results.append(current_tool + str(puzzle_generated))
+                tool_results.append(current_tool + f"<br>Puzzle {puzzle.name} generated successfully")
 
                 return {
                     "tool_result": tool_results,
@@ -341,18 +345,18 @@ class ChatAgent:
                         }
 
         except Exception as e:
-            logger.error(f"{TOOL} Could not create a puzzle. Error: {e}")
+            logger.error(f"{current_tool} Could not create a puzzle. Error: {e}")
             puzzle_json = puzzle_generated.model_dump_json()
-            tool_results.append(TOOL + puzzle_json)
-            tool_results.append(TOOL + f"Could not create a puzzle. Error: {e}")
+            tool_results.append(current_tool + puzzle_json)
+            tool_results.append(current_tool + f"Could not create a puzzle. Error: {e}")
 
             return {"tool_result": tool_results}
 
 
     async def _collect_info(self, state: AgentState) -> AgentState:
         """ Collect all necessary information from user to create a new puzzle. """
-        TOOL = "Chat_agent.collect_info:"
-        logger.info(f"\n\n{TOOL} Collecting information from user to create a new puzzle...")
+        current_tool = "Chat_agent.collect_info:"
+        logger.info(f"\n\n{current_tool} Collecting information from user to create a new puzzle...")
         last_message = state["messages"][-1] if state["messages"] else ""
 
         # TODO: add list for tool response
@@ -364,7 +368,7 @@ class ChatAgent:
        
 
 
-        logger.info(f"{TOOL} Collect info: get conversation and extract information from it...")
+        logger.info(f"{current_tool} Collect info: get conversation and extract information from it...")
         system_prompt = f"""Extract puzzle generation parameters from this conversation:
                 {conversation}
                 Be aware of suggestions for puzzle details in the previous conversation - like name, node count, etc extract them.
@@ -393,7 +397,7 @@ class ChatAgent:
         }
 
         # Simple async call
-        logger.info(f"\n {TOOL}LLM Response collects info...")
+        logger.info(f"\n {current_tool}LLM Response collects info...")
         llm_response = await llm.chat(prompt)
 
         # Clean the string to remove markdown backticks
@@ -432,13 +436,13 @@ class ChatAgent:
                 missing_info.append(key)
 
         if missing_info:
-            logger.info(f"{TOOL} missing info", missing_info)
+            logger.info(f"{current_tool} missing info", missing_info)
 
         # Generate Puzzle or ask user for more information
         tool_response = ""
         if is_collected:
-            logger.info(f"\n{TOOL} All information collected!")
-            print(f"{TOOL} Collected info: ", collected_info)
+            logger.info(f"\n{current_tool} All information collected!")
+            print(f"{current_tool} Collected info: ", collected_info)
 
             try:
                 # convert to PuzzleGenerate schema
@@ -453,19 +457,19 @@ class ChatAgent:
                     description=collected_info.get("description", "")
                 )
                 if not puzzle_generated:
-                    raise Exception(f"{TOOL} Could not convert into PuzzleGenerate schema. Error: {e}")
+                    raise Exception(f"{current_tool} Could not convert into PuzzleGenerate schema. Error")
 
                 # Call Tool generate Puzzle
-                logger.info(f"{TOOL} Generate Puzzle...")
+                logger.info(f"{current_tool} Generate Puzzle...")
                 puzzle_id = await self.tools.generate_puzzle(puzzle_generated)
                 if not puzzle_id:
-                    raise Exception(f"{TOOL} Could not generate Puzzle.")
+                    raise Exception(f"{current_tool} Could not generate Puzzle.")
 
-                tool_response = f"""{TOOL} Puzzle generated successfully"""
+                tool_response = f"""{current_tool} Puzzle generated successfully"""
 
             except Exception as e:
-                logger.error(f"{TOOL} Could not generate Puzzle. Error: {e}")
-                return {"tool_result": f"{TOOL} Could not generate Puzzle. Error: {e}"}
+                logger.error(f"{current_tool} Could not generate Puzzle. Error: {e}")
+                return {"tool_result": f"{current_tool} Could not generate Puzzle. Error: {e}"}
 
             # Add puzzle.id to current session
             self.session_services.add_puzzle_id(puzzle_id, UUID(self.session_id))
@@ -479,7 +483,7 @@ class ChatAgent:
             logger.info("\nfollowing infos are still missing: ")
             for info in missing_info:
                 logger.info(f"\t{info}")
-            tool_response = f"""{TOOL}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
+            tool_response = f"""{current_tool}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
 
         # debugging
         logger.info("\n****Current State (chat 2) ******\n")
@@ -491,24 +495,24 @@ class ChatAgent:
     async def _modify_puzzle(self, state: AgentState) -> AgentState:
         """Updates an existing puzzle based on feedback"""
         logger.info("\nModifying Puzzle:")
-        TOOL = "ChatAgent.modify: "
+        current_tool = "ChatAgent.modify: "
 
         # get latest message
-        logger.info(f"{TOOL} Takes in user message")
+        logger.info(f"{current_tool} Takes in user message")
         last_message = state["messages"][-1]["content"] if state["messages"] else ""
         if not last_message:
-            return {"tool_result": [f"{TOOL} No messages found. Could not extract puzzle related information to modify puzzle."]}
+            return {"tool_result": [f"{current_tool} No messages found. Could not extract puzzle related information to modify puzzle."]}
 
         # Get Puzzle ID
-        logger.info(f"{TOOL} load puzzle id from states...")
+        logger.info(f"{current_tool} load puzzle id from states...")
         puzzle_id = state.get("current_puzzle_id")
         if not puzzle_id:
-            return {"tool_result": [f"{TOOL} No puzzle ID found. Can't modify without puzzle."]}
+            return {"tool_result": [f"{current_tool} No puzzle ID found. Can't modify without puzzle."]}
 
         try:
             # extract information form message and modify puzzle
-            logger.info(f"{TOOL} current puzzle id: ", puzzle_id)
-            logger.info(f"{TOOL} call Agent tool 'update_puzzle'...")
+            logger.info(f"{current_tool} current puzzle id: ", puzzle_id)
+            logger.info(f"{current_tool} call Agent tool 'update_puzzle'...")
             tools = AgentTools(self.db)
             result = await tools.update_puzzle(
                 puzzle_id=puzzle_id,
@@ -519,12 +523,14 @@ class ChatAgent:
             return result
 
         except Exception as e:
-            return {"tool_result": [f"{TOOL} Error while loading agent tool: {e}"]}
+            return {"tool_result": [f"{current_tool} Error while loading agent tool: {e}"]}
 
 
     async def process(self, user_message: str) -> tuple[str, UUID | None]:
         """ Process user message and return response """
-        logger.info("\nProcess user message: ", user_message)
+        current_tool = "ChatAgent.process:"
+        logger.info(f"\n{current_tool} Process user message: ", user_message)
+
 
         # Process with graph
         async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
@@ -534,7 +540,7 @@ class ChatAgent:
 
             try:
                 # merging new user message into LangGraph state history
-                logger.info("process: Invoke graph...")
+                logger.info(f"{current_tool} Invoke graph...")
                 result = await graph.ainvoke(
                     {"messages": [{"role": "user", "content": user_message}],
                     "model": self.model,
@@ -545,17 +551,17 @@ class ChatAgent:
                 )
 
                 # Extract message and puzzle id for router
-                logger.info("process: Extract message and puzzle ID from StateGraph object...")
+                logger.info(f"{current_tool}  Extract message and puzzle ID from StateGraph object...")
                 if result["messages"]:
                     last_message = result.get("messages")[-1]
                     # to make sure to get last message even it's no dict
                     message = last_message.get("content") if isinstance(last_message, dict) else last_message.content
                 current_puzzle_id = result.get("current_puzzle_id")
-                logger.info("Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)
+                logger.info(f"{current_tool} Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)
                 return message, current_puzzle_id
 
             except Exception as e:
-                logger.error("process: Error while graph processing: ", e)
+                logger.error(f"{current_tool} Error while graph processing: ", e)
                 return f"process: Error while graph processing: {e}", None
 
 
@@ -564,27 +570,27 @@ class ChatAgent:
         Format final response from tool_result for user.
         if last used tool is chat return last message
         """
-        TOOL = "ChatAgent.format_response:"
-        logger.info(f"\n\n{TOOL} Format final response from tool_result... ")
+        current_tool = "ChatAgent.format_response:"
+        logger.info(f"\n\n{current_tool} Format final response from tool_result... ")
         if state.get("user_intent") == "chat":
-            logger.info(f"{TOOL} Chat intent - skipping format_response, using existing message")
+            logger.info(f"{current_tool} Chat intent - skipping format_response, using existing message")
             return
 
         # get tool result
         tool_result = state.get("tool_result")
         logger.info(f"format_response: tool_result: {tool_result}")
         if not tool_result:
-            logger.info(f"{TOOL} tool_result is empty!")
+            logger.info(f"{current_tool} tool_result is empty!")
             return {"message": "Tool result is empty!"}
 
         # convert tool result to string
         combined_results = "".join(tool_result)
-        logger.info(f"\n{TOOL} Join all tool results: ", combined_results)
+        logger.info(f"\n{current_tool} Join all tool results: ", combined_results)
 
         llm = get_llm(state["model"])
         system_prompt = f"""
         You are an assistant who takes in a list of tool results {combined_results}
-        Use the {BASIC_RULES} to explain modification and requests. 
+        Use the {BASIC_RULES} to explain modification and requests. Don't use variable names. 
         """
 
         try:
@@ -592,7 +598,7 @@ class ChatAgent:
             logger.info("Send tools results to LLM...")
             prompt = {
                 "system_prompt": system_prompt,
-                "user_prompt": "Explain the modifications",
+                "user_prompt": "Explain modification and requests. Do not explain game rules in derail",
             }
 
             final_response = await llm.chat(prompt)
@@ -604,11 +610,11 @@ class ChatAgent:
                     }
 
         except Exception as e:
-            logger.error(f"{TOOL} Error while generating LLM response: {e}")
+            logger.error(f"{current_tool} Error while generating LLM response: {e}")
             return {"messages":
                         [{
                             "role": "assistent",
-                            "content": f"{TOOL} Error while generating LLM response: {e}",
+                            "content": f"{current_tool} Error while generating LLM response: {e}",
                             "tool_result": [],
                         }]
             }

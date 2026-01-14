@@ -232,10 +232,10 @@ async def chat(
 # delete session
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
 async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
-    """Delete chat by session id"""
+    """Delete chat and related puzzle by session id"""
     logger.debug("delete: session id from chat.html: ", session_id)
-    services = SessionService(db)
-    services.delete_session(session_id)
+    session_services = SessionService(db)
+    await session_services.delete_session(session_id)
     html_response = HTMLResponse(content="", status_code=200)
     html_response.headers["HX-Trigger"] = "refreshSidebar, refreshPuzzle, clearChat"
 

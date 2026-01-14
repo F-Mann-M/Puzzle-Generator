@@ -1,10 +1,10 @@
 from uuid import uuid4, UUID
 import logging
 from utils.logger_config import configure_logging
-
 from app.llm import get_llm
 from app import models
-from app.services import PuzzleServices
+from app.core.config import settings
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 
@@ -89,17 +89,47 @@ class SessionService:
         return sessions
 
 
-    def delete_session(self, session_id):
+    async def delete_session(self, session_id):
         """ Deletes a session by id """
         logger.debug("services delete session: ", session_id)
-        session = self.db.query(models.Session).filter(models.Session.id == session_id).one()
-        if session:
-            logger.debug("session found")
-            self.db.delete(session)
-            self.db.commit()
-        else:
-            logger.warning("session not found")
-        logger.info(f"session successfully deleted: {session_id}")
+
+        try:
+            session = self.db.query(models.Session).filter(models.Session.id == session_id).one()
+            if session:
+                logger.debug("session found")
+
+                if session.puzzle_id:
+                    puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == session.puzzle_id).first()
+                    if puzzle:
+                        self.db.delete(puzzle)
+                    else:
+                        logger.debug("Could not delete puzzle", exc_info=True)
+
+                self.db.delete(session)
+                self.db.commit()
+                logger.info(f"session successfully deleted: {session_id}")
+            else:
+                logger.warning("session not found", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error deleting session: {e}", exc_info=True)
+
+        try:
+            # since langgraph has no build-in delete for (tread, checkpoints) memory
+            # each thread related to current session_id has deleted by SQL DELETE
+            db_path = settings.CHECKPOINTS_URL
+
+            logger.debug(f"Cleaning checkpoints for thread_id {session_id} in {db_path}")
+
+            async with aiosqlite.connect(db_path) as conn: # open a session
+                # Delete form 'checkpoints' tables
+                await conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (str(session_id),))
+                # Commit the changes
+                await conn.commit()
+
+            logger.info(f"LangGraph checkpoints deleted for thread {session_id}")
+
+        except Exception as e:
+            logger.error(f"Error deleting LangGraph checkpoints: {e}", exc_info=True)
 
 
     async def update_topic_name(self, session_id, model):
