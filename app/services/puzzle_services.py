@@ -4,7 +4,6 @@ from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4, UUID
 
-from app.models import Puzzle
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
 from app.llm import get_llm
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
@@ -259,7 +258,7 @@ class PuzzleServices:
 
 
     # generate puzzle
-    async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate:
+    async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate | None:
         """ Generates a new puzzle from given config"""
         TOOL = "Puzzle_services.generate_puzzle:"
         print(f"{TOOL} Puzzle Config (generate puzzle): ", puzzle_config)
