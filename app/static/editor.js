@@ -1,5 +1,5 @@
 // ======================================================
-// Puzzle Editor – Complete Updated Version
+// Puzzle Editor – Complete Updated Version with Playback
 // ======================================================
 
 // --- 1. GLOBAL VARIABLES (Use 'let' to allow re-binding) ---
@@ -13,6 +13,11 @@ let factionSelect = document.getElementById("faction-select");
 let unitTypeSelect = document.getElementById("unit-type-select");
 let editorForm = document.getElementById("editor-form");
 
+// Playback Controls
+let prevTurnBtn = document.getElementById("prev-turn-btn");
+let nextTurnBtn = document.getElementById("next-turn-btn");
+let turnStatus = document.getElementById("turn-status");
+
 // Internal state
 let nodes = [];
 let edges = [];
@@ -20,6 +25,9 @@ let units = [];
 let currentTool = null;
 let isEditMode = false;
 let puzzleId = null;
+
+// NEW: Playback State
+let currentTurn = 0;
 
 let nextNodeId = 0;
 let nextEdgeId = 0;
@@ -71,30 +79,39 @@ async function initEditor() {
     unitTypeSelect = document.getElementById("unit-type-select");
     editorForm = document.getElementById("editor-form");
 
+    // NEW: Re-bind Playback Controls
+    prevTurnBtn = document.getElementById("prev-turn-btn");
+    nextTurnBtn = document.getElementById("next-turn-btn");
+    turnStatus = document.getElementById("turn-status");
+
     if (!svg) return; // Exit if no editor found
 
-    // --- FIX START: CLEAR DATA ARRAYS ---
-    // Ensure previous puzzle data is wiped from memory
+    // Clear Data Arrays
     nodes = [];
     edges = [];
     units = [];
     nextNodeId = 0;
     nextEdgeId = 0;
     nextUnitId = 0;
-    // --- FIX END ---
 
     // Reset UI state
     currentTool = null;
     pendingEdgeStart = null;
     selectedUnit = null;
-    isEditMode = false; // Reset edit mode
-    puzzleId = null; // Reset puzzle ID
+    isEditMode = false;
+    puzzleId = null;
+    currentTurn = 0; // Reset turn
 
     // Setup Toolbar Listeners
     if (addNodeBtn) addNodeBtn.onclick = () => { selectTool("add-node"); };
     if (addEdgeBtn) addEdgeBtn.onclick = () => { selectTool("add-edge"); };
     if (placeUnitBtn) placeUnitBtn.onclick = () => { selectTool("place-unit"); };
     if (editPathBtn) editPathBtn.onclick = () => { selectTool("edit-path"); };
+
+    // NEW: Setup Playback Listeners
+    if (prevTurnBtn) prevTurnBtn.onclick = () => { changeTurn(-1); };
+    if (nextTurnBtn) nextTurnBtn.onclick = () => { changeTurn(1); };
+    updateTurnStatus(); // Initialize text
 
     if (exportBtn) {
         // Prevent duplicate listeners
@@ -126,19 +143,38 @@ async function initEditor() {
     }
 }
 
+// --- NEW: Playback Logic ---
+function changeTurn(delta) {
+    // Find the maximum path length among all units to determine the max turn
+    const maxTurn = units.length > 0
+        ? Math.max(...units.map(u => u.path.length - 1))
+        : 0;
+
+    // Update currentTurn, clamped between 0 and maxTurn
+    currentTurn = Math.max(0, Math.min(maxTurn, currentTurn + delta));
+
+    updateTurnStatus();
+    render();
+}
+
+function updateTurnStatus() {
+    if (turnStatus) {
+        turnStatus.textContent = `Turn: ${currentTurn}`;
+    }
+}
+
 function selectTool(tool) {
     currentTool = tool;
     pendingEdgeStart = null;
     selectedUnit = null;
     console.log("Tool selected:", tool);
-    render(); // Re-render to show/hide helpers if needed
+    render();
 }
 
 // --- 4. INTERACTION LOGIC ---
 function setupInteractions() {
     if (!svg) return;
 
-    // Prevent context menu on SVG (for right-click panning)
     svg.oncontextmenu = (e) => e.preventDefault();
 
     // MOUSE DOWN: Start Drag or Pan
@@ -148,7 +184,6 @@ function setupInteractions() {
 
         // Right-click Pan (Button 2)
         if (evt.button === 2) {
-            // Check if clicking on a node (ignore pan if so)
             for (const n of nodes) {
                 if (n.deleted) continue;
                 const dx = n.x - pt.x;
@@ -182,12 +217,10 @@ function setupInteractions() {
 
     // MOUSE MOVE: Perform Drag or Pan
     window.onmousemove = (evt) => {
-        // Panning
         if (panning) {
             const dx = evt.clientX - panStartX;
             const dy = evt.clientY - panStartY;
             const svgRect = svg.getBoundingClientRect();
-            // Calculate scale to match mouse movement to SVG units
             const scaleX = currentViewBox.width / svgRect.width;
             const scaleY = currentViewBox.height / svgRect.height;
 
@@ -197,7 +230,6 @@ function setupInteractions() {
             return;
         }
 
-        // Node Dragging Check
         if (potentialDrag && !dragging) {
             const dx = evt.clientX - dragStartX;
             const dy = evt.clientY - dragStartY;
@@ -208,12 +240,9 @@ function setupInteractions() {
             }
         }
 
-        // Actual Node Dragging
         if (dragging) {
             const n = getNode(draggingNodeId);
             if (n) {
-                // We need to convert screen coordinates to SVG coordinates dynamically here
-                // Note: screenToSVG uses the SVG element, so we call it locally
                 const pt = screenToSVG(evt.clientX, evt.clientY);
                 n.x = Math.round(pt.x);
                 n.y = Math.round(pt.y);
@@ -222,7 +251,6 @@ function setupInteractions() {
         }
     };
 
-    // MOUSE UP: Stop Drag or Pan
     window.onmouseup = () => {
         panning = false;
         dragging = false;
@@ -230,7 +258,7 @@ function setupInteractions() {
         draggingNodeId = null;
     };
 
-    // CLICK: Tool Actions (Add Node, Edge, Unit)
+    // CLICK: Tool Actions
     svg.onclick = (evt) => {
         if (panning || didDrag) return;
 
@@ -238,7 +266,6 @@ function setupInteractions() {
 
         // A. Add Node
         if (currentTool === "add-node") {
-            // Determine a safe ID (max existing ID + 1)
             const maxIndex = nodes.length > 0
                 ? Math.max(...nodes.map(n => typeof n.id === 'number' ? n.id : -1))
                 : -1;
@@ -335,7 +362,6 @@ function setupZoom() {
         const newWidth = currentViewBox.width / zoomFactor;
         const newHeight = currentViewBox.height / zoomFactor;
 
-        // Center zoom on mouse
         const dx = (pt.x - currentViewBox.x) * (1 - 1/zoomFactor);
         const dy = (pt.y - currentViewBox.y) * (1 - 1/zoomFactor);
 
@@ -391,6 +417,8 @@ function appendNodeToSelectedPath(nodeId) {
     const unit = getUnit(selectedUnit);
     if (unit) {
         unit.path.push(nodeId);
+        // If we modify paths, we might need to update the turn status max limit
+        updateTurnStatus();
         render();
     }
 }
@@ -432,15 +460,13 @@ async function loadPuzzleData(puzzleId) {
         if (!response.ok) throw new Error("Failed to fetch data");
         const data = await response.json();
 
-        // Map Backend Data (x_position) to Frontend Data (x)
         nodes = data.nodes.map(n => ({
             id: n.node_index,
-            x: n.x_position, // MAPPING FIX
-            y: n.y_position, // MAPPING FIX
+            x: n.x_position,
+            y: n.y_position,
             deleted: false
         }));
 
-        // Map IDs to Indices for Edges
         const idMap = {};
         data.nodes.forEach(n => idMap[n.id] = n.node_index);
 
@@ -462,12 +488,12 @@ async function loadPuzzleData(puzzleId) {
             deleted: false
         }));
 
-        // Update ID counters
+        // Reset IDs
         nextNodeId = (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) : -1) + 1;
         nextEdgeId = (edges.length > 0 ? Math.max(...edges.map(e => e.id)) : -1) + 1;
         nextUnitId = units.length;
 
-        // Populate Form Fields if available
+        // Populate Form
         if (editorForm) {
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
             const getMeta = (key) => document.querySelector(`[data-puzzle-${key}]`)?.getAttribute(`data-puzzle-${key}`);
@@ -478,9 +504,11 @@ async function loadPuzzleData(puzzleId) {
             setVal("description", getMeta("description"));
         }
 
-        // Fit View
+        // Reset View & Playback
         zoomLevel = 1.0;
         currentViewBox = { x: 0, y: 0, width: 1000, height: 1000 };
+        currentTurn = 0; // Start at beginning
+        updateTurnStatus();
         render();
 
     } catch (e) {
@@ -494,7 +522,6 @@ async function exportPuzzle(evt) {
 
     const formData = new FormData(editorForm);
 
-    // Construct payload strictly matching schema
     const payload = {
         name: formData.get("name") || "Untitled",
         model: "Updated Manually",
@@ -503,7 +530,6 @@ async function exportPuzzle(evt) {
         description: formData.get("description") || "",
         is_working: formData.get("is_working") === "False",
 
-        // Map Frontend (x) back to Backend expected format
         nodes: nodes.filter(n => !n.deleted).map(n => ({
             index: n.id,
             x: n.x,
@@ -526,14 +552,9 @@ async function exportPuzzle(evt) {
     try {
         const method = isEditMode ? "PUT" : "POST";
         const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
-
-        // Check if we're in chat context
         const isChatContext = document.getElementById("chat-container") !== null;
-
-        // Prepare headers
         const headers = { "Content-Type": "application/json" };
 
-        // If creating new puzzle in chat context, add header to get session_id back
         if (!isEditMode && isChatContext) {
             headers["X-From-Chat"] = "true";
         }
@@ -544,36 +565,26 @@ async function exportPuzzle(evt) {
             body: JSON.stringify(payload)
         });
 
-        // Handle JSON response from chat context (new puzzle creation)
         if (!isEditMode && isChatContext && response.ok) {
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
                 const data = await response.json();
                 if (data.success && data.session_id) {
                     console.log("Puzzle created in chat context. Session ID:", data.session_id);
-
-                    // Update session_id input
                     const sessionInput = document.getElementById("session_id_input");
-                    if (sessionInput) {
-                        sessionInput.value = data.session_id;
-                    }
+                    if (sessionInput) sessionInput.value = data.session_id;
 
-                    // Trigger refreshSidebar first to show new session
                     if (window.htmx) {
                         htmx.trigger("body", "refreshSidebar");
                     }
 
-                    // Load the session in chat container (this will also trigger refreshPuzzle via HX-Trigger header)
                     const chatContainer = document.getElementById("chat-container");
                     if (chatContainer && window.htmx) {
-                        // Wait a bit for sidebar to update, then load session
                         setTimeout(() => {
                             htmx.ajax("GET", `/puzzles/chat/${data.session_id}`, {
                                 target: "#chat-container",
                                 swap: "innerHTML"
                             });
-
-                        // Also explicitly trigger refreshPuzzle after a delay to ensure editor reloads
                         setTimeout(() => {
                             if (window.htmx) {
                                 htmx.trigger("body", "refreshPuzzle");
@@ -581,45 +592,32 @@ async function exportPuzzle(evt) {
                         }, 200);
                     }, 100);
                 }
-
-                    return; // Exit early, don't redirect
+                    return;
                 }
             }
         }
 
-        // Handle update (PUT request) in chat context
         if (isEditMode && isChatContext && response.ok) {
             console.log("Puzzle updated in chat context");
-
-            // Trigger refreshSidebar and refreshPuzzle to update editor
             if (window.htmx) {
                 htmx.trigger("body", "refreshSidebar");
-                // Wait a bit then refresh editor to reload updated puzzle
-                setTimeout(() => {
-                    htmx.trigger("body", "refreshPuzzle");
-                }, 100);
+                setTimeout(() => { htmx.trigger("body", "refreshPuzzle"); }, 100);
             }
-
-            return; // Stay in chat context
+            return;
         }
 
         if (response.redirected) {
-            // Check context before redirecting
             if (isChatContext) {
-                console.log("Puzzle updated. Staying in chat context.");
-
                 if (window.htmx) {
                     htmx.trigger("body", "refreshSidebar");
                     htmx.trigger("body", "refreshPuzzle");
                 }
             } else {
-                // Normal behavior for 'update-puzzle.html': Follow the redirect
                 window.location.href = response.url;
             }
         } else if (!response.ok) {
             alert("Error saving puzzle: " + await response.text());
         } else {
-            // Fallback for non-redirecting success codes
             if (isChatContext) {
                  if (window.htmx) {
                      htmx.trigger("body", "refreshSidebar");
@@ -653,7 +651,6 @@ function render() {
         line.setAttribute("stroke", "#666");
         line.setAttribute("stroke-width", 4);
 
-        // Right-click Edge to delete
         line.addEventListener("contextmenu", (evt) => {
             evt.preventDefault();
             evt.stopPropagation();
@@ -663,26 +660,24 @@ function render() {
         svg.appendChild(line);
     });
 
-    // B. Draw Units (Paths)
-    // (Simplified rendering for brevity, can copy complex offset logic if needed)
+    // B. Draw Units (Ghost Paths)
     units.filter(u => !u.deleted).forEach(u => {
-         // Draw connections between nodes in path
-         for (let i = 0; i < u.path.length - 1; i++) {
-             const a = getNode(u.path[i]);
-             const b = getNode(u.path[i+1]);
-             if (a && b) {
-                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                 line.setAttribute("x1", a.x);
-                 line.setAttribute("y1", a.y);
-                 line.setAttribute("x2", b.x);
-                 line.setAttribute("y2", b.y);
-                 line.setAttribute("stroke", u.color);
-                 line.setAttribute("stroke-width", 3);
-                 line.setAttribute("opacity", "0.7");
-                 line.style.pointerEvents = "none"; // Let clicks pass through to edges
-                 svg.appendChild(line);
-             }
-         }
+        for (let i = 0; i < u.path.length - 1; i++) {
+            const a = getNode(u.path[i]);
+            const b = getNode(u.path[i + 1]);
+            if (a && b) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", a.x);
+                line.setAttribute("y1", a.y);
+                line.setAttribute("x2", b.x);
+                line.setAttribute("y2", b.y);
+                line.setAttribute("stroke", u.color);
+                line.setAttribute("stroke-width", 2);
+                line.setAttribute("opacity", "0.3");
+                line.style.pointerEvents = "none";
+                svg.appendChild(line);
+            }
+        }
     });
 
     // C. Draw Nodes
@@ -696,12 +691,10 @@ function render() {
         c.setAttribute("stroke", "black");
         c.setAttribute("stroke-width", 2);
 
-        // Tooltip
         const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
         title.textContent = `Node ${n.id}\n(${n.x}, ${n.y})`;
         c.appendChild(title);
 
-        // Right-click Node to delete
         c.addEventListener("contextmenu", (evt) => {
             if (!panning) {
                 evt.preventDefault();
@@ -712,7 +705,6 @@ function render() {
 
         g.appendChild(c);
 
-        // Draw Index Label
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("text-anchor", "middle");
         text.setAttribute("dy", ".3em");
@@ -723,40 +715,102 @@ function render() {
         svg.appendChild(g);
     });
 
-    // D. Draw Unit Markers (Circles)
-    units.filter(u => !u.deleted && u.path.length > 0).forEach(u => {
-        const startNode = getNode(u.path[0]);
-        if (startNode) {
-            const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            c.setAttribute("cx", startNode.x + 15); // Offset slightly
-            c.setAttribute("cy", startNode.y - 15);
-            c.setAttribute("r", 10);
-            c.setAttribute("fill", u.color);
-            c.setAttribute("stroke", "white");
+    // D. Draw Unit Markers (With Squares/Triangles)
 
-            // Interaction: Select unit for path editing
-            c.onclick = (evt) => {
+    // 1. Group units by their current node ID
+    const unitsAtNode = {};
+
+    units.filter(u => !u.deleted && u.path.length > 0).forEach(u => {
+        const pathIndex = Math.min(currentTurn, u.path.length - 1);
+        const nodeId = u.path[pathIndex];
+
+        if (!unitsAtNode[nodeId]) {
+            unitsAtNode[nodeId] = [];
+        }
+        unitsAtNode[nodeId].push(u);
+    });
+
+    // 2. Iterate over each node group
+    Object.keys(unitsAtNode).forEach(nodeIdStr => {
+        const nodeId = parseInt(nodeIdStr);
+        const nodeUnits = unitsAtNode[nodeId];
+        const currentNode = getNode(nodeId);
+
+        if (!currentNode) return;
+
+        const count = nodeUnits.length;
+        const radius = 30;
+        const startAngle = -Math.PI / 2;
+
+        nodeUnits.forEach((u, index) => {
+            let cx, cy;
+
+            if (count === 1) {
+                cx = currentNode.x + 15;
+                cy = currentNode.y - 15;
+            } else {
+                const angle = startAngle + (2 * Math.PI * index) / count;
+                cx = currentNode.x + Math.cos(angle) * radius;
+                cy = currentNode.y + Math.sin(angle) * radius;
+            }
+
+            // Create a Group for the Unit (Circle + Icon)
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("transform", `translate(${cx},${cy})`);
+            g.style.cursor = "pointer";
+
+            // 1. Main Colored Circle
+            const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            c.setAttribute("r", 15);
+            c.setAttribute("fill", u.color);
+            c.setAttribute("stroke", (selectedUnit === u.id) ? "gold" : "white");
+            c.setAttribute("stroke-width", (selectedUnit === u.id) ? 3 : 1);
+            g.appendChild(c);
+
+            // 2. Unit Type Icon (Square or Triangle)
+            // Icon color is white for contrast, semi-transparent
+            const iconColor = "rgba(255, 255, 255, 1)";
+
+            if (u.type === "Swordsman") {
+                // Draw Square (Centered)
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", -5);
+                rect.setAttribute("y", -5);
+                rect.setAttribute("width", 10);
+                rect.setAttribute("height", 10);
+                rect.setAttribute("fill", iconColor);
+                rect.style.pointerEvents = "none"; // Let clicks hit the group
+                g.appendChild(rect);
+            } else if (u.type === "Grunt") {
+                // Draw Triangle (Centered)
+                // Points: Top(0, -5), BottomRight(5, 5), BottomLeft(-5, 5)
+                const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                poly.setAttribute("points", "0,-5 5,5 -5,5");
+                poly.setAttribute("fill", iconColor);
+                poly.style.pointerEvents = "none";
+                g.appendChild(poly);
+            }
+
+            // 3. Interactions (Attached to Group)
+            g.onclick = (evt) => {
                 evt.stopPropagation();
                 selectedUnit = u.id;
                 console.log("Unit selected:", u.id);
                 render();
             };
 
-            // Visual indicator if selected
-            if (selectedUnit === u.id) {
-                c.setAttribute("stroke", "gold");
-                c.setAttribute("stroke-width", 3);
-            }
+            const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+            title.textContent = `${u.faction} ${u.type}\nTurn ${currentTurn}`;
+            g.appendChild(title);
 
-            // Right-click Unit to delete
-            c.addEventListener("contextmenu", (evt) => {
+            g.addEventListener("contextmenu", (evt) => {
                 evt.preventDefault();
                 evt.stopPropagation();
                 deleteUnit(u.id);
             });
 
-            svg.appendChild(c);
-        }
+            svg.appendChild(g);
+        });
     });
 
     // E. Pending Edge Helper
