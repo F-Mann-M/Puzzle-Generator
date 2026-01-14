@@ -1,6 +1,8 @@
 from app.prompts.prompt_game_rules import BASIC_RULES, GAME_MODE_SKIRMISH, GAME_MODE_SAFE_TRAVEL
 import json
 from typing import Optional
+import logging
+from utils.logger_config import configure_logging
 
 
 async def get_puzzle_generation_prompt(

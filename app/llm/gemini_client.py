@@ -2,57 +2,13 @@ from google import genai
 from app.core.config import settings
 from app.schemas.puzzle_schema import PuzzleLLMResponse, PuzzleCreate
 from pydantic import BaseModel
+import logging
+from utils.logger_config import configure_logging
+
+
+logger = logging.getLogger(__name__)
 
 API_KEY = settings.GEMINI_KEY
-
-# # Manually defined schema to avoid SDK "additional_properties" bug
-# PUZZLE_SCHEMA = {
-#     "type": "OBJECT",
-#     "properties": {
-#         "nodes": {
-#             "type": "ARRAY",
-#             "items": {
-#                 "type": "OBJECT",
-#                 "properties": {
-#                     "index": {"type": "INTEGER"},
-#                     "x": {"type": "INTEGER"},
-#                     "y": {"type": "INTEGER"}
-#                 },
-#                 "required": ["index", "x", "y"]
-#             }
-#         },
-#         "edges": {
-#             "type": "ARRAY",
-#             "items": {
-#                 "type": "OBJECT",
-#                 "properties": {
-#                     "index": {"type": "INTEGER"},
-#                     "start": {"type": "INTEGER"},
-#                     "end": {"type": "INTEGER"}
-#                 },
-#                 "required": ["index", "start", "end"]
-#             }
-#         },
-#         "units": {
-#             "type": "ARRAY",
-#             "items": {
-#                 "type": "OBJECT",
-#                 "properties": {
-#                     "type": {"type": "STRING"},
-#                     "faction": {"type": "STRING"},
-#                     "path": {
-#                         "type": "ARRAY",
-#                         "items": {"type": "INTEGER"}
-#                     }
-#                 },
-#                 "required": ["type", "faction", "path"]
-#             }
-#         },
-#         "coins": {"type": "INTEGER", "nullable": True},
-#         "description": {"type": "STRING", "nullable": True}
-#     },
-#     "required": ["nodes", "edges", "units"]
-# }
 
 class GeminiClient:
     def __init__(self, model_name="gemini-2.5-flash"):
@@ -83,25 +39,6 @@ class GeminiClient:
         clean_recursive(schema)
         return schema
 
-    # async def generate(self, prompt: str):
-    #     response = self.client.models.generate_content(
-    #         model=self.model_name,
-    #         contents=prompt["user_prompt"],
-    #         config={
-    #             "system_instruction": prompt["system_prompt"],
-    #             "response_mime_type": "application/json",
-    #             "response_schema": PuzzleLLMResponse,
-    #         },
-    #     )
-    #     # Use the response as a JSON string.
-    #     print(response.text)
-    #
-    #     if response.parsed and isinstance(response.parsed, (dict, list)):
-    #         return PuzzleLLMResponse.model_validate(response.parsed)
-    #
-    #     generated_puzzle = response.parsed
-    #     return generated_puzzle
-
 
     async def structured(self, prompt: str, schema: type[BaseModel]):
         """
@@ -121,7 +58,7 @@ class GeminiClient:
                     "response_schema": target_schema,
                 },
             )
-            print(response.text)
+            logger.info(response.text)
 
             if response.parsed and isinstance(response.parsed, (dict, list)):
                 return schema.model_validate(response.parsed)
@@ -129,7 +66,7 @@ class GeminiClient:
             return response.parsed
 
         except Exception as e:
-            print(f"GeminiClient Structured Error: {e}")
+            logger.error(f"GeminiClient Structured Error: {e}", exc_info=True)
             return None
 
 
@@ -145,9 +82,9 @@ class GeminiClient:
                 },
             )
         except Exception as e:
-            print(e)
+            logger.error(e)
             return None
 
-        print(response)
+        logger.info(response)
 
         return response.text

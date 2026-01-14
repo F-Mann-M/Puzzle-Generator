@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID, uuid4
 from pathlib import Path
+import logging
+from utils.logger_config import configure_logging
 
 
 # import form project
@@ -14,6 +16,7 @@ from app import models
 from app.schemas import PuzzleCreate, PuzzleGenerate, ChatFromRequest
 from app.services import PuzzleServices, SessionService
 
+logger = logging.getLogger(__name__)
 
 # create Jinja2 template engine
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -71,19 +74,19 @@ async def update_puzzle(puzzle_id: UUID, puzzle: PuzzleCreate, db: Session = Dep
 
     # Updating existing puzzle
     services = PuzzleServices(db)
-    print(f"{TOOL} updating puzzle...")
+    logger.debug(f"{TOOL} updating puzzle...")
     updated_puzzle = services.update_puzzle(puzzle_id, puzzle)
 
     # Load sessions with puzzle_id and update session topic
     # there should be only one session
     # ToDo: if there isn't a session yet create new one
-    print(f"{TOOL} get linked session...")
+    logger.debug(f"{TOOL} get linked session...")
     linked_session = db.query(models.Session).filter(models.Session.puzzle_id == updated_puzzle.id).all()
     for session in linked_session:
         if session.topic_name != updated_puzzle.name:
             session.topic_name = updated_puzzle.name
-            print(f"{TOOL} update session topic '{session.topic_name}'")
-            print(f"{TOOL} with puzzle name '{updated_puzzle.name}'")
+            logger.debug(f"{TOOL} update session topic '{session.topic_name}'")
+            logger.debug(f"{TOOL} with puzzle name '{updated_puzzle.name}'")
             db.add(session)
     if linked_session:
         db.commit()

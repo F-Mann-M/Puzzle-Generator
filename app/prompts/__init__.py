@@ -1,1 +1,2 @@
+
 from app.prompts.prompt_manager import get_puzzle_generation_prompt

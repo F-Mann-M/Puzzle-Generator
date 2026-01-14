@@ -1,3 +1,6 @@
+import logging
+from utils.logger_config import configure_logging
+
 from app.llm.openai_client import OpenAIClient
 from app.llm.gemini_client import GeminiClient
 

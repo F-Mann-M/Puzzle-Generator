@@ -7,6 +7,9 @@ from app.llm.llm_manager import get_llm
 from uuid import UUID
 from typing import Any, Union
 from app.models import Puzzle
+import logging
+from utils.logger_config import configure_logging
+logger = logging.getLogger(__name__)
 
 
 class AgentTools:
@@ -30,12 +33,12 @@ class AgentTools:
         """Take in node ID and Puzzle Object and return index of node with node_id"""
 
         TOOL = "agent_tools.generate_puzzle:"
-        print("Start/End node ID: ", node_id)
+        logger.debug(f"Start/End node ID: {node_id}")
         for node in puzzle.nodes:
             if str(node.id) == str(node_id):
-                print(f"{TOOL} Node ID: {node.id} matches with node ID: {node_id}")
+                logger.debug(f"{TOOL} Node ID: {node.id} matches with node ID: {node_id}")
                 return node.node_index
-        print(f"{TOOL} No index found for node {node_id}")
+        logger.warning(f"{TOOL} No index found for node {node_id}")
         return {"tool_result": "can not find index"}
 
 
@@ -44,7 +47,7 @@ class AgentTools:
         TOOL = "agent_tools.serialize_puzzle_obj_for_llm:"
 
         current_puzzle = Puzzle
-        print(f"{TOOL} serialise puzzle...")
+        logger.debug(f"{TOOL} serialise puzzle...")
         try:
             current_puzzle = {
                 "name": puzzle.name,
@@ -88,17 +91,17 @@ class AgentTools:
             #print(f"{TOOL} puzzle serialised")
 
         except Exception as e:
-            print(f"{TOOL} Error serialising puzzle: {e}")
+            logger.error(f"{TOOL} Error serialising puzzle: {e}")
 
 
         # convert puzzle in to JSON
         try:
-            print(f"{TOOL} convert to JSON...")
+            logger.info(f"{TOOL} convert to JSON...")
             current_puzzle_json = json.dumps(current_puzzle)
             return current_puzzle_json
 
         except Exception as e:
-            print(f"{TOOL} Error converting puzzle: {e}")
+            logger.error(f"{TOOL} Error converting puzzle: {e}")
 
 
     async def extract_puzzle_diff(self, puzzle_a: dict, puzzle_b: dict) -> list:
@@ -136,19 +139,19 @@ class AgentTools:
             session_id: Union[UUID, str]) -> dict[str, Any]:
         """ Update an existing puzzle"""
         TOOL = "ChatAgent.update_puzzle: "
-        print(f"\n{TOOL} Takes in current puzzle data and message: ", message)
+        logger.info(f"{TOOL} Takes in current puzzle data and message: {message}")
 
         # Ensure puzzle_id is a UUID object, not a string
         puzzle_id = self.ensure_uuid(puzzle_id)
 
         # Get puzzle data
         puzzle_services = PuzzleServices(self.db)
-        print(f"{TOOL} Get puzzle by ID")
+        logger.debug(f"{TOOL} Get puzzle by ID")
         try:
             # get puzzle by id
             puzzle = puzzle_services.get_puzzle_by_id(puzzle_id)
         except Exception as e:
-            print(f"{TOOL} Error fetching puzzle: {e}")
+            logger.error(f"{TOOL} Error fetching puzzle: {e}")
             return {f"tool_result": [f"{TOOL} Error fetching puzzle: {e}"]}
 
         # Serialise puzzle data
@@ -166,38 +169,38 @@ class AgentTools:
         """
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
 
-        print(f"{TOOL} Extracting data from user message and modifying existing puzzle data...")
+        logger.info(f"{TOOL} Extracting data from user message and modifying existing puzzle data...")
         try:
             updated_puzzle_data = await llm.structured(prompt=prompt, schema=PuzzleCreate)
             if not updated_puzzle_data:
-                print(f"{TOOL} Failed to generate modified puzzle data")
+                logger.error(f"{TOOL} Failed to generate modified puzzle data")
                 raise Exception("Failed to generate modified puzzle data")
 
-            print(f"{TOOL} Updating current puzzle data...")
+            logger.info(f"{TOOL} Updating current puzzle data...")
             puzzle_updated = puzzle_services.update_puzzle(
                 puzzle_id=puzzle_id,
                 puzzle_data=updated_puzzle_data)
             if not puzzle_updated:
                 raise Exception(f"{TOOL} Failed to update existing puzzle data.")
 
-            print(f"{TOOL} Successfully updated puzzle data")
+            logger.info(f"{TOOL} Successfully updated puzzle data")
 
         except Exception as e:
-            print(f"{TOOL} Failed to update puzzle data: {e}")
+            logger.error(f"{TOOL} Failed to update puzzle data: {e}")
             return {"tool_result": [f"{TOOL}: Error: {e}"]}
 
         # generate tool result message
         puzzle_updated_json =await self.serialize_puzzle_obj_for_llm(puzzle_updated, model)
 
         ## compare puzzles and extract changes
-        print(f"{TOOL} extract changes...")
+        logger.debug(f"{TOOL} extract changes...")
         puzzle_dict = json.loads(puzzle_json)
         puzzle_updated_dict = json.loads(puzzle_updated_json)
         puzzle_changes = await self.extract_puzzle_diff(puzzle_dict, puzzle_updated_dict)
         puzzle_changes = "\n".join(puzzle_changes)
-        print(f"\n{TOOL} Extracted changes: \n{puzzle_changes}")
+        logger.debug(f"{TOOL} Extracted changes: \n{puzzle_changes}")
 
-        print(f"{TOOL} Generating tool response...")
+        logger.debug(f"{TOOL} Generating tool response...")
         try:
             system_prompt_summary = f"""
             You are an assistant who compares this old puzzle data {puzzle_json}
@@ -208,11 +211,11 @@ class AgentTools:
             if not tool_summary:
                 raise Exception(f"{TOOL} Failed to generate summary data: ")
 
-            print(f"{TOOL} Generated tool response: \n", tool_summary)
+            logger.debug(f"{TOOL} Generated tool response: \n{tool_summary}")
             return {"tool_result": [f"{TOOL}: Updated puzzle successfully! {tool_summary}"]}
 
         except Exception as e:
-            print(f"{TOOL} Failed to generate tool response: {e}")
+            logger.error(f"{TOOL} Failed to generate tool response: {e}")
             return {"tool_result": [f"{TOOL}: Error: {e}"]}
 
 

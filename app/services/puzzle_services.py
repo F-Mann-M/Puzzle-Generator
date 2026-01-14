@@ -3,11 +3,14 @@ from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4, UUID
+import logging
+from utils.logger_config import configure_logging
 
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
 from app.llm import get_llm
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
 
+logger = logging.getLogger(__name__)
 
 class PuzzleServices:
     """ Handles all puzzle related DB operation"""
@@ -99,7 +102,7 @@ class PuzzleServices:
                 self.db.flush()
 
         self.db.commit()
-        print("Created new puzzle with id: ", puzzle.id)
+        logger.info("Created new puzzle with id: ", puzzle.id)
         return puzzle
 
     # get all puzzle
@@ -157,15 +160,15 @@ class PuzzleServices:
     def update_puzzle(self, puzzle_id: UUID, puzzle_data: PuzzleCreate):
         """Update existing puzzle by deleting old data and recreating with new data"""
         TOOL = "PuzzleServices.update_puzzle:"
-        print(f"\n{TOOL} Puzzle Data (PuzzleCreate): \n", puzzle_data)
+        logger.debug(f"\n{TOOL} Puzzle Data (PuzzleCreate): \n", puzzle_data)
         puzzle = self.get_puzzle_by_id(puzzle_id)
         if not puzzle:
             raise HTTPException(status_code=404, detail="Puzzle not found")
-        print("\nPuzzle: \n", puzzle)
+        logger.debug("\nPuzzle: \n", puzzle)
 
 
         # Update puzzle metadata
-        print(f"{TOOL} update puzzle meta data...")
+        logger.debug(f"{TOOL} update puzzle meta data...")
         puzzle.name = puzzle_data.name
         puzzle.model = puzzle_data.model
         puzzle.enemy_count = len([enemy for enemy in puzzle_data.units if enemy.faction == "enemy"])
@@ -261,7 +264,7 @@ class PuzzleServices:
     async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate | None:
         """ Generates a new puzzle from given config"""
         TOOL = "Puzzle_services.generate_puzzle:"
-        print(f"{TOOL} Puzzle Config (generate puzzle): ", puzzle_config)
+        logger.debug(f"{TOOL} Puzzle Config: ", puzzle_config)
 
         # get example puzzles from database
         example_puzzles = self.get_all_puzzle()
@@ -292,7 +295,7 @@ class PuzzleServices:
             )
 
             puzzle_generated = await llm.structured(prompts, PuzzleLLMResponse)
-            print("\n\nGenerated description: ", puzzle_generated.description)  # debugging
+            logger.debug("\n\nGenerated description: ", puzzle_generated.description)  # debugging
 
             new_puzzle = PuzzleCreate(
                 name=puzzle_config.name,
@@ -307,7 +310,7 @@ class PuzzleServices:
             return new_puzzle
 
         except Exception as e:
-            print(f"{TOOL} Error: {e}")
+            logger.error(f"{TOOL} Error: {e}", exc_info=True)
             return None
 
 
@@ -315,15 +318,15 @@ class PuzzleServices:
     # Serialize puzzle data to dict
     def serialize_puzzle(self, puzzle_id):
         """Loads Puzzle by ID and serializes it. Returns a Puzzle dict."""
-        print("\nSerializing Puzzle: ", puzzle_id)
+        logger.debug("\nSerializing Puzzle: ", puzzle_id)
         try:
             puzzle = self.get_puzzle_by_id(puzzle_id)
-            print(f"serializing_puzzle: Loaded puzzle {type(puzzle)}")
+            logger.debug(f"serializing_puzzle: Loaded puzzle {type(puzzle)}")
         except Exception as e:
-            print(f"serializing_puzzle: Error loading puzzle by ID {e}")
+            logger.error(f"serializing_puzzle: Error loading puzzle by ID {e}", exc_info=True)
             return None
 
-        print("serializing_puzzle: serializing...")
+        logger.debug("serializing_puzzle: serializing...")
         puzzle_data = {
             "nodes": [
                 {
@@ -362,10 +365,10 @@ class PuzzleServices:
             ]
         }
         if not puzzle_data:
-            print("serializing_puzzle: failed to serialize puzzle")
+            logger.error("serializing_puzzle: failed to serialize puzzle", exc_info=True)
             return None
 
-        print("serializing_puzzle: serializing successfully: \n")
+        logger.debug("serializing_puzzle: serializing successfully: \n")
         return puzzle_data
 
 

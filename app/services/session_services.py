@@ -1,8 +1,12 @@
 from uuid import uuid4, UUID
+import logging
+from utils.logger_config import configure_logging
+
 from app.llm import get_llm
 from app import models
 from app.services import PuzzleServices
 
+logger = logging.getLogger(__name__)
 
 class SessionService:
 
@@ -15,22 +19,22 @@ class SessionService:
         system_prompt = "Summarize this user query in 3 to 5 words. Do not use punctuation. Describe user as nobel man"
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
         llm_response = await llm.chat(prompt)
-        print("New topic name:", llm_response)
+        logger.debug("New topic name:", llm_response)
         return llm_response
 
 
     async def get_or_create_session(self, session_id: UUID, user_message: str, model: str):
         """ Gets a session by id or creates a new one if it doesn't exist """
-        print("takes in session id: ", session_id)
+        logger.debug("takes in session id: ", session_id)
 
         if session_id:
             existing = self.db.query(models.Session).filter(models.Session.id == session_id).first()
             if existing.puzzle_id:
                 await self.update_session_title(existing.puzzle_id, session_id)
-            print("Continue session with id:", existing.id)
+            logger.debug("Continue session with id:", existing.id)
             return existing.id
         else:
-            print("No session found")
+            logger.debug("No session found")
 
         topic_name = await self.create_topic_name(message=user_message, model=model)
 
@@ -41,33 +45,20 @@ class SessionService:
         self.db.add(new_session)
         self.db.commit()
 
-        print(f"New session was created. \nSession id: ", new_session.id)
+        logger.debug(f"New session was created. \nSession id: ", new_session.id)
 
         return new_session.id
 
-    #
-    # async def add_message(self, session_id: UUID, role: str, content: str):
-    #     """ Takes in message of a session and adds it to the database"""
-    #     new_message = models.Message(
-    #         session_id=session_id,
-    #         role=role,
-    #         content=content,
-    #     )
-    #     self.db.add(new_message)
-    #     self.db.commit()
-    #     print(f"Added message from {role} to database")
-
-
     def get_session_messages(self, session_id: UUID):
         """ Gets session by id"""
-        print(f"Query for session messages with session id: {session_id}")
+        logger.debug(f"Query for session messages with session id: {session_id}")
         try:
             session = (self.db.query(models.Message)).filter(models.Message.session_id == session_id).all()
-            print("Fetch session messages successfully")
+            logger.debug("Fetch session messages successfully")
             if not session:
                 raise Exception("No session found")
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}", exc_info=True)
             return []
 
         return session
@@ -88,7 +79,7 @@ class SessionService:
             return latest_chat, latest_session.id
             
         except Exception as e:
-            print(f"Error getting latest session: {e}")
+            logger.error(f"Error getting latest session: {e}", exc_info=True)
             return [], None
 
 
@@ -100,27 +91,15 @@ class SessionService:
 
     def delete_session(self, session_id):
         """ Deletes a session by id """
-        print("services delete session: ", session_id)
+        logger.debug("services delete session: ", session_id)
         session = self.db.query(models.Session).filter(models.Session.id == session_id).one()
         if session:
-            print("session found")
+            logger.debug("session found")
             self.db.delete(session)
             self.db.commit()
         else:
-            print("session not found")
-        print(f"session successfully deleted: {session_id}")
-
-
-    # async def get_chat_history(self, session_id, model: str):
-    #     """Get chat history from chat agent states"""
-    #     TOOL = "session_services.get_chat_history:"
-    #     print(f"{TOOL} get chat history from chat agent")
-    #     agent = ChatAgent(self, self.db, str(session_id), model)  # Use gpt-40-mini as default value
-    #
-    #     # Load states from LangGraph checkpointer
-    #     chat_history = await agent.get_history()
-    #
-    #     return chat_history
+            logger.warning("session not found")
+        logger.info(f"session successfully deleted: {session_id}")
 
 
     async def update_topic_name(self, session_id, model):
@@ -130,7 +109,7 @@ class SessionService:
         session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
         session.topic_name = topic_name
         self.db.commit()
-        print(f"updated topic name: {topic_name}")
+        logger.debug(f"updated topic name: {topic_name}")
 
 
     def add_puzzle_id(self, puzzle_id: UUID, session_id: UUID):
@@ -154,21 +133,21 @@ class SessionService:
     async def update_session_title(self, puzzle_id: UUID, session_id: UUID) -> bool:
         """Change session title to puzzle name, if there is a puzzle id"""
         TOOL = "update_session_title: "
-        print(f"{TOOL} updating session title to puzzle name...")
+        logger.debug(f"{TOOL} updating session title to puzzle name...")
         try:
             puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
-            print(f"{TOOL} New puzzle title: {puzzle.name}")
+            logger.debug(f"{TOOL} New puzzle title: {puzzle.name}")
             session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
-            print(f"{TOOL} Current session title: {session.topic_name}")
+            logger.debug(f"{TOOL} Current session title: {session.topic_name}")
 
             if puzzle and session:
                 if session.topic_name != puzzle.name:
                     session.topic_name = puzzle.name
                     self.db.commit()
-                    print(f"{TOOL} Changed session title to new puzzle name: {puzzle.name}")
+                    logger.debug(f"{TOOL} Changed session title to new puzzle name: {puzzle.name}")
                     return True  # Trigger sidebar update in chat router
         except Exception as e:
-            print(f"{TOOL} could not update session topic: {e}")
+            logger.error(f"{TOOL} could not update session topic: {e}", exc_info=True)
 
         return False
 

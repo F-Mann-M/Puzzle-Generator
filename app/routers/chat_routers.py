@@ -6,11 +6,15 @@ from pathlib import Path
 from uuid import UUID
 import markdown
 from typing import Optional
+import logging
+from utils.logger_config import configure_logging
 
 from app.core.database import get_db
 from app.schemas import ChatFromRequest
 from app.services import SessionService, PuzzleServices
 from app.agents import ChatAgent
+
+logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
@@ -26,7 +30,7 @@ async def get_integrated_editor(
     """Loads Puzzle Editor"""
     # when there is no session yet load empty editor (create button instead update)
     if not session_id or session_id.strip() == "":
-        print("no session id yet")
+        logger.info("no session id yet")
         return templates.TemplateResponse(
             "partials/editor_partial.html",
             {
@@ -100,7 +104,7 @@ async def get_sidebar(#
         db: Session = Depends(get_db)):
     """Get chat sidebar by session id, reload in separate html"""
 
-    print("reload all sessions...")
+    logger.info("reload all sessions...")
     services = SessionService(db)
     all_sessions = services.get_all_sessions()
 
@@ -117,7 +121,7 @@ async def get_sidebar(#
 @router.get("/chat/{session_id}", response_class=HTMLResponse)
 async def get_session(session_id: UUID, db: Session = Depends(get_db), response: Response = Response()):
     """Get chat history by session id """
-    print("session id from chat.html: ", session_id)
+    logger.debug("session id from chat.html: ", session_id)
 
     # Initialize ChatAgent
     agent = ChatAgent(db, str(session_id), "gpt-4o-mini") # Use gpt-40-mini as default value
@@ -164,7 +168,7 @@ async def chat(
     triggers refresh of list of puzzles and visualization
     """
     TOOL = "chat_routers:"
-    print(f"{TOOL} chat_data from chat.html: ", chat_data)
+    logger.debug(f"{TOOL} chat_data from chat.html: ", chat_data)
     services = SessionService(db)
     triggers = [] # checks for new puzzle or session to update sidebar and visualization
 
@@ -181,14 +185,14 @@ async def chat(
     # Process message through agent and get response message
     llm_response, current_puzzle_id = await agent.process(chat_data.content)
     if llm_response:
-        print(f"{TOOL} Received response from agent graph and pass it to database")
+        logger.debug(f"{TOOL} Received response from agent graph and pass it to database")
 
     # check for puzzle updates and update visualization to trigger HTMX
     topic_changed = False
     if current_puzzle_id:
-        print(f"{TOOL} Current puzzle id: ", current_puzzle_id)
+        logger.debug(f"{TOOL} Current puzzle id: ", current_puzzle_id)
         triggers.append("refreshPuzzle")
-        print(f"{TOOL} refresh puzzle editor")
+        logger.debug(f"{TOOL} refresh puzzle editor")
         topic_changed = await services.update_session_title(
             puzzle_id=current_puzzle_id,
             session_id=session_id,
@@ -196,24 +200,24 @@ async def chat(
 
     # If a new session is created refresh sidebar to add new session to list of sessions
     is_new_session = not chat_data.session_id or str(chat_data.session_id).strip() == "" # means: new session was just created
-    print(f"{TOOL} is_new_session: ", is_new_session)
+    logger.debug(f"{TOOL} is_new_session: ", is_new_session)
     if topic_changed or is_new_session:
         triggers.append("refreshSidebar")
-        print(f"{TOOL} refresh sidebar")
+        logger.debug(f"{TOOL} refresh sidebar")
     else:
-        print(f"{TOOL} No new session")
+        logger.debug(f"{TOOL} No new session")
 
 
     # fire the events (HTMX)
-    print(f"{TOOL} fire triggers: ", triggers)
+    logger.debug(f"{TOOL} fire triggers: ", triggers)
     response.headers["HX-Trigger"] = ", ".join(triggers)
 
     # format llm response to proper html output
-    print(f"{TOOL} Format the LLM response into a readable HTML format")
+    logger.debug(f"{TOOL} Format the LLM response into a readable HTML format")
     llm_response_html = markdown.markdown(llm_response)
 
     # create and send HTML response
-    print(f"{TOOL} Pass content to front-end...")
+    logger.debug(f"{TOOL} Pass content to front-end...")
     user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
     ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
 
@@ -229,7 +233,7 @@ async def chat(
 @router.delete("/chat/{session_id}/delete", response_class=HTMLResponse)
 async def delete_session(session_id: UUID, db: Session = Depends(get_db)):
     """Delete chat by session id"""
-    print("delete: session id from chat.html: ", session_id)
+    logger.debug("delete: session id from chat.html: ", session_id)
     services = SessionService(db)
     services.delete_session(session_id)
     html_response = HTMLResponse(content="", status_code=200)
