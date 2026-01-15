@@ -2,6 +2,7 @@ import operator
 from typing import Annotated, List, TypedDict, Optional, Any
 from uuid import UUID
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 from pydantic import BaseModel
 
 import json
@@ -27,7 +28,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from app.models import Session
 from app.agents.agent_tools import AgentTools
 from app.llm.llm_manager import get_llm
-from app.services import SessionService, PuzzleServices
+from app.services import PuzzleServices, SessionService
 from app.schemas import PuzzleCreate, PuzzleLLMResponse, PuzzleGenerate
 from app.prompts.prompt_game_rules import BASIC_RULES
 from app.core.config import settings
@@ -53,6 +54,7 @@ class AgentState(TypedDict):
     final_response: Optional[str] # final response for user
     session_id: UUID
     model: str # model used... pass llm_manager.py
+    puzzle: str # serialized puzzle
 
 class ChatAgent:
     """ LangGraph Chat Agent to handel puzzle related content"""
@@ -124,7 +126,7 @@ class ChatAgent:
                                       })
         builder.add_edge("collect_and_create", "format_response")
         builder.add_edge("collect_info", "format_response")
-        builder.add_edge("chat", "format_response")
+        # builder.add_edge("chat", "format_response")
         builder.add_edge("modify_puzzle", "format_response")
         builder.add_edge("format_response", END)
 
@@ -134,11 +136,12 @@ class ChatAgent:
     async def _classify_intent(self, state: AgentState)-> AgentState:
         """ Classify user intent from conversation"""
 
-        logger.info("\nClassify intent...")
+        logger.info("\n\nClassify intent...")
         logger.info("\nCurrent State: \n"
               f"Current Puzzle ID: {state.get('current_puzzle_id')}\n"
               f"Collected Infos: {state.get('collected_info')}\n"
-              f"Tool result: {state.get('tool_result')}\n")
+              f"Tool result: {state.get('tool_result')}\n"
+              f"Puzzle: {bool(state.get('puzzle'))}\n")
 
         # Get llm
         llm = get_llm(state["model"])
@@ -190,7 +193,7 @@ class ChatAgent:
         # Simple async call
         logger.info("Analyse user's massage and classify his intent...")
         intent = await llm.chat(prompt)
-        logger.info("\nLLM has classifies user intention: ", intent)
+        logger.info(f"\nLLM has classifies user intention: {intent}")
 
         return {
             "user_intent": intent.lower(),
@@ -209,45 +212,73 @@ class ChatAgent:
         # Get llm
         llm = get_llm(state["model"])
 
+        # get puzzle state
+        puzzle_context = state.get("puzzle")
+        if not puzzle_context or puzzle_context == {}:
+            puzzle_context = "No puzzle data loaded. Ask the user to create or select a puzzle."
+
         # Get user message
         last_message = state["messages"][-1]["content"] if state["messages"] else ""
-        logger.info(f"\n{current_tool} Last message sent to llm: ", last_message)
+        logger.info(f"\nLast message sent to llm: {last_message}")
 
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
         if len(conversation) > 3000:
             conversation = conversation[-3000:]  # keep the conversation short
-        logger.info(f"\n{current_tool} conversation: {conversation}")
+        logger.info(f"\n conversation length: {len(conversation)}")
 
         # Create prompt
         system_prompt = (
             f"""
-            you are an assistant.
-            Your name is Rudolfo
-            If user asks for the rules of the game use {BASIC_RULES}.
-            You ONLY answer questions related to the puzzle rules, how to improve puzzle, find puzzle relates solutions and patterns.
-            Your ONLY purpose is to help the user with the a puzzle.
-            if user asks for something not puzzle related answer in a funny way.
-            Keep answers short and clear. 
-            User chat history {conversation} to generate an ongoing chat.
+           You are an AI Game Designer assistant.
+            
+            ### CURRENT PUZZLE CONTEXT ###
+            {puzzle_context}
+            ##############################
+
+            Your Goal:
+            1. Answer questions about the puzzle above (layout, units, pathing).
+            2. Suggest improvements based on these Rules: {BASIC_RULES}.
+            3. If the user asks to "describe" the puzzle, analyze the 'nodes', 'edges', and 'units' in the Context above and generate a strategic summary.
+
+            Constraints:
+            - Do NOT output JSON unless explicitly asked.
+            - Keep answers helpful, clear, and concise.
+            - If the context is empty, ask the user to select a puzzle.
+            
+            #### CURRENT CONVERSATION ###
+            {conversation}
+            #############################
+            
+            User the conversation above to generate an ongoing chat.
             """)
 
         prompt = {"system_prompt": system_prompt, "user_prompt": last_message}
 
         # Get LLM response
         logger.info("loading ai response...")
-        llm_response = await llm.chat(prompt)
-        final_response = ""
-        if llm_response:
-            logger.info("loading ai response successfully")
-            final_response = llm_response
-        else:
-            final_response = f"Ups! Something went wrong 😅 <br> Could not load the AI response from {state.get('model')}"
 
-        # store response in state
-        logger.info("Llm response: ", final_response)
-        messages = [{"role": "assistant", "content": final_response}]
+        try:
+            llm_response = await llm.chat(prompt)
+            final_response = ""
+            if llm_response:
+                logger.info("loading ai response successfully")
+                final_response = llm_response
+            else:
+                final_response = f"Ups! Something went wrong 😅 <br> Could not load the AI response from {state.get('model')}"
 
-        return {"messages": messages}
+            # store response in state
+            logger.info(f"Llm response: {final_response}")
+            messages = [{"role": "assistant", "content": final_response}]
+
+            # for some reason Command seams to have a conflict with static graph
+            return {"messages": messages}
+
+        except Exception as e:
+            logger.info(f"Could not load LLM chat response: {e}")
+            return Command(
+                update={"tool_result": f"Chat: Could not load LLM chat response: {e}"},
+                goto="format_response"
+            )
 
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
@@ -353,7 +384,7 @@ class ChatAgent:
             return {"tool_result": tool_results}
 
 
-    async def _collect_info(self, state: AgentState) -> AgentState:
+    async def _collect_info(self, state: AgentState) -> AgentState | Command:
         """ Collect all necessary information from user to create a new puzzle. """
         current_tool = "Chat_agent.collect_info:"
         logger.info(f"\n\n{current_tool} Collecting information from user to create a new puzzle...")
@@ -511,7 +542,7 @@ class ChatAgent:
 
         try:
             # extract information form message and modify puzzle
-            logger.info(f"{current_tool} current puzzle id: ", puzzle_id)
+            logger.info(f"{current_tool} current puzzle id: {puzzle_id}")
             logger.info(f"{current_tool} call Agent tool 'update_puzzle'...")
             tools = AgentTools(self.db)
             result = await tools.update_puzzle(
@@ -520,16 +551,22 @@ class ChatAgent:
                 model=state.get("model"),
                 session_id=state.get("session_id"),
             )
-            return result
+
+            # to avoid conflict with static graph return only if result command
+            if isinstance(result, Command):
+                return result
+
+            else:
+                return
 
         except Exception as e:
             return {"tool_result": [f"{current_tool} Error while loading agent tool: {e}"]}
 
 
-    async def process(self, user_message: str) -> tuple[str, UUID | None]:
+    async def process(self, user_message: str, puzzle_json: json, puzzle_id: UUID) -> tuple[str, UUID | None]:
         """ Process user message and return response """
         current_tool = "ChatAgent.process:"
-        logger.info(f"\n{current_tool} Process user message: ", user_message)
+        logger.info(f"\n{current_tool} Process user message: {user_message}")
 
 
         # Process with graph
@@ -546,6 +583,8 @@ class ChatAgent:
                     "model": self.model,
                     "session_id": str(self.session_id),
                     "tool_result": [],
+                    "puzzle": puzzle_json,
+                    "current_puzzle_id": puzzle_id,
                      },
                     config = config
                 )
@@ -557,11 +596,11 @@ class ChatAgent:
                     # to make sure to get last message even it's no dict
                     message = last_message.get("content") if isinstance(last_message, dict) else last_message.content
                 current_puzzle_id = result.get("current_puzzle_id")
-                logger.info(f"{current_tool} Return puzzle id to chat router (ChatAgent process): ", current_puzzle_id)
+                logger.info(f"{current_tool} Return puzzle id to chat router: {current_puzzle_id}")
                 return message, current_puzzle_id
 
             except Exception as e:
-                logger.error(f"{current_tool} Error while graph processing: ", e)
+                logger.error(f"{current_tool} Error while graph processing: {e}")
                 return f"process: Error while graph processing: {e}", None
 
 
@@ -572,9 +611,9 @@ class ChatAgent:
         """
         current_tool = "ChatAgent.format_response:"
         logger.info(f"\n\n{current_tool} Format final response from tool_result... ")
-        if state.get("user_intent") == "chat":
-            logger.info(f"{current_tool} Chat intent - skipping format_response, using existing message")
-            return
+        # if state.get("user_intent") == "chat" or state.get("user_intent") == "modify":
+        #     logger.info(f"{current_tool} Chat intent - skipping format_response, using existing message")
+        #     return
 
         # get tool result
         tool_result = state.get("tool_result")
@@ -585,7 +624,7 @@ class ChatAgent:
 
         # convert tool result to string
         combined_results = "".join(tool_result)
-        logger.info(f"\n{current_tool} Join all tool results: ", combined_results)
+        logger.info(f"\n{current_tool} Join all tool results: {combined_results}")
 
         llm = get_llm(state["model"])
         system_prompt = f"""
@@ -598,7 +637,7 @@ class ChatAgent:
             logger.info("Send tools results to LLM...")
             prompt = {
                 "system_prompt": system_prompt,
-                "user_prompt": "Explain modification and requests. Do not explain game rules in derail",
+                "user_prompt": "Explain modification and requests. Do not explain game rules in detail",
             }
 
             final_response = await llm.chat(prompt)

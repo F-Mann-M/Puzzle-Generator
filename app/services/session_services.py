@@ -1,6 +1,7 @@
-from concurrent.futures import thread
 from uuid import uuid4, UUID
 import logging
+from typing import Any
+
 from app.llm import get_llm
 from app import models
 from app.core.config import settings
@@ -138,22 +139,22 @@ class SessionService:
 
     async def update_session_title(self, puzzle_id: UUID, session_id: UUID) -> bool:
         """Change session title to puzzle name, if there is a puzzle id"""
-        TOOL = "update_session_title: "
-        logger.debug(f"{TOOL} updating session title to puzzle name...")
+
+        logger.debug(f"Updating session title to puzzle name...")
         try:
             puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
-            logger.debug(f"{TOOL} New puzzle title: {puzzle.name}")
+            logger.debug(f"New puzzle title: {puzzle.name}")
             session = self.db.query(models.Session).filter(models.Session.id == session_id).first()
-            logger.debug(f"{TOOL} Current session title: {session.topic_name}")
+            logger.debug(f"Current session title: {session.topic_name}")
 
             if puzzle and session:
                 if session.topic_name != puzzle.name:
                     session.topic_name = puzzle.name
                     self.db.commit()
-                    logger.debug(f"{TOOL} Changed session title to new puzzle name: {puzzle.name}")
+                    logger.debug(f"Changed session title to new puzzle name: {puzzle.name}")
                     return True  # Trigger sidebar update in chat router
         except Exception as e:
-            logger.error(f"{TOOL} could not update session topic: {e}", exc_info=True)
+            logger.error(f"Could not update session topic: {e}", exc_info=True)
 
         return False
 
@@ -231,3 +232,37 @@ class SessionService:
 
         except Exception as e:
             logger.error(f"Error cleaning orphaned checkpointers: {e}", exc_info=True)
+
+
+    async def get_serialized_puzzle_json(self, session_id: UUID, model: str) -> Any | None:
+        """Get puzzle and serialize to LLM readable JSON"""
+        logger.info(f"Get puzzle object and serialize to LLM readable JSON")
+        try:
+            # get puzzle ID
+            puzzle_id = self.get_puzzle_id(session_id)
+
+            if not puzzle_id:
+                logger.error(f"No puzzle id found for session '{session_id}'")
+                raise Exception(f"No puzzle id found for session '{session_id}'")
+
+            # Get puzzle
+            puzzle = self.db.query(models.Puzzle).filter(models.Puzzle.id == puzzle_id).first()
+
+            if not puzzle:
+                logger.error(f"No puzzle found for puzzle ID '{puzzle_id}'")
+                raise Exception(f"No puzzle found for puzzle ID '{puzzle_id}'")
+
+            # Serialize puzzle
+            from app.agents import AgentTools
+            agent_tools = AgentTools(self.db)
+            puzzle_json = await agent_tools.serialize_puzzle_obj_for_llm(puzzle, model)
+            if not puzzle_json:
+                logger.error(f"Could not serialize puzzle")
+                raise Exception(f"Could not serialize puzzle")
+
+            logger.info(f"Serialized puzzle '{puzzle.name}' to LLM readable JSON successfully")
+            return puzzle_json
+
+        except Exception as e:
+            logger.error(f"Error getting serialized puzzle: {e}", exc_info=True)
+            return None

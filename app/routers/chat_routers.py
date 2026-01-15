@@ -198,7 +198,7 @@ async def chat(
     triggers refresh of list of puzzles and visualization
     """
     TOOL = "chat_routers:"
-    logger.debug(f"{TOOL} chat_data from chat.html: ", chat_data)
+    logger.info(f"\n\nchat_data from chat.html: {chat_data}")
     services = SessionService(db)
     triggers = [] # checks for new puzzle or session to update sidebar and visualization
 
@@ -208,12 +208,34 @@ async def chat(
         user_message=chat_data.content,
         model=chat_data.model,
     )
+    puzzle_json = None
+
+    # check if current session has a puzzle ID
+    puzzle_id = services.get_puzzle_id(session_id=session_id)
+    if not puzzle_id:
+        logger.info(f"No puzzle found for session id '{session_id}'")
+
+    # get serialized puzzle as LLM readable JSON
+    if session_id and puzzle_id:
+        puzzle_json = await services.get_serialized_puzzle_json(
+            session_id=session_id,
+            model=chat_data.model)
+
+        if puzzle_json:
+            logger.info(f"Puzzle JSON loaded ({len(str(puzzle_json))} chars)")
+        else:
+            logger.warning(f"Puzzle JSON is EMPTY for Session {session_id} / Puzzle {puzzle_id}")
 
      # Initialize agent
     agent = ChatAgent(db, session_id=str(session_id), model=chat_data.model)
 
     # Process message through agent and get response message
-    llm_response, current_puzzle_id = await agent.process(chat_data.content)
+    llm_response, current_puzzle_id = await agent.process(
+        user_message=chat_data.content,
+        puzzle_json=puzzle_json,
+        puzzle_id=puzzle_id,
+    )
+
     if llm_response:
         logger.debug(f"{TOOL} Received response from agent graph and pass it to database")
 

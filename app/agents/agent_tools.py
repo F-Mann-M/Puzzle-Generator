@@ -1,14 +1,15 @@
 import json
+from langgraph.types import Command
+from langgraph.graph import END
 from deepdiff import DeepDiff
 from app.prompts.prompt_game_rules import BASIC_RULES
 from app.schemas import PuzzleGenerate, PuzzleCreate
-from app.services import PuzzleServices
+
 from app.llm.llm_manager import get_llm
 from uuid import UUID
 from typing import Any, Union
 from app.models import Puzzle
 import logging
-from utils.logger_config import configure_logging
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +20,7 @@ class AgentTools:
 
     async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> UUID:
         """ Generate a new puzzle"""
+        from app.services import PuzzleServices
         services = PuzzleServices(self.db)
         puzzle_generated = await services.generate_puzzle(puzzle_config)
 
@@ -136,15 +138,16 @@ class AgentTools:
             puzzle_id: Union[UUID, str],
             message: str,
             model: str,
-            session_id: Union[UUID, str]) -> dict[str, Any]:
+            session_id: Union[UUID, str]) ->  Command:
         """ Update an existing puzzle"""
-        current_tool = "ChatAgent.update_puzzle: "
+        current_tool = "update_puzzle: "
         logger.info(f"{current_tool} Takes in current puzzle data and message: {message}")
 
         # Ensure puzzle_id is a UUID object, not a string
         puzzle_id = self.ensure_uuid(puzzle_id)
 
         # Get puzzle data
+        from app.services import PuzzleServices
         puzzle_services = PuzzleServices(self.db)
         logger.debug(f"{current_tool} Get puzzle by ID")
         try:
@@ -161,10 +164,25 @@ class AgentTools:
         llm = get_llm(model)
         system_prompt = f"""
         You are an assistant who extracts puzzle modification parameters from this message.
-        and modify this existing puzzle data {puzzle_json}.
+        
+        ### CURRENT PUZZLE CONTEXT ###
+            {puzzle_json}
+        ##############################
+        
+        ### PUZZLE RULES ###
+            {BASIC_RULES}
+        ####################
+        
+        Analyse the existing puzzle context data above.
         Use the existing puzzle data to understand what kind of data have do added, deleted, changed or modified.
-        This are the rules {BASIC_RULES} for the puzzle. 
-        Mind this rules while adding modifications to the existing puzzle data.
+        
+        Use the puzzle rules to understand how the puzzle works and what and how it has to be modified.
+        Mind the rules above while adding modifications to the existing puzzle data.
+        
+        If the user asks to generate a description.
+        Analyse the given puzzle data and rules to generate a detailed description of the current puzzle what happens turn by turn .
+        Add the description to 'description' field of the current puzzle.
+        
         Return ONLY a valid JSON object conforming to this Pydantic schema: {PuzzleCreate}
         """
         prompt = {"system_prompt": system_prompt, "user_prompt": message}
@@ -176,12 +194,14 @@ class AgentTools:
                 logger.error(f"{current_tool} Failed to generate modified puzzle data")
                 raise Exception("Failed to generate modified puzzle data")
 
-            logger.info(f"{current_tool} Updating current puzzle data...")
-            puzzle_updated = puzzle_services.update_puzzle(
-                puzzle_id=puzzle_id,
-                puzzle_data=updated_puzzle_data)
-            if not puzzle_updated:
-                raise Exception(f"{current_tool} Failed to update existing puzzle data.")
+            puzzle_updated = None
+            if updated_puzzle_data:
+                logger.info(f"{current_tool} Updating current puzzle data...")
+                puzzle_updated = puzzle_services.update_puzzle(
+                    puzzle_id=puzzle_id,
+                    puzzle_data=updated_puzzle_data)
+                if not puzzle_updated:
+                    raise Exception(f"{current_tool} Failed to update existing puzzle data.")
 
             logger.info(f"{current_tool} Successfully updated puzzle data")
 
@@ -190,29 +210,66 @@ class AgentTools:
             return {"tool_result": [f"{current_tool}: Error: {e}"]}
 
         # generate tool result message
-        puzzle_updated_json =await self.serialize_puzzle_obj_for_llm(puzzle_updated, model)
+        logger.info(f"Generate tool result:")
+        puzzle_updated_json = await self.serialize_puzzle_obj_for_llm(puzzle_updated, model)
+        if not puzzle_updated_json:
+            logger.error(f"{current_tool} convert to json failed")
+            return {"tool_result": [f"{current_tool}: Error: {e}"]}
 
         ## compare puzzles and extract changes
-        logger.debug(f"{current_tool} extract changes...")
-        puzzle_dict = json.loads(puzzle_json)
-        puzzle_updated_dict = json.loads(puzzle_updated_json)
-        puzzle_changes = await self.extract_puzzle_diff(puzzle_dict, puzzle_updated_dict)
-        puzzle_changes = "\n".join(puzzle_changes)
-        logger.debug(f"{current_tool} Extracted changes: \n{puzzle_changes}")
+        try:
+            logger.info(f"{current_tool} extract changes...")
 
-        logger.debug(f"{current_tool} Generating tool response...")
+            # convert old puzzle from json to dict
+            puzzle_dict = json.loads(puzzle_json)
+            if not puzzle_dict:
+                logger.error(f"{current_tool} Failed to convert 'puzzle_json' to puzzle_dict")
+                raise Exception("Failed to convert 'puzzle_json' to puzzle_dic")
+
+            # convert updated puzzle json to dict
+            puzzle_updated_dict = json.loads(puzzle_updated_json)
+            if not puzzle_updated_dict:
+                logger.error(f"{current_tool} Failed to convert 'puzzle_updated_json' to puzzle_updated_dict")
+                raise Exception("Failed to convert 'puzzle_json' to puzzle_dic")
+
+            # extract differences from old and new puzzle
+            puzzle_changes = await self.extract_puzzle_diff(puzzle_dict, puzzle_updated_dict) # extract differences
+            puzzle_changes = "\n".join(puzzle_changes) # join differences (list) to string
+            if not puzzle_changes:
+                logger.error(f"{current_tool} Failed to extract differences from puzzle_dict and puzzle_updated_dict")
+                raise Exception("Failed to extract differences from puzzle_dict and puzzle_updated_dict")
+
+            logger.info(f"{current_tool} Extracted changes: {puzzle_changes}")
+
+        except Exception as e:
+            logger.error(f"{current_tool} Failed to extract changes: {e}")
+            return {"tool_result": [f"{current_tool} Failed to extract changes: {e}"]}
+
+        logger.info(f"{current_tool} Generating tool response...")
         try:
             system_prompt_summary = f"""
-            You are an assistant who compares this old puzzle data {puzzle_json}
-            with changes. Use this {BASIC_RULES} to understand and summerize changes.
+            
+            ### OLD PUZZLE CONTEXT ###
+                {puzzle_json}
+                
+            ### PUZZLE RULES ###
+                {BASIC_RULES}
+             
+            You are an assistant who compares the old puzzle data from above with this changes. 
+            Use the puzzle rules to understand what has changed and how this effects the puzzle.
+            List in brief bullet points what has been changed and how it affects the puzzle.
             """
             summary_prompt = {"system_prompt": system_prompt_summary, "user_prompt": puzzle_changes}
             tool_summary = await llm.chat(summary_prompt)
             if not tool_summary:
                 raise Exception(f"{current_tool} Failed to generate summary data: ")
 
-            logger.debug(f"{current_tool} Generated tool response: \n{tool_summary}")
-            return {"tool_result": [f"{current_tool}: Updated puzzle successfully! {tool_summary}"]}
+            logger.info(f"{current_tool} Generated tool response: \n{tool_summary}")
+            message = [{"role": "assistant", "content": tool_summary}]
+            return Command(
+                update={"messages":  message},
+                goto=END
+            )
 
         except Exception as e:
             logger.error(f"{current_tool} Failed to generate tool response: {e}")

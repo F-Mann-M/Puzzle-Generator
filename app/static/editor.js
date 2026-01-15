@@ -551,7 +551,7 @@ async function exportPuzzle(evt) {
 
     try {
         const method = isEditMode ? "PUT" : "POST";
-        const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
+        const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles"; //when send button is pushed trigger chat_router
         const isChatContext = document.getElementById("chat-container") !== null;
         const headers = { "Content-Type": "application/json" };
 

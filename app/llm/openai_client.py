@@ -46,9 +46,9 @@ class OpenAIClient:
             response = await self.client.responses.create(model=self.model_name, messages=prompt, stream=True)
 
         # ---------- TOKEN USAGE ----------
-        logger.info("input tokens: ", response.usage.input_tokens)
-        logger.info("output tokens: ", response.usage.output_tokens)
-        logger.info("total tokens: ", response.usage.total_tokens)
+        logger.info(f"input tokens: {response.usage.input_tokens}")
+        logger.info(f"output tokens: {response.usage.output_tokens}")
+        logger.info(f"total tokens: {response.usage.total_tokens}")
         usage = [response.usage.input_tokens,response.usage.output_tokens, response.usage.total_tokens]
 
         return response.output[0].content[0].text
