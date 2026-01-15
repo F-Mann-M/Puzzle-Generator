@@ -140,7 +140,7 @@ a:hover {
     width: 100%;
     min-width: 600px;
     height: 470px;
-    border: 1px solid #444444;
+    /*border: 1px solid #444444;*/
     margin-top: 10px;
     background-color: #2d2d2d;
 }
@@ -148,6 +148,8 @@ a:hover {
 #editor-svg {
     width: 100%;
     height: 100%;
+    border: none;
+    background-color: #2d2d2d;
 }
 
 #toolbar {
@@ -235,7 +237,6 @@ a:hover {
     align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-    border-bottom: 1px solid #444444;
     flex-shrink: 0;
     flex-direction: column;
     border: none;
@@ -488,8 +489,8 @@ a:hover {
     padding: 10px;
     height: 100%;
     box-sizing: border-box;
-    overflow: hidden;
-    min-width: 200px; /* Prevent it from disappearing */
+    overflow: auto;
+    min-width: 630px; /* Prevent it from disappearing */
 }
 
 textarea {
@@ -609,14 +610,14 @@ select option {
 #editor-form {
     display: flex;
     flex-direction: column;
-    height: 100%; /* If inside a fixed height wrapper */
-    min-height: 300px; /* Adjust based on your UI preference */
+    height: 100%;
+    min-height: 300px;
 }
 
 .flex-description {
-    flex: 1;          /* Grow to fill space */
-    min-height: 150px; /* Prevents it from disappearing if space is tight */
-    margin-top: 0px;
+    flex: 1;
+    min-height: 150px;
+    margin-top: 0;
     width: 100%;
 }
 
@@ -667,7 +668,8 @@ select option {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    padding: 0px 1px 10px 1px;
 }
 
 

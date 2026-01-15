@@ -137,13 +137,13 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     return HTMLResponse(content="", status_code=200)
 
 
-# Get puzzle by id
-@router.get("/{puzzle_id}", response_class=HTMLResponse)
-async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
-    """Fetch one puzzle by ID"""
-    services = PuzzleServices(db)
-    puzzle = services.get_puzzle_by_id(puzzle_id)
-    return templates.TemplateResponse("puzzle-details.html", {"request": request, "puzzle": puzzle})
+# # Get puzzle by id
+# @router.get("/{puzzle_id}", response_class=HTMLResponse)
+# async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
+#     """Fetch one puzzle by ID"""
+#     services = PuzzleServices(db)
+#     puzzle = services.get_puzzle_by_id(puzzle_id)
+#     return templates.TemplateResponse("puzzle-details.html", {"request": request, "puzzle": puzzle})
 
 
 @router.get("/{puzzle_id}/update", response_class=HTMLResponse)

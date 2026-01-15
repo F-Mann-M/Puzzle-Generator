@@ -648,7 +648,7 @@ function render() {
         line.setAttribute("y1", a.y);
         line.setAttribute("x2", b.x);
         line.setAttribute("y2", b.y);
-        line.setAttribute("stroke", "#666");
+        line.setAttribute("stroke", "#1e1e1e");
         line.setAttribute("stroke-width", 4);
 
         line.addEventListener("contextmenu", (evt) => {
