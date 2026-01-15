@@ -102,7 +102,7 @@ class PuzzleServices:
                 self.db.flush()
 
         self.db.commit()
-        logger.info("Created new puzzle with id: ", puzzle.id)
+        logger.info(f"Created new puzzle with id: {puzzle.id}")
         return puzzle
 
     # get all puzzle

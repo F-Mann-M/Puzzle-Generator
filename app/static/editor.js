@@ -551,12 +551,21 @@ async function exportPuzzle(evt) {
 
     try {
         const method = isEditMode ? "PUT" : "POST";
-        const url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles"; //when send button is pushed trigger chat_router
+
+        // CHANGED: Use 'let' so we can modify the URL
+        let url = isEditMode ? `/puzzles/${puzzleId}` : "/puzzles";
+
         const isChatContext = document.getElementById("chat-container") !== null;
         const headers = { "Content-Type": "application/json" };
 
         if (!isEditMode && isChatContext) {
             headers["X-From-Chat"] = "true";
+
+            // NEW: Get the current session ID and add it to the URL
+            const sessionInput = document.getElementById("session_id_input");
+            if (sessionInput && sessionInput.value) {
+                url += `?session_id=${sessionInput.value}`;
+            }
         }
 
         const response = await fetch(url, {

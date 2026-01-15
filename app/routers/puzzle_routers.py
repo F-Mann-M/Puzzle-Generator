@@ -7,7 +7,6 @@ from typing import Optional
 from uuid import UUID, uuid4
 from pathlib import Path
 import logging
-from utils.logger_config import configure_logging
 
 
 # import form project
@@ -35,21 +34,36 @@ async def show_create_puzzle(request: Request):
 async def create_puzzle(
     puzzle: PuzzleCreate, 
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    session_id: Optional[UUID] = Query(None)
 ):
     """Create a new puzzle, store in database and create new session"""
     # Create puzzle and store in database
     services = PuzzleServices(db)
     new_puzzle = services.create_puzzle(puzzle)
 
+    final_session = None
+    existing_session = None
+
+    # add session to existing session
+    if session_id:
+        existing_session = db.query(models.Session).filter(models.Session.id == session_id).first()
+        if existing_session:
+            existing_session.puzzle_id = new_puzzle.id
+            existing_session.topic_name = new_puzzle.name
+            db.commit()
+            final_session_id = existing_session.id
+
     # Create new session with puzzle id and puzzle name as topic name
-    new_session = models.Session(
-        id=uuid4(),
-        topic_name=new_puzzle.name,
-        puzzle_id=new_puzzle.id,
-    )
-    db.add(new_session)
-    db.commit()
+    if not existing_session:
+        new_session = models.Session(
+            id=uuid4(),
+            topic_name=new_puzzle.name,
+            puzzle_id=new_puzzle.id,
+        )
+        db.add(new_session)
+        db.commit()
+        final_session_id = new_session.id
 
     # Check if request (from editor.js) is from chat context (via header)
     from_chat = request.headers.get("X-From-Chat") == "true" if request else False
@@ -58,7 +72,7 @@ async def create_puzzle(
         # Return JSON response with session_id for chat context
         # Updates the chat via editor.js
         return JSONResponse(content={
-            "session_id": str(new_session.id),
+            "session_id": str(final_session_id),
             "puzzle_id": str(new_puzzle.id),
             "success": True
         })
@@ -135,15 +149,6 @@ async def delete_puzzle(puzzle_id: UUID, db: Session = Depends(get_db)):
     services = PuzzleServices(db)
     services.delete_puzzle(puzzle_id)
     return HTMLResponse(content="", status_code=200)
-
-
-# # Get puzzle by id
-# @router.get("/{puzzle_id}", response_class=HTMLResponse)
-# async def get_puzzle(request: Request, puzzle_id: UUID, db: Session = Depends(get_db)):
-#     """Fetch one puzzle by ID"""
-#     services = PuzzleServices(db)
-#     puzzle = services.get_puzzle_by_id(puzzle_id)
-#     return templates.TemplateResponse("puzzle-details.html", {"request": request, "puzzle": puzzle})
 
 
 @router.get("/{puzzle_id}/update", response_class=HTMLResponse)

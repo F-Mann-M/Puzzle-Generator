@@ -557,6 +557,7 @@ class ChatAgent:
                 return result
 
             else:
+                logger.info(f"tool result {result.get('tool_result')}")
                 return
 
         except Exception as e:

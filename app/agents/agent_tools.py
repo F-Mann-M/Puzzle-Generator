@@ -223,20 +223,17 @@ class AgentTools:
             # convert old puzzle from json to dict
             puzzle_dict = json.loads(puzzle_json)
             if not puzzle_dict:
-                logger.error(f"{current_tool} Failed to convert 'puzzle_json' to puzzle_dict")
                 raise Exception("Failed to convert 'puzzle_json' to puzzle_dic")
 
             # convert updated puzzle json to dict
             puzzle_updated_dict = json.loads(puzzle_updated_json)
             if not puzzle_updated_dict:
-                logger.error(f"{current_tool} Failed to convert 'puzzle_updated_json' to puzzle_updated_dict")
                 raise Exception("Failed to convert 'puzzle_json' to puzzle_dic")
 
             # extract differences from old and new puzzle
             puzzle_changes = await self.extract_puzzle_diff(puzzle_dict, puzzle_updated_dict) # extract differences
             puzzle_changes = "\n".join(puzzle_changes) # join differences (list) to string
             if not puzzle_changes:
-                logger.error(f"{current_tool} Failed to extract differences from puzzle_dict and puzzle_updated_dict")
                 raise Exception("Failed to extract differences from puzzle_dict and puzzle_updated_dict")
 
             logger.info(f"{current_tool} Extracted changes: {puzzle_changes}")
