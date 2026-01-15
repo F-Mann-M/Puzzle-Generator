@@ -4,7 +4,6 @@ from openai import AsyncOpenAI
 from typing import Type, Any
 import json
 import logging
-from utils.logger_config import configure_logging
 
 logger = logging.getLogger(__name__)
 

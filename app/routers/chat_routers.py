@@ -172,10 +172,10 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
         content = message.get("content") if isinstance(message, dict) else message.content
 
         if role == "user":
-            message_html += f'<div class="user_message"><strong>You:</strong> {content}</div>'
+            message_html += f'<div class="user_message">{content}</div>'
         else:
             message_content = markdown.markdown(content)
-            message_html += f'<div class="ai_response"><strong>Rudolfo:</strong> {message_content}</div>'
+            message_html += f'<div class="ai_response">{message_content}</div>'
 
     # Trigger refreshPuzzle to update editor when session is loaded
     html_response = HTMLResponse(content=message_html)
@@ -248,8 +248,8 @@ async def chat(
 
     # create and send HTML response
     logger.debug(f"{TOOL} Pass content to front-end...")
-    user_msg = f'<div class="user_message"><strong>You:</strong> {chat_data.content}</div>'
-    ai_msg = f'<div class="ai_response"><strong>Rudolfo:</strong> {llm_response_html}</div>'
+    user_msg = f'<div class="user_message">{chat_data.content}</div>'
+    ai_msg = f'<div class="ai_response">{llm_response_html}</div>'
 
     # Update session_id in the hidden input
     session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'    

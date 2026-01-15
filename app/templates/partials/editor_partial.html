@@ -28,14 +28,6 @@
         </button>
     </div>
 
-    <!-- playback controlls -->
-    <div class="playback-controls"
-         style="display: inline-block; margin-top: 0px; border-left: 0px solid #ccc; padding-left: 0px;">
-        <button id="prev-turn-btn" type="button">◀ Back</button>
-        <span id="turn-status" style="margin: 0 10px; font-weight: bold;">Turn: 0</span>
-        <button id="next-turn-btn" type="button">Forward ▶</button>
-    </div>
-
     <!-- Editor Canvas -->
     <div id="editor-container">
         <svg id="editor-svg"
@@ -44,35 +36,52 @@
              data-puzzle-game-mode="{{ puzzle.game_mode if puzzle else ''}}"
              data-puzzle-coins="{{ puzzle.coins or 0 if puzzle else ''}}"
              data-puzzle-description="{{ puzzle.description or '' if puzzle else ''}}"
-             style="width: 100%; height: 500px; border: 1px solid #ccc;"></svg>
+             style="width: 100%; height: 500px; border: 1px solid #444444;"></svg>
     </div>
-    <br>
 
-    <div>
-        <form id="editor-form" method="POST" action="/puzzles">
-            <label for="name">Puzzle Title:</label>
-            <input type="text" name="name" id="name" placeholder="Puzzle Name"
-                   value="{{ puzzle.name if puzzle else ''}}" required>
-            <label for="game_mode">Game Mode:</label>
-            <select name="game_mode" id="game_mode" required>
-                <option value="">-- Game Mode --</option>
-                <option value="Skirmish" {% if puzzle.game_mode==
-                'Skirmish' %}selected{% endif %}>Skirmish</option>
-                <option value="Safe travel" {% if puzzle.game_mode==
-                'Safe travel' %}selected{% endif %}>Safe travel</option>
-            </select>
+    <!-- playback controlls -->
+    <div class="playback-controls">
+        <button id="prev-turn-btn" type="button">◀ Back</button>
+        <span id="turn-status" style="margin: 0 10px; font-weight: 400; color: #e0e0e0;">Turn: 0</span>
+        <button id="next-turn-btn" type="button">Forward ▶</button>
+    </div>
 
-            <label for="coins">Coins:</label>
-            <input type="number" name="coins" id="coins" placeholder="Coins"
-                   value="{{ puzzle.coins or '' if puzzle else '' }}">
-            <label for="is_working">Is the puzzle working?</label>
+
+    <div class="editor-form-wrapper">
+    <form id="editor-form" method="POST" action="/puzzles">
+
+        <label for="name">Puzzle Title:</label>
+        <input type="text" name="name" id="name" placeholder="Puzzle Name"
+               value="{{ puzzle.name if puzzle else ''}}" required>
+
+        <label for="description">Description:</label>
+        <textarea name="description" id="description" placeholder="Description" class="flex-description">
+            {{ puzzle.description or '' if puzzle else '' }}
+        </textarea>
+
+        <div class="editor-buttons">
+            <div>
+                <label for="game_mode">Game Mode:</label>
+                <select name="game_mode" id="game_mode" required>
+                <option value="">Game Mode</option>
+                <option value="Skirmish" {% if puzzle.game_mode == 'Skirmish' %}selected{% endif %}>Skirmish</option>
+                <option value="Safe travel" {% if puzzle.game_mode == 'Safe travel' %}selected{% endif %}>Safe travel</option>
+                </select>
+            </div>
+
+            <div>
+            <label for="is_working">Working?</label>
             <select name="is_working" id="is_working">
-                <option value="False" {% if puzzle.is_working== False %}selected{% endif %}>No</option>
-                <option value="True" {% if puzzle.is_working== True %}selected{% endif %}>Yes</option>
-            </select><br><br>
+            <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>Puzzle is not working</option>
+            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Puzzle is working</option>
+            </select>
+            </div>
 
-            <textarea name="description" id="description" placeholder="Description">
-        {{ puzzle.description or '' if puzzle else '' }}</textarea>
-
-        </form>
-    </div>
+            <div>
+            <label for="coins">Coin Count:</label>
+            <input type="number" name="coins" id="coins" placeholder="Coins"
+               value="{{ puzzle.coins or '' if puzzle else '' }}">
+            </div>
+        </div>
+    </form>
+</div>

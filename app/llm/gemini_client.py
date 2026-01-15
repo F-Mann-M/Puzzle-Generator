@@ -1,9 +1,8 @@
 from google import genai
 from app.core.config import settings
-from app.schemas.puzzle_schema import PuzzleLLMResponse, PuzzleCreate
 from pydantic import BaseModel
 import logging
-from utils.logger_config import configure_logging
+
 
 
 logger = logging.getLogger(__name__)
