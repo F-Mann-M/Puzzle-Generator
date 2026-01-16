@@ -2,7 +2,8 @@ from app.prompts.prompt_game_rules import BASIC_RULES, GAME_MODE_SKIRMISH, GAME_
 import json
 from typing import Optional
 import logging
-from utils.logger_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 async def get_puzzle_generation_prompt(
@@ -26,12 +27,33 @@ async def get_puzzle_generation_prompt(
 
     prompt = {"system_prompt": (
         f"""
-        You are a game designer who creates puzzles based on these {BASIC_RULES} and this {game_mode_prompt}.
+        You are a Master Level Designer. Your goal is NOT just to generate valid JSON, but to create a "Fun and Balanced" tactical puzzle.
+        
+        ### What makes a puzzle fun?
+        1. **Trial-and-Error**: Obscures the one correct solution so that the player is forced to go through many possible paths like a chess player
+        2. **Dependencies**: All elements of the puzzle are pieces of the solution. Instead of creating isolated tasks in a puzzle, link them together.
+        3. **Flanking Routes**: Create main paths and side paths.
+        4. **Asymmetry**: Don't just mirror the map. Give the enemy the high ground or numbers advantage.
+        
+        ### Instructions
+        1. First, conceive a theme (e.g., "The Ambush", "The Bridge Defense").
+        2. Explain the intended strategy for the player in the 'description' field.
+        3. FINALLY, generate the nodes and units to match that strategy.
+        
+        ### Puzzle Rules
+        {BASIC_RULES}
+        1. This are the puzzle rules analyze them carefully.
+        2. find and develop special patterns to force the player to think like a chess player
+        3. Use them to generate a working puzzle based on this rules
+        
         You will create all nodes, edges, and paths for enemy units and player units.
         Since the paths of the player units are also the solution of each puzzle, you must provide the puzzle with the solution (how to place and move player units).
         Mind further instruction in {description}
         
-        The generator must always output valid JSON matching the PuzzleLLMResponse schema exactly.
+        ### Examples
+        
+        ### Formating
+        You must always output valid JSON matching the PuzzleLLMResponse schema exactly.
         
         ### JSON Schema Definitions (TypeScript)
         
@@ -70,15 +92,18 @@ async def get_puzzle_generation_prompt(
         5. Do NOT include coordinates (x, y) in Edges.
         6. Ensure each list is a JSON array ([...]), not an object with keys.
         
-        These are example puzzles in JSON format: {json.dumps(example_puzzles, indent=2)}
-        Use these examples as reference for structure, difficulty, and puzzle design patterns.
+        ### Examples
+        {json.dumps(example_puzzles, indent=2)}
+        
+        These are example puzzles in JSON format. 
+        Use these examples as reference for structure and puzzle design patterns.
         """
         ),
         "user_prompt": (f"""
         # User Prompt: Generate Puzzle Scenario
         
         You are to create a new puzzle following all the rules and schema definitions provided in the system prompt.
-        Make sure the puzzle works. It outcome have to follow {BASIC_RULES} and the {game_mode_prompt}.
+        Make sure the puzzle works. It outcome have to follow puzzle rules and and game mode.
         Make sure there are coins. the number of coins depends on the number of turns and extra costs for mobs
         
         Generate a puzzle that satisfies the following parameters:
@@ -96,6 +121,6 @@ async def get_puzzle_generation_prompt(
         Return ONLY valid JSON for PuzzleLLMResponse.
         """)
     }
-    print(f"Prompt built successfully (nodes={node_count}, edges={edge_count}, units={len(units)}")
+    logger.info(f"Prompt built successfully (nodes={node_count}, edges={edge_count}, units={len(units)}")
     return prompt
 

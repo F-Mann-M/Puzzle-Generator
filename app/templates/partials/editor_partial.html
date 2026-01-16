@@ -72,8 +72,8 @@
             <div>
             <label for="is_working">Working?</label>
             <select name="is_working" id="is_working">
-            <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>Puzzle is not working</option>
-            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Puzzle is working</option>
+            <option value="False" {% if puzzle.is_working == False %}selected{% endif %}>No</option>
+            <option value="True" {% if puzzle.is_working == True %}selected{% endif %}>Yes</option>
             </select>
             </div>
 
