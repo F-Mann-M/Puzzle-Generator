@@ -45,28 +45,33 @@ Layout and difficulty must prioritize strategic depth and fun.
 # Unit Behavior and States
 ##Movement
 Each unit starts on its first path node.
+All units are NOT allowed to share there start node (first node in path)
 Start State: The first node of any unit's path must be unique. No two units (regardless of faction) can start on the same node.
 Units move one node per turn.
+All units MUST move along there path each turn as long: 
+    - there a coins left and they have NOT reached there final path node
+    - No obstacle blocks the edge (like an active snake, oneway edge...)
 Units only move forward along their path.
+    - units are not allow to go the same edge backword unless they have been walking in a circle and are on their way back
 Enemy units may be static (path length 1) or moving (path length >1).
 
-#Player and Enemy Unit Types
+#Player and Enemy Unit state Types
 all units starting in state 'normal'
 
 ##Grunt (enemy unit)
-normal: 1 point
-exhausted: 0 points
+state 'normal': 1 point
+state 'exhausted': 0 points
 
 ##Swordsman (player unit)
-normal: 1 point
-exhausted: 0 points
+state 'normal': 1 point
+state 'exhausted': 0 points
 
 ##Mob
 infinite points
 formed when two or more player units share the same path segment simultaneously
 
 ##Exhaustion
-After winning a battle, surviving units become exhausted for one turn.
+After winning a battle, surviving units become 'exhausted' for one turn.
 Exhausted units return to normal after one full turn without combat.
 Mob state adds +1 extra coin cost per turn while active.
 When a mob breaks apart, units return to normal at the end of that turn.

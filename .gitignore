@@ -220,3 +220,6 @@ data/checkpoints.sqlite
 data/puzzle.db-shm
 data/puzzle.db-wal
 data/puzzle.db-wal
+data/puzzle.db-wal
+data/puzzle.db-wal
+data/checkpointer.db

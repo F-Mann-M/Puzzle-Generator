@@ -528,7 +528,7 @@ async function exportPuzzle(evt) {
         game_mode: formData.get("game_mode"),
         coins: Number(formData.get("coins") || 0),
         description: formData.get("description") || "",
-        is_working: formData.get("is_working") === "False",
+        is_working: formData.get("is_working") === "True",
 
         nodes: nodes.filter(n => !n.deleted).map(n => ({
             index: n.id,
@@ -646,7 +646,10 @@ function render() {
     if (!svg) return;
     svg.innerHTML = "";
 
-    // A. Draw Edges
+    // Helper: get the currently selected unit object for reference in loops
+    const activeUnit = selectedUnit !== null ? getUnit(selectedUnit) : null;
+
+    // A. Draw Edges (Grid Connections)
     edges.filter(e => !e.deleted).forEach(e => {
         const a = getNode(e.start);
         const b = getNode(e.end);
@@ -657,8 +660,8 @@ function render() {
         line.setAttribute("y1", a.y);
         line.setAttribute("x2", b.x);
         line.setAttribute("y2", b.y);
-        line.setAttribute("stroke", "#1e1e1e");
-        line.setAttribute("stroke-width", 4);
+        line.setAttribute("stroke", "#a5a5a5");
+        line.setAttribute("stroke-width", 6);
 
         line.addEventListener("contextmenu", (evt) => {
             evt.preventDefault();
@@ -669,8 +672,22 @@ function render() {
         svg.appendChild(line);
     });
 
-    // B. Draw Units (Ghost Paths)
-    units.filter(u => !u.deleted).forEach(u => {
+    // B. Draw Units (Ghost Paths) - UPDATED
+    // Sort so selected unit draws last (on top)
+    const sortedUnits = units.filter(u => !u.deleted).sort((a, b) => {
+        return (a.id === selectedUnit) ? 1 : -1;
+    });
+
+    sortedUnits.forEach(u => {
+        // Determine highlight status
+        const isSelected = (selectedUnit === u.id);
+
+        // If a unit is selected, dim the others. If none selected, show all fully.
+        const opacity = (selectedUnit !== null && !isSelected) ? "0.2" : "1";
+
+        // Make the selected path significantly thicker
+        const strokeWidth = isSelected ? 8 : 4;
+
         for (let i = 0; i < u.path.length - 1; i++) {
             const a = getNode(u.path[i]);
             const b = getNode(u.path[i + 1]);
@@ -681,24 +698,37 @@ function render() {
                 line.setAttribute("x2", b.x);
                 line.setAttribute("y2", b.y);
                 line.setAttribute("stroke", u.color);
-                line.setAttribute("stroke-width", 2);
-                line.setAttribute("opacity", "0.3");
+                line.setAttribute("stroke-width", strokeWidth);
+                line.setAttribute("opacity", opacity);
                 line.style.pointerEvents = "none";
                 svg.appendChild(line);
             }
         }
     });
 
-    // C. Draw Nodes
+    // C. Draw Nodes - UPDATED
     nodes.filter(n => !n.deleted).forEach(n => {
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.setAttribute("transform", `translate(${n.x},${n.y})`);
 
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         c.setAttribute("r", 20);
-        c.setAttribute("fill", "white");
-        c.setAttribute("stroke", "black");
-        c.setAttribute("stroke-width", 2);
+        c.setAttribute("fill", "#a5a5a5");
+
+        // Check if this node is in the selected unit's path
+        let isPathNode = false;
+        if (activeUnit && activeUnit.path.includes(n.id)) {
+            isPathNode = true;
+        }
+
+        // Highlight node if part of path
+        if (isPathNode) {
+            c.setAttribute("stroke", activeUnit.color); // Use unit color
+            c.setAttribute("stroke-width", 8);          // Thicker border
+        } else {
+            c.setAttribute("stroke", "#a5a5a5");
+            c.setAttribute("stroke-width", 4);
+        }
 
         const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
         title.textContent = `Node ${n.id}\n(${n.x}, ${n.y})`;
@@ -719,13 +749,19 @@ function render() {
         text.setAttribute("dy", ".3em");
         text.textContent = n.id;
         text.style.pointerEvents = "none";
+
+        // Make text white if highlighted for better contrast against color stroke
+        if (isPathNode) {
+            text.setAttribute("fill", "white");
+            text.setAttribute("font-weight", "bold");
+        }
+
         g.appendChild(text);
 
         svg.appendChild(g);
     });
 
     // D. Draw Unit Markers (With Squares/Triangles)
-
     // 1. Group units by their current node ID
     const unitsAtNode = {};
 
@@ -755,8 +791,8 @@ function render() {
             let cx, cy;
 
             if (count === 1) {
-                cx = currentNode.x + 15;
-                cy = currentNode.y - 15;
+                cx = currentNode.x + 20;
+                cy = currentNode.y - 20;
             } else {
                 const angle = startAngle + (2 * Math.PI * index) / count;
                 cx = currentNode.x + Math.cos(angle) * radius;
@@ -768,33 +804,36 @@ function render() {
             g.setAttribute("transform", `translate(${cx},${cy})`);
             g.style.cursor = "pointer";
 
+            // Adjust opacity based on selection
+            if (selectedUnit !== null && selectedUnit !== u.id) {
+                g.setAttribute("opacity", "0.5");
+            } else {
+                g.setAttribute("opacity", "1");
+            }
+
             // 1. Main Colored Circle
             const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             c.setAttribute("r", 15);
             c.setAttribute("fill", u.color);
             c.setAttribute("stroke", (selectedUnit === u.id) ? "gold" : "white");
-            c.setAttribute("stroke-width", (selectedUnit === u.id) ? 3 : 1);
+            c.setAttribute("stroke-width", (selectedUnit === u.id) ? 4 : 2); // Thicker gold selection
             g.appendChild(c);
 
             // 2. Unit Type Icon (Square or Triangle)
-            // Icon color is white for contrast, semi-transparent
             const iconColor = "rgba(255, 255, 255, 1)";
 
             if (u.type === "Swordsman") {
-                // Draw Square (Centered)
                 const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                rect.setAttribute("x", -5);
-                rect.setAttribute("y", -5);
-                rect.setAttribute("width", 10);
-                rect.setAttribute("height", 10);
+                rect.setAttribute("x", -7);
+                rect.setAttribute("y", -7);
+                rect.setAttribute("width", 14);
+                rect.setAttribute("height", 14);
                 rect.setAttribute("fill", iconColor);
-                rect.style.pointerEvents = "none"; // Let clicks hit the group
+                rect.style.pointerEvents = "none";
                 g.appendChild(rect);
             } else if (u.type === "Grunt") {
-                // Draw Triangle (Centered)
-                // Points: Top(0, -5), BottomRight(5, 5), BottomLeft(-5, 5)
                 const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-                poly.setAttribute("points", "0,-5 5,5 -5,5");
+                poly.setAttribute("points", "0,-9 9,7 -9,7");
                 poly.setAttribute("fill", iconColor);
                 poly.style.pointerEvents = "none";
                 g.appendChild(poly);
@@ -803,8 +842,13 @@ function render() {
             // 3. Interactions (Attached to Group)
             g.onclick = (evt) => {
                 evt.stopPropagation();
-                selectedUnit = u.id;
-                console.log("Unit selected:", u.id);
+                // Toggle selection: if clicking already selected, deselect
+                if (selectedUnit === u.id) {
+                    selectedUnit = null;
+                } else {
+                    selectedUnit = u.id;
+                }
+                console.log("Unit selected:", selectedUnit);
                 render();
             };
 

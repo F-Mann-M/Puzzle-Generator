@@ -58,6 +58,7 @@ async def get_puzzle_generation_prompt(
         ### JSON Schema Definitions (TypeScript)
         
         interface PuzzleLLMResponse {{
+          name: string; // make up a name for the puzzle
           nodes: NodeGenerate[];
           edges: EdgeGenerate[];
           units: UnitGenerate[];

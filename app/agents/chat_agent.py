@@ -7,6 +7,8 @@ from pydantic import BaseModel
 
 import json
 import logging
+
+from app import models
 from utils.logger_config import configure_logging
 
 # MemorySave works only for sync environment
@@ -54,7 +56,7 @@ class AgentState(TypedDict):
     final_response: Optional[str] # final response for user
     session_id: UUID
     model: str # model used... pass llm_manager.py
-    puzzle: str # serialized puzzle
+    puzzle: Optional[str] # serialized puzzle
 
 class ChatAgent:
     """ LangGraph Chat Agent to handel puzzle related content"""
@@ -217,6 +219,10 @@ class ChatAgent:
         if not puzzle_context or puzzle_context == {}:
             puzzle_context = "No puzzle data loaded. Ask the user to create or select a puzzle."
 
+        collected_data = state.get("collected_info")
+        if not collected_data or collected_data == {}:
+            collected_data = "No collected data yet."
+
         # Get user message
         last_message = state["messages"][-1]["content"] if state["messages"] else ""
         logger.info(f"\nLast message sent to llm: {last_message}")
@@ -234,11 +240,16 @@ class ChatAgent:
             ### CURRENT PUZZLE CONTEXT ###
             {puzzle_context}
             ##############################
+            
+            ### Collected puzzle Data ###
+            {collected_data}
+            #############################
 
             Your Goal:
             1. Answer questions about the puzzle above (layout, units, pathing).
             2. Suggest improvements based on these Rules: {BASIC_RULES}.
             3. If the user asks to "describe" the puzzle, analyze the 'nodes', 'edges', and 'units' in the Context above and generate a strategic summary.
+            4. if the user asks for collected puzzle data use the collected data from above.
 
             Constraints:
             - Do NOT output JSON unless explicitly asked.
@@ -283,7 +294,7 @@ class ChatAgent:
 
     async def _collect_and_creates_puzzle(self, state: AgentState) -> AgentState:
         """ If LLM provides a complete puzzle, create a new puzzle """
-        current_tool = "ChatAgent.collect_and_create: "
+        current_tool = "collect_and_create: "
         tool_results = state.get("tool_result")
 
         # Get LLM
@@ -293,46 +304,108 @@ class ChatAgent:
 
         # get conversation
         conversation = "\n".join([f"{message['role']}: {message['content']}" for message in state["messages"]])
-        if len(conversation) > 3000:
-            conversation = conversation[-3000:]  # keep the conversation short
+        if len(conversation) > 2000:
+            conversation = conversation[-2000:]  # keep the conversation short
         logger.info(f"\n{current_tool} Collect and create a new puzzle...")
 
+        # get example puzzles from database
+        example_puzzles = self.db.query(models.Puzzle).filter(models.Puzzle.is_working == True).all()
+
+        # Serialize each puzzle to JSON format to use it as examples in few shot prompt
+        puzzle_services = PuzzleServices(self.db)
+
+        serialized_examples = []
+
+        for puzzle in example_puzzles:
+            serialized = puzzle_services.serialize_puzzle(puzzle.id)
+            # Add metadata for context
+            serialized['name'] = puzzle.name
+            serialized['description'] = puzzle.description
+            serialized['game_mode'] = puzzle.game_mode
+            serialized_examples.append(serialized)
+
+        if not example_puzzles:
+            logger.error(f"Could not get example puzzles.")
 
         system_prompt = f"""
-                        You are a puzzle-generation agent.
-                        This are the puzzle rules {BASIC_RULES}
+            You are a Master Level Designer. Your goal is NOT just to generate valid JSON, but to extract puzzle data from the conversation and create a "Fun and Balanced" tactical puzzle.
 
-                        You MUST output a single JSON object that strictly conforms to the provided JSON Schema.
-
-                        Rules:
-                        - Output JSON only.
-                        - Do NOT include explanations, markdown, or commentary.
-                        - Do NOT include code fences.
-                        - Do NOT include trailing text.
-                        - The response must be directly parseable as JSON.
-                        - Add detail description what happens turn by turn in 'description'
-
+            ### What makes a puzzle fun?
+            1. **Trial-and-Error**: Obscures the one correct solution so that the player is forced to go through many possible paths like a chess player
+            2. **Dependencies**: All elements of the puzzle are pieces of the solution. Instead of creating isolated tasks in a puzzle, link them together.
+            3. **Flanking Routes**: Create main paths and side paths.
+            4. **Asymmetry**: Don't just mirror the map. Give the enemy the high ground or numbers advantage.
+            
+            ### Instructions
+            1. Extract puzzle data from the conversation
+            2. First, conceive a theme (e.g., "The Ambush", "The Bridge Defense").
+            3. Explain the intended strategy for the player in the 'description' field.
+            4. FINALLY, generate the nodes and units to match that strategy.
+            
+            ### Puzzle Rules
+            {BASIC_RULES}
+            1. This are the puzzle rules analyze them carefully.
+            2. find and develop special patterns to force the player to think like a chess player
+            3. Use them to generate a working puzzle based on this rules
                         
-                        If you cannot produce valid JSON, output an empty JSON object: {{}}
-
-                        Extract and return a JSON schema: {PuzzleLLMResponse}
-                        Core Schema Definitions: 
-                        {{
-                          "nodes": [NodeGenerate],
-                          "edges": [EdgeGenerate],
-                          "units": [UnitGenerate],
-                          "coins": int
-                          "description": str
-                        }}
-                        Return ONLY valid JSON, no explanations."""
+            if the user hasn't specified the game mode use 'skirmish' as default mode
+            You will create all nodes, edges, and paths for enemy units and player units.
+            Since the paths of the player units are also the solution of each puzzle, you must provide the puzzle with the solution (how to place and move player units).            
+            
+            ### Formating
+            You must always output valid JSON matching the PuzzleLLMResponse schema exactly.
+            
+            ### JSON Schema Definitions (TypeScript)
+            
+            interface PuzzleLLMResponse {{
+              name: string; // make up a name for the puzzle
+              nodes: NodeGenerate[];
+              edges: EdgeGenerate[];
+              units: UnitGenerate[];
+              coins: number;
+              description: string; // Describe moves in detail turn by turn. Use \\n for new paragraphs.
+            }}
+            
+            interface NodeGenerate {{
+              index: number;
+              x: number;
+              y: number;
+            }}
+            
+            interface EdgeGenerate {{
+              index: number; // Must be an integer
+              start: number; // Index of the start node
+              end: number;   // Index of the end node
+              // STRICTLY FORBIDDEN: Do NOT include 'x' or 'y' in edges.
+            }}
+            
+            interface UnitGenerate {{
+              type: string;
+              faction: string;
+              path: number[]; // List of node indices
+            }}
+            
+            ### Constraints
+            1. Return ONLY a valid JSON object conforming to the schema above.
+            2. Return no explanations, only raw JSON.
+            3. For Edges: strictly use keys 'index', 'start', 'end'. 
+            4. Do NOT use aliases like 'from', 'to', 'source', 'target'.
+            5. Do NOT include coordinates (x, y) in Edges.
+            6. Ensure each list is a JSON array ([...]), not an object with keys.
+            
+            ### Examples
+            {json.dumps(example_puzzles, indent=2)}
+            
+            These are example puzzles in JSON format. 
+            Use these examples as reference for structure and puzzle design patterns."""
 
         prompt = {
             "system_prompt": system_prompt,
-            "user_prompt": last_message.get("content"),
+            "user_prompt": conversation,
         }
 
         # Simple async call
-        puzzle_generated = type[BaseModel]
+        puzzle_generated = None
         try:
             logger.info(f"\n{current_tool} Calling LLM.structured() with PuzzleLLMResponse schema...")
             puzzle_generated = await llm.structured(prompt=prompt, schema=PuzzleLLMResponse)
@@ -344,7 +417,7 @@ class ChatAgent:
 
 
             puzzle_config = PuzzleCreate(
-                name="Generated Puzzle", # ToDo: generate puzzle name
+                name=puzzle_generated.name if puzzle_generated.name else "Generated Puzzle", # ToDo: generate puzzle name
                 model=self.model,
                 game_mode="Skirmish", # ToDo: collect game mode
                 coins=puzzle_generated.coins,
@@ -364,11 +437,10 @@ class ChatAgent:
                 self.session_services.add_puzzle_id(puzzle.id, session_id)
 
                 # Update state
-                logger.info("\nNew Puzzle created successfully (collect and create node). Puzzle ID: ", puzzle.id)
+                logger.info(f"\nNew Puzzle created successfully (collect and create node). Puzzle ID: {puzzle.id}")
 
                 # Add to tool result
-                tool_results.append(current_tool + str(puzzle_generated))
-                tool_results.append(current_tool + f"<br>Puzzle {puzzle.name} generated successfully")
+                tool_results.append(f"{current_tool} Puzzle {puzzle.name} generated successfully")
 
                 return {
                     "tool_result": tool_results,
@@ -377,8 +449,6 @@ class ChatAgent:
 
         except Exception as e:
             logger.error(f"{current_tool} Could not create a puzzle. Error: {e}")
-            puzzle_json = puzzle_generated.model_dump_json()
-            tool_results.append(current_tool + puzzle_json)
             tool_results.append(current_tool + f"Could not create a puzzle. Error: {e}")
 
             return {"tool_result": tool_results}
@@ -412,8 +482,7 @@ class ChatAgent:
                     "edge_count": number (optional, can be null),
                     "turns": number,
                     "units": [
-                        {{"type": "Grunt", "faction": "enemy", "count": 2}},
-                        {{"type": "Swordsman", "faction": "player", "count": 1}}
+                        {{"type": "Grunt" or "Swordsman", "faction": "enemy" or "player", "count": 2}},
                     ],
                     "description": "any additional instructions like a special wish from user"
                 }}
@@ -459,6 +528,12 @@ class ChatAgent:
         for key, info in response.items():
             if info is not None:
                 collected_info[key] = info
+                if key == "units":
+                    for unit in info:
+                        if unit.get("faction") == "player":
+                            has_player_unit = True
+                        if unit.get("faction") == "enemy":
+                            has_enemy_unit = True
 
         # check collected info:
         for key, info in collected_info.items():
@@ -466,14 +541,20 @@ class ChatAgent:
                 is_collected = False
                 missing_info.append(key)
 
+        if not has_player_unit:
+            missing_info.append("player unit")
+
+        if not has_enemy_unit:
+            missing_info.append("enemy unit")
+
         if missing_info:
-            logger.info(f"{current_tool} missing info", missing_info)
+            logger.info(f"{current_tool} missing info {missing_info}")
 
         # Generate Puzzle or ask user for more information
         tool_response = ""
-        if is_collected:
+        if is_collected and has_player_unit and has_enemy_unit:
             logger.info(f"\n{current_tool} All information collected!")
-            print(f"{current_tool} Collected info: ", collected_info)
+            print(f"{current_tool} Collected info: {collected_info}")
 
             try:
                 # convert to PuzzleGenerate schema
@@ -514,11 +595,11 @@ class ChatAgent:
             logger.info("\nfollowing infos are still missing: ")
             for info in missing_info:
                 logger.info(f"\t{info}")
-            tool_response = f"""{current_tool}: following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
+            tool_response = f"""{current_tool} following infos are still missing: {", ".join(missing_info)}. Ask user for missing information"""
 
         # debugging
         logger.info("\n****Current State (chat 2) ******\n")
-        logger.info("puzzle id: ", state.get("current_puzzle_id"))
+        logger.info(f"puzzle id: {state.get('current_puzzle_id')}")
 
         return {"tool_result": tool_response, "collected_info": collected_info}
 
@@ -558,13 +639,13 @@ class ChatAgent:
 
             else:
                 logger.info(f"tool result {result.get('tool_result')}")
-                return
+                return result
 
         except Exception as e:
             return {"tool_result": [f"{current_tool} Error while loading agent tool: {e}"]}
 
 
-    async def process(self, user_message: str, puzzle_json: json, puzzle_id: UUID) -> tuple[str, UUID | None]:
+    async def process(self, user_message: str, puzzle_json: str, puzzle_id: UUID) -> tuple[str, UUID | None]:
         """ Process user message and return response """
         current_tool = "ChatAgent.process:"
         logger.info(f"\n{current_tool} Process user message: {user_message}")
@@ -576,6 +657,21 @@ class ChatAgent:
             logger.info("Invoke agent graph")
             config = {"configurable": {"thread_id": str(self.session_id)}}
 
+            # get latest state SnapShot
+            logger.info("get puzzle current state")
+            current_puzzle = ""
+
+            state = await graph.aget_state(config)
+            logger.info("state_history loaded")
+
+            if state.values and "puzzle" in state.values:
+                if puzzle_json and puzzle_json != state.values["puzzle"]:
+                    current_puzzle = state.values["puzzle"]
+                else:
+                    logger.info(f"puzzle state updated.")
+                    current_puzzle = puzzle_json
+
+
             try:
                 # merging new user message into LangGraph state history
                 logger.info(f"{current_tool} Invoke graph...")
@@ -584,7 +680,7 @@ class ChatAgent:
                     "model": self.model,
                     "session_id": str(self.session_id),
                     "tool_result": [],
-                    "puzzle": puzzle_json,
+                    "puzzle": [current_puzzle] if current_puzzle else [],
                     "current_puzzle_id": puzzle_id,
                      },
                     config = config
@@ -610,8 +706,10 @@ class ChatAgent:
         Format final response from tool_result for user.
         if last used tool is chat return last message
         """
-        current_tool = "ChatAgent.format_response:"
+
+        current_tool = "format_response:"
         logger.info(f"\n\n{current_tool} Format final response from tool_result... ")
+        logger.info(f"Tool result: {state['tool_result']}")
         # if state.get("user_intent") == "chat" or state.get("user_intent") == "modify":
         #     logger.info(f"{current_tool} Chat intent - skipping format_response, using existing message")
         #     return
@@ -629,8 +727,26 @@ class ChatAgent:
 
         llm = get_llm(state["model"])
         system_prompt = f"""
-        You are an assistant who takes in a list of tool results {combined_results}
-        Use the {BASIC_RULES} to explain modification and requests. Don't use variable names. 
+        You are an assistant who summerized and explains the tool results to the user.
+        If there is a demand for more information just ask the user for the information.
+        If there is an error explain the user what just happened.
+        use the tool description just for your own understanding to explain an error better.
+        
+        ### TOOL DESCRIPTION ###
+        {TOOL_DESCRIPTION}
+        
+        ### LIST OF TOOL RESULTS ###
+        {combined_results}
+        
+        ### PUZZLE CONTEXT ###
+        {BASIC_RULES}
+        
+        ### CONSTRAINS
+        Do NOT explain puzzle rules in detail.
+        Do NOT explain the tools himself in detail.
+        Don't talk about 'the tools'
+        Keep the summerize clean and short.
+       
         """
 
         try:
@@ -638,16 +754,19 @@ class ChatAgent:
             logger.info("Send tools results to LLM...")
             prompt = {
                 "system_prompt": system_prompt,
-                "user_prompt": "Explain modification and requests. Do not explain game rules in detail",
+                "user_prompt": "Give back tool results in a clean understandable way.",
             }
 
             final_response = await llm.chat(prompt)
-            messages = [{"role": "assistant", "content": final_response}]
 
-            return {
-                "messages": messages,
-                "tool_result": [], # reset tool results
-                    }
+            if final_response:
+                logger.info(f"Return final tool result: {final_response}")
+
+                messages = [{"role": "assistant", "content": final_response}]
+                return {
+                    "messages": messages,
+                    "tool_result": [], # reset tool results
+                        }
 
         except Exception as e:
             logger.error(f"{current_tool} Error while generating LLM response: {e}")

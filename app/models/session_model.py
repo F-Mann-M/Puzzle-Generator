@@ -12,6 +12,7 @@ class Session(Base):
     topic_name = Column(String)
     puzzle_id = Column(UUID, ForeignKey("puzzles.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     puzzle = relationship("Puzzle", back_populates="sessions")
     messages = relationship("Message", back_populates="sessions", cascade="all, delete-orphan")

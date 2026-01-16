@@ -263,8 +263,7 @@ class PuzzleServices:
     # generate puzzle
     async def generate_puzzle(self, puzzle_config: PuzzleGenerate) -> PuzzleCreate | None:
         """ Generates a new puzzle from given config"""
-        TOOL = "Puzzle_services.generate_puzzle:"
-        logger.debug(f"{TOOL} Puzzle Config: ", puzzle_config)
+        logger.debug(f"Puzzle Config: ", puzzle_config)
 
         # get example puzzles from database
         example_puzzles = self.get_all_puzzle()
@@ -295,7 +294,10 @@ class PuzzleServices:
             )
 
             puzzle_generated = await llm.structured(prompts, PuzzleLLMResponse)
-            logger.debug("\n\nGenerated description: ", puzzle_generated.description)  # debugging
+
+            if not puzzle_generated:
+                logger.error(f"Failed to generate puzzle.", puzzle_generated.description)  # debugging
+                raise Exception("Puzzle generation failed")
 
             new_puzzle = PuzzleCreate(
                 name=puzzle_config.name,
@@ -310,7 +312,7 @@ class PuzzleServices:
             return new_puzzle
 
         except Exception as e:
-            logger.error(f"{TOOL} Error: {e}", exc_info=True)
+            logger.error(f"Error while generating a puzzle: {e}", exc_info=True)
             return None
 
 

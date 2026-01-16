@@ -44,6 +44,7 @@ class PuzzleGenerate(BaseModel):
 
 
 class PuzzleLLMResponse(BaseModel):
+    name: Optional[str]
     nodes: List[NodeGenerate]
     edges: List[EdgeGenerate]
     units: List[UnitGenerate]

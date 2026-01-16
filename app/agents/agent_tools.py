@@ -207,7 +207,7 @@ class AgentTools:
 
         except Exception as e:
             logger.error(f"{current_tool} Failed to update puzzle data: {e}")
-            return {"tool_result": [f"{current_tool}: Error: {e}"]}
+            return {"tool_result": [f"{current_tool} Error: {e}"]}
 
         # generate tool result message
         logger.info(f"Generate tool result:")

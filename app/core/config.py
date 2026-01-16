@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings): # load all key=value pairs from .env
     """ Load Keys"""
-    CHECKPOINTS_URL: str = f"{BASE_DIR / 'data' /'puzzle.db'}"
+    CHECKPOINTS_URL: str = f"{BASE_DIR / 'data' /'checkpointer.db'}"
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'data' / 'puzzle.db'}"
     OPENAI_KEY: str
     GEMINI_KEY: str

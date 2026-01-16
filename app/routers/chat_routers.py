@@ -7,6 +7,7 @@ from uuid import UUID
 import markdown
 from typing import Optional
 import logging
+import re # to convert LLM formated text
 
 from app import models
 from app.core.database import get_db
@@ -116,6 +117,8 @@ async def show_chat(request: Request, db: Session = Depends(get_db)):
 
     if all_sessions:
         lastest_session = services.get_latest_session()
+    else:
+        lastest_session = None
     return templates.TemplateResponse(
         "chat.html",
         {
@@ -174,7 +177,8 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
         if role == "user":
             message_html += f'<div class="user_message">{content}</div>'
         else:
-            message_content = markdown.markdown(content)
+            corrected_text = re.sub(r'^[ \t]{1,3}-', '    -', content, flags=re.MULTILINE)
+            message_content = markdown.markdown(corrected_text, extensions=['extra', 'sane_lists'])
             message_html += f'<div class="ai_response">{message_content}</div>'
 
     # Trigger refreshPuzzle to update editor when session is loaded
@@ -202,13 +206,13 @@ async def chat(
     services = SessionService(db)
     triggers = [] # checks for new puzzle or session to update sidebar and visualization
 
+
     # get or create new session (get id, create topic name, store in database)
     session_id = await services.get_or_create_session(
         session_id=chat_data.session_id,
         user_message=chat_data.content,
         model=chat_data.model,
     )
-    puzzle_json = None
 
     # check if current session has a puzzle ID
     puzzle_id = services.get_puzzle_id(session_id=session_id)
@@ -216,6 +220,7 @@ async def chat(
         logger.info(f"No puzzle found for session id '{session_id}'")
 
     # get serialized puzzle as LLM readable JSON
+    puzzle_json = None
     if session_id and puzzle_id:
         puzzle_json = await services.get_serialized_puzzle_json(
             session_id=session_id,
@@ -266,7 +271,8 @@ async def chat(
 
     # format llm response to proper html output
     logger.debug(f"{TOOL} Format the LLM response into a readable HTML format")
-    llm_response_html = markdown.markdown(llm_response)
+    corrected_text = re.sub(r'^[ \t]{1,3}-', '    -', llm_response, flags=re.MULTILINE)
+    llm_response_html = markdown.markdown(corrected_text, extensions=['extra', 'sane_lists'])
 
     # create and send HTML response
     logger.debug(f"{TOOL} Pass content to front-end...")
