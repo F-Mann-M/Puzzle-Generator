@@ -51,7 +51,7 @@ tr:hover {
 button {
     padding: 5px 10px;
     cursor: pointer;
-    border-radius: 5;
+    border-radius: 5px;
     background-color: #404040;
     color: #e0e0e0;
     border: 0px solid #555555;
@@ -719,4 +719,55 @@ select option {
 .markdown-content ul {
     list-style-type: disc;
     padding-left: 20px;
+}
+
+#thinking-indicator {
+    display: none; /* Hidden by default */
+    width: 100%;
+    text-align: center;
+    background: transparent !important; /* Override .ai_response background if needed */
+    padding: 10px 0 !important;
+    border: none !important; /* Remove any message borders */
+}
+
+#thinking-indicator img {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Ensure HTMX shows it correctly */
+.htmx-request#thinking-indicator,
+.htmx-request #thinking-indicator {
+    display: block !important;
+}
+
+#thinking-indicator img {
+    opacity: 0.6;
+}
+
+/* Ensure it only shows during request */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request #thinking-indicator,
+.htmx-request.htmx-indicator {
+    display: block !important;
+}
+
+/* HTMX exchange button while loading llm response */
+/* 1. Hide loading icon by default */
+#sendBtn .loading-icon {
+    display: none !important;
+}
+
+/* 2. When the FORM is submitting OR the BUTTON itself is the trigger */
+.htmx-request #sendBtn .default-icon,
+#sendBtn.htmx-request .default-icon {
+    display: none !important;
+}
+
+.htmx-request #sendBtn .loading-icon,
+#sendBtn.htmx-request .loading-icon {
+    display: inline-block !important;
 }

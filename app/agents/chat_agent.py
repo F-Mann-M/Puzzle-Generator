@@ -311,21 +311,23 @@ class ChatAgent:
         # get example puzzles from database
         example_puzzles = self.db.query(models.Puzzle).filter(models.Puzzle.is_working == True).all()
 
+        if not example_puzzles:
+            logger.error(f"Could not get example puzzles.")
+
         # Serialize each puzzle to JSON format to use it as examples in few shot prompt
         puzzle_services = PuzzleServices(self.db)
 
         serialized_examples = []
 
         for puzzle in example_puzzles:
-            serialized = puzzle_services.serialize_puzzle(puzzle.id)
-            # Add metadata for context
-            serialized['name'] = puzzle.name
-            serialized['description'] = puzzle.description
-            serialized['game_mode'] = puzzle.game_mode
-            serialized_examples.append(serialized)
+            puzzle_json = self.tools.serialize_puzzle_obj_for_llm(puzzle, self.model)
+            # # Add metadata for context
+            # serialized['name'] = puzzle.name
+            # serialized['description'] = puzzle.description
+            # serialized['game_mode'] = puzzle.game_mode
+            serialized_examples.append(puzzle_json)
 
-        if not example_puzzles:
-            logger.error(f"Could not get example puzzles.")
+
 
         system_prompt = f"""
             You are a Master Level Designer. Your goal is NOT just to generate valid JSON, but to extract puzzle data from the conversation and create a "Fun and Balanced" tactical puzzle.
@@ -394,7 +396,7 @@ class ChatAgent:
             6. Ensure each list is a JSON array ([...]), not an object with keys.
             
             ### Examples
-            {json.dumps(example_puzzles, indent=2)}
+            {serialized_examples}
             
             These are example puzzles in JSON format. 
             Use these examples as reference for structure and puzzle design patterns."""
@@ -444,7 +446,7 @@ class ChatAgent:
 
                 return {
                     "tool_result": tool_results,
-                    "current_puzzle_id": puzzle.id
+                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None
                         }
 
         except Exception as e:
@@ -681,7 +683,7 @@ class ChatAgent:
                     "session_id": str(self.session_id),
                     "tool_result": [],
                     "puzzle": [current_puzzle] if current_puzzle else [],
-                    "current_puzzle_id": puzzle_id,
+                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
                      },
                     config = config
                 )
