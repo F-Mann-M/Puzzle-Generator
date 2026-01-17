@@ -96,7 +96,7 @@ class AgentTools:
             logger.error(f"{current_tool} Error serialising puzzle: {e}")
 
 
-        # convert puzzle in to JSON
+        # convert puzzle into JSON
         try:
             logger.info(f"{current_tool} convert to JSON...")
             current_puzzle_json = json.dumps(current_puzzle)

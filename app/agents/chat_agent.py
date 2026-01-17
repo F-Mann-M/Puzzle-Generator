@@ -3,19 +3,15 @@ from typing import Annotated, List, TypedDict, Optional, Any
 from uuid import UUID
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
-from pydantic import BaseModel
-
 import json
 import logging
-
-from app import models
-from utils.logger_config import configure_logging
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
 
 # MemorySave works only for sync environment
 # therefor I use AsyncSqliteSaver to async store checkpoints
 # but this version is currently buggy
 import aiosqlite
-
 # --- START FIX: Monkey Patch aiosqlite ---
 # The new version of aiosqlite removed 'is_alive', but LangGraph still looks for it.
 # manually add it back so the code doesn't crash.
@@ -24,17 +20,17 @@ if not hasattr(aiosqlite.Connection, "is_alive"):
         return self._running
     aiosqlite.Connection.is_alive = is_alive
 # --- END FIX ---
-
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from app.models import Session
+from sqlalchemy.orm import Session
 from app.agents.agent_tools import AgentTools
-from app.llm.llm_manager import get_llm
 from app.services import PuzzleServices, SessionService
 from app.schemas import PuzzleCreate, PuzzleLLMResponse, PuzzleGenerate
 from app.prompts.prompt_game_rules import BASIC_RULES
 from app.core.config import settings
+from app import models
 
+load_dotenv()
 
 # get logger
 logger = logging.getLogger(__name__)
@@ -146,7 +142,7 @@ class ChatAgent:
               f"Puzzle: {bool(state.get('puzzle'))}\n")
 
         # Get llm
-        llm = get_llm(state["model"])
+        llm = init_chat_model(state["model"], model_provider="google_genai")
 
         last_message = state["messages"][-1] if state["messages"] else ""
 
@@ -181,26 +177,32 @@ class ChatAgent:
                          f"{intent_chat}\n"
                          f"{intent_create}")
 
-
         system_prompt = f"""You are an intent classifier. Analyse user's massage and classify his intent.
         Return ONLY one word: {intention}
         If something is unclear, return 'chat' to clarify."""
         # ALWAYS prefer 'modifiy' over 'create', 'create' over 'generate' and 'generate' over 'chat'.
 
-        prompt = {
-            "system_prompt": system_prompt,
-            "user_prompt": last_message.get("content"),
-        }
+        prompt = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": last_message.get("content")}
+        ]
 
         # Simple async call
-        logger.info("Analyse user's massage and classify his intent...")
-        intent = await llm.chat(prompt)
-        logger.info(f"\nLLM has classifies user intention: {intent}")
+        try:
+            logger.info("Analyse user's massage and classify his intent...")
+            response = await llm.ainvoke(prompt)
+            intent = response.content
 
-        return {
-            "user_intent": intent.lower(),
-            "tool_result": [], # make sure tool result is reseted
-                }
+            return {
+                "user_intent": intent.lower(),
+                "tool_result": [],  # make sure tool result is reseted
+            }
+
+        except Exception as e:
+            logger.error(f"Error while classifying intent:  {e}")
+            return {"tool_result": [f"Error while classifying intent: {e}"]}
+
+
 
 
     async def _intent(self, state: AgentState) -> str:
@@ -211,8 +213,6 @@ class ChatAgent:
     async def _chat(self, state: AgentState) -> AgentState:
         """ handel ongoing chat"""
         current_tool = "Chat_agent.chat:"
-        # Get llm
-        llm = get_llm(state["model"])
 
         # get puzzle state
         puzzle_context = state.get("puzzle")
@@ -263,13 +263,17 @@ class ChatAgent:
             User the conversation above to generate an ongoing chat.
             """)
 
-        prompt = {"system_prompt": system_prompt, "user_prompt": last_message}
+        prompt = [{"role": "system", "content": system_prompt,},{"role": "user", "content": last_message}]
+
+        # Get llm
+        llm = init_chat_model(state["model"], model_provider="google_genai")
+
 
         # Get LLM response
         logger.info("loading ai response...")
 
         try:
-            llm_response = await llm.chat(prompt)
+            llm_response = await llm.ainvoke(prompt)
             final_response = ""
             if llm_response:
                 logger.info("loading ai response successfully")
@@ -298,7 +302,7 @@ class ChatAgent:
         tool_results = state.get("tool_result")
 
         # Get LLM
-        llm = get_llm(state["model"])
+        llm = init_chat_model(state["model"], model_provider="google_genai")
 
         last_message = state["messages"][-1] if state["messages"] else ""
 
@@ -321,30 +325,24 @@ class ChatAgent:
 
         for puzzle in example_puzzles:
             puzzle_json = self.tools.serialize_puzzle_obj_for_llm(puzzle, self.model)
-            # # Add metadata for context
-            # serialized['name'] = puzzle.name
-            # serialized['description'] = puzzle.description
-            # serialized['game_mode'] = puzzle.game_mode
             serialized_examples.append(puzzle_json)
 
-
-
         system_prompt = f"""
-            You are a Master Level Designer. Your goal is NOT just to generate valid JSON, but to extract puzzle data from the conversation and create a "Fun and Balanced" tactical puzzle.
+            You are a Master Level Designer. Your goal is NOT just to generate valid JSON, but to extract puzzle data from the conversation and create a 'Fun and Balanced' tactical puzzle.
 
-            ### What makes a puzzle fun?
+            ### What makes a puzzle fun? ###
             1. **Trial-and-Error**: Obscures the one correct solution so that the player is forced to go through many possible paths like a chess player
             2. **Dependencies**: All elements of the puzzle are pieces of the solution. Instead of creating isolated tasks in a puzzle, link them together.
             3. **Flanking Routes**: Create main paths and side paths.
             4. **Asymmetry**: Don't just mirror the map. Give the enemy the high ground or numbers advantage.
             
-            ### Instructions
+            ### Instructions ###
             1. Extract puzzle data from the conversation
             2. First, conceive a theme (e.g., "The Ambush", "The Bridge Defense").
             3. Explain the intended strategy for the player in the 'description' field.
             4. FINALLY, generate the nodes and units to match that strategy.
             
-            ### Puzzle Rules
+            ### Puzzle Rules ###
             {BASIC_RULES}
             1. This are the puzzle rules analyze them carefully.
             2. find and develop special patterns to force the player to think like a chess player
@@ -401,16 +399,18 @@ class ChatAgent:
             These are example puzzles in JSON format. 
             Use these examples as reference for structure and puzzle design patterns."""
 
-        prompt = {
-            "system_prompt": system_prompt,
-            "user_prompt": conversation,
-        }
+        prompt = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": conversation},
+        ]
 
         # Simple async call
         puzzle_generated = None
+
         try:
             logger.info(f"\n{current_tool} Calling LLM.structured() with PuzzleLLMResponse schema...")
-            puzzle_generated = await llm.structured(prompt=prompt, schema=PuzzleLLMResponse)
+            puzzle_generated_llm = llm.with_structured_output(PuzzleLLMResponse)
+            puzzle_generated = await puzzle_generated_llm.ainvoke(prompt)
 
             if puzzle_generated is None:
                 raise Exception("LLM raise None for structured data")
@@ -446,7 +446,7 @@ class ChatAgent:
 
                 return {
                     "tool_result": tool_results,
-                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None
+                    "current_puzzle_id": str(puzzle.id) if puzzle.id else None
                         }
 
         except Exception as e:
@@ -470,7 +470,6 @@ class ChatAgent:
             conversation = conversation[-3000:]  # keep the conversation short
        
 
-
         logger.info(f"{current_tool} Collect info: get conversation and extract information from it...")
         system_prompt = f"""Extract puzzle generation parameters from this conversation:
                 {conversation}
@@ -492,18 +491,19 @@ class ChatAgent:
                 description is optional
                 Return ONLY valid JSON, no explanations."""
 
-        llm = get_llm(state["model"])
-        prompt = {
-            "system_prompt": system_prompt,
-            "user_prompt": last_message.get("content"),
-        }
+        llm = init_chat_model(state["model"], model_provider="google_genai")
+        prompt = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": last_message.get("content")}
+        ]
 
         # Simple async call
         logger.info(f"\n {current_tool}LLM Response collects info...")
-        llm_response = await llm.chat(prompt)
+        llm_response = await llm.ainvoke(prompt)
+        llm_response_str = llm_response.content
 
         # Clean the string to remove markdown backticks
-        clean_json_string = llm_response.replace("```json", "").replace("```", "").strip()
+        clean_json_string = llm_response_str.replace("```json", "").replace("```", "").strip()
 
         # Convert string to Python dict
         response = json.loads(clean_json_string)
@@ -523,7 +523,6 @@ class ChatAgent:
             }
 
         is_collected = True
-        # todo: check if there is at least one player and one enemy unit
         has_enemy_unit = False
         has_player_unit = False
         missing_info = []
@@ -531,6 +530,7 @@ class ChatAgent:
             if info is not None:
                 collected_info[key] = info
                 if key == "units":
+                    # check if there is at least 1 player and one enemy unit
                     for unit in info:
                         if unit.get("faction") == "player":
                             has_player_unit = True
@@ -712,9 +712,6 @@ class ChatAgent:
         current_tool = "format_response:"
         logger.info(f"\n\n{current_tool} Format final response from tool_result... ")
         logger.info(f"Tool result: {state['tool_result']}")
-        # if state.get("user_intent") == "chat" or state.get("user_intent") == "modify":
-        #     logger.info(f"{current_tool} Chat intent - skipping format_response, using existing message")
-        #     return
 
         # get tool result
         tool_result = state.get("tool_result")
@@ -727,7 +724,7 @@ class ChatAgent:
         combined_results = "".join(tool_result)
         logger.info(f"\n{current_tool} Join all tool results: {combined_results}")
 
-        llm = get_llm(state["model"])
+        llm = init_chat_model(state["model"], model_provider="google_genai")
         system_prompt = f"""
         You are an assistant who summerized and explains the tool results to the user.
         If there is a demand for more information just ask the user for the information.
@@ -754,12 +751,12 @@ class ChatAgent:
         try:
             # get tool_result summery from LLM
             logger.info("Send tools results to LLM...")
-            prompt = {
-                "system_prompt": system_prompt,
-                "user_prompt": "Give back tool results in a clean understandable way.",
-            }
+            prompt = [
+                {"role": "system", "content" : system_prompt},
+                {"role": "user", "content": "Give back tool results in a clean understandable way."},
+            ]
 
-            final_response = await llm.chat(prompt)
+            final_response = await llm.ainvoke(prompt)
 
             if final_response:
                 logger.info(f"Return final tool result: {final_response}")

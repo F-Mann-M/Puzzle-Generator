@@ -241,6 +241,7 @@ async def chat(
         puzzle_id=puzzle_id,
     )
 
+
     if llm_response:
         logger.debug(f"{TOOL} Received response from agent graph and pass it to database")
 
