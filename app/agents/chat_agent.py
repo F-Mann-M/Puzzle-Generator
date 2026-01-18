@@ -142,7 +142,10 @@ class ChatAgent:
               f"Puzzle: {bool(state.get('puzzle'))}\n")
 
         # Get llm
-        llm = init_chat_model(state["model"], model_provider="google_genai")
+        llm = init_chat_model(
+            state["model"],
+            model_provider="google_genai" if state["model"].startswith("gemini") else None
+        )
 
         last_message = state["messages"][-1] if state["messages"] else ""
 
@@ -266,7 +269,10 @@ class ChatAgent:
         prompt = [{"role": "system", "content": system_prompt,},{"role": "user", "content": last_message}]
 
         # Get llm
-        llm = init_chat_model(state["model"], model_provider="google_genai")
+        llm = init_chat_model(
+            state["model"],
+            model_provider="google_genai" if state["model"].startswith("gemini") else None
+        )
 
 
         # Get LLM response
@@ -302,7 +308,10 @@ class ChatAgent:
         tool_results = state.get("tool_result")
 
         # Get LLM
-        llm = init_chat_model(state["model"], model_provider="google_genai")
+        llm = init_chat_model(
+            state["model"],
+            model_provider="google_genai" if state["model"].startswith("gemini") else None
+        )
 
         last_message = state["messages"][-1] if state["messages"] else ""
 
@@ -491,7 +500,11 @@ class ChatAgent:
                 description is optional
                 Return ONLY valid JSON, no explanations."""
 
-        llm = init_chat_model(state["model"], model_provider="google_genai")
+        llm = init_chat_model(
+            state["model"],
+            model_provider="google_genai" if state["model"].startswith("gemini") else None
+        )
+
         prompt = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": last_message.get("content")}
@@ -703,6 +716,65 @@ class ChatAgent:
                 return f"process: Error while graph processing: {e}", None
 
 
+    async def process_streaming(self, user_message: str, puzzle_json: str, puzzle_id: UUID) -> tuple[str, UUID | None]:
+        """ Process user message and return response """
+        current_tool = "ChatAgent.process:"
+        logger.info(f"\n{current_tool} Process user message: {user_message}")
+
+
+        # Process with graph
+        async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
+            graph = self.workflow.compile(checkpointer=checkpointer)
+            logger.info("Invoke agent graph")
+            config = {"configurable": {"thread_id": str(self.session_id)}}
+
+            # get latest state SnapShot
+            logger.info("get puzzle current state")
+            current_puzzle = ""
+
+            state = await graph.aget_state(config)
+            logger.info("state_history loaded")
+
+            if state.values and "puzzle" in state.values:
+                if puzzle_json and puzzle_json != state.values["puzzle"]:
+                    current_puzzle = state.values["puzzle"]
+                else:
+                    logger.info(f"puzzle state updated.")
+                    current_puzzle = puzzle_json
+
+            # state input
+            inputs = {
+                "messages": [{"role": "user", "content": user_message}],
+                "model": self.model,
+                "session_id": str(self.session_id),
+                "tool_result": [],
+                "puzzle": [current_puzzle] if current_puzzle else [],
+                "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
+                 },
+
+            # Stream Events
+            logger.info(f"{current_tool} start streaming...")
+            async for event in graph.astream_events(inputs, config, version="v2"): # 'v2' ensures compatibility with newer LangGraph versions
+                # todo: check what events will be streamd from agent tools/ chat agent
+                kind = event["event"]
+
+                # Give back Node Transitions (Reasoning Steps)
+                if kind == "on_chain_start" and event["name"] == "LangGraph":
+                    yield '<div class="agent-status">Thinking...</div>'
+
+                elif kind == "on_tool_start":
+                    yield f'<div class="agent-status">🛠️ Using tool: {event["name"]}...</div>'
+
+                # Streaming Tokens
+                elif kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
+                    if content:
+                        # Yield raw text tokens formatted for HTML (replace newlines)
+                        yield content.replace("\n", "<br>")
+
+
+
+
     async def format_response(self, state: AgentState) -> AgentState:
         """
         Format final response from tool_result for user.
@@ -724,7 +796,11 @@ class ChatAgent:
         combined_results = "".join(tool_result)
         logger.info(f"\n{current_tool} Join all tool results: {combined_results}")
 
-        llm = init_chat_model(state["model"], model_provider="google_genai")
+        llm = init_chat_model(
+            state["model"],
+            model_provider="google_genai" if state["model"].startswith("gemini") else None
+        )
+
         system_prompt = f"""
         You are an assistant who summerized and explains the tool results to the user.
         If there is a demand for more information just ask the user for the information.

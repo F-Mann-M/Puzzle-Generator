@@ -132,3 +132,50 @@ document.addEventListener('DOMContentLoaded', function() {
 
     resizer.addEventListener('mousedown', mouseDownHandler);
 });
+
+
+// handel Streaming Updates ///
+async function handleChatSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+
+    // 1. DYNAMIC TARGET: Read the selector from the HTML attribute
+    const targetSelector = form.getAttribute("data-target");
+    const chatContainer = document.querySelector(targetSelector);
+
+    if (!chatContainer) {
+        console.error(`Target element ${targetSelector} not found`);
+        return;
+    }
+
+    const formData = new FormData(form);
+    const input = form.querySelector("#user-input"); // Find input inside this specific form
+    const jsonBody = JSON.stringify(Object.fromEntries(formData));
+
+    // Clear input
+    if (input) input.value = "";
+
+    try {
+        const response = await fetch("/puzzles/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: jsonBody
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+
+            // 2. Stream to the dynamic target
+            chatContainer.insertAdjacentHTML('beforeend', chunk);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+    } catch (error) {
+        console.error("Stream error:", error);
+    }
+}

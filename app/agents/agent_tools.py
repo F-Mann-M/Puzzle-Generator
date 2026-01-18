@@ -1,7 +1,8 @@
 import json
 from langgraph.types import Command
 from langgraph.graph import END
-from deepdiff import DeepDiff
+from langchain.chat_models import init_chat_model
+from deepdiff import DeepDiff # to check differences in changed puzzles
 from app.prompts.prompt_game_rules import BASIC_RULES
 from app.schemas import PuzzleGenerate, PuzzleCreate
 
@@ -161,7 +162,10 @@ class AgentTools:
         puzzle_json = await self.serialize_puzzle_obj_for_llm(puzzle, model)
 
         # update existing puzzle
-        llm = get_llm(model)
+        llm = init_chat_model(
+            model,
+            model_provider="google_genai" if model.startswith("gemini") else None
+        )
         system_prompt = f"""
         You are an assistant who extracts puzzle modification parameters from this message.
         
@@ -185,11 +189,15 @@ class AgentTools:
         
         Return ONLY a valid JSON object conforming to this Pydantic schema: {PuzzleCreate}
         """
-        prompt = {"system_prompt": system_prompt, "user_prompt": message}
+        prompt = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message}
+        ]
 
         logger.info(f"{current_tool} Extracting data from user message and modifying existing puzzle data...")
         try:
-            updated_puzzle_data = await llm.structured(prompt=prompt, schema=PuzzleCreate)
+            updated_puzzle_llm = llm.with_structured_output(PuzzleCreate)
+            updated_puzzle_data = await updated_puzzle_llm.ainvoke(prompt)
             if not updated_puzzle_data:
                 logger.error(f"{current_tool} Failed to generate modified puzzle data")
                 raise Exception("Failed to generate modified puzzle data")
@@ -214,7 +222,7 @@ class AgentTools:
         puzzle_updated_json = await self.serialize_puzzle_obj_for_llm(puzzle_updated, model)
         if not puzzle_updated_json:
             logger.error(f"{current_tool} convert to json failed")
-            return {"tool_result": [f"{current_tool}: Error: {e}"]}
+            return {"tool_result": [f"{current_tool}: convert to json failed"]}
 
         ## compare puzzles and extract changes
         try:
@@ -256,8 +264,12 @@ class AgentTools:
             Use the puzzle rules to understand what has changed and how this effects the puzzle.
             List in brief bullet points what has been changed and how it affects the puzzle.
             """
-            summary_prompt = {"system_prompt": system_prompt_summary, "user_prompt": puzzle_changes}
-            tool_summary = await llm.chat(summary_prompt)
+            summary_prompt = [
+                {"role": "system", "content": system_prompt_summary},
+                {"role": "system", "content": puzzle_changes}
+            ]
+
+            tool_summary = await llm.ainvoke(summary_prompt)
             if not tool_summary:
                 raise Exception(f"{current_tool} Failed to generate summary data: ")
 
@@ -270,7 +282,7 @@ class AgentTools:
 
         except Exception as e:
             logger.error(f"{current_tool} Failed to generate tool response: {e}")
-            return {"tool_result": [f"{current_tool}: Error: {e}"]}
+            return {"tool_result": [f"{current_tool}: Failed to generate tool response: {e}"]}
 
 
     def ensure_uuid(self, val):
