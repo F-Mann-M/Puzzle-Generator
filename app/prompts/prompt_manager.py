@@ -101,7 +101,7 @@ async def get_puzzle_generation_prompt(
         """
         ),
         "user_prompt": (f"""
-        # User Prompt: Generate Puzzle Scenario
+        # Generate Puzzle Scenario
         
         You are to create a new puzzle following all the rules and schema definitions provided in the system prompt.
         Make sure the puzzle works. It outcome have to follow puzzle rules and and game mode.

@@ -205,7 +205,13 @@ async def chat(
     services = SessionService(db)
 
     # Check if new session started
-    is_new_session = not chat_data.session_id or str(chat_data.session_id).strip() == ""
+    is_new_session = None
+    try:
+        is_new_session = not chat_data.session_id or str(chat_data.session_id).strip() == ""
+        logger.info(f"is_new_session: {is_new_session}")
+    except Exception as e:
+        logger.error(f"Exception: {e}")
+
 
     # get or create new session (get id, create topic name, store in database)
     session_id = await services.get_or_create_session(
@@ -213,37 +219,79 @@ async def chat(
         user_message=chat_data.content,
         model=chat_data.model,
     )
+    logger.info(f"session_id: {session_id}")
+
 
     # check if current session has a puzzle and puzzle context
-    puzzle_id = services.get_puzzle_id(session_id=session_id)
-    if not puzzle_id:
-        logger.debug(f"No puzzle found for session id '{session_id}'")
+
     puzzle_json = None
-    if session_id and puzzle_id:
+    if session_id:
         puzzle_json = await services.get_serialized_puzzle_json(
             session_id=session_id,
             model=chat_data.model)
         if puzzle_json:
             logger.debug(f"Puzzle JSON loaded ({len(str(puzzle_json))} chars)")
         else:
-            logger.warning(f"Puzzle JSON is EMPTY for Session {session_id} / Puzzle {puzzle_id}")
+            logger.warning(f"Puzzle JSON is EMPTY for Session {session_id}")
 
      # Initialize agent
     agent = ChatAgent(db, session_id=str(session_id), model=chat_data.model)
 
     async def response_generator():
-        # UI update
+        logger.info(f"Chat response generator starting...")
+        # UI/Chat update
         # Yield user message
+        yield f'<div class="user_message">{chat_data.content}</div>'
 
         # if it's a new session update hidden input on chat.html 'session_id_input'
+        yield f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
 
         # Yield AI Message
+        yield f'<div class="ai_response">' # open streaming div
 
-        # Stream Agend reasoning
+        # Stream Agent reasoning in chunks
+        puzzle_id = services.get_puzzle_id(session_id=session_id)
+        logger.info(f"puzzle_id: {puzzle_id}")
+        if not puzzle_id:
+            logger.debug(f"No puzzle found for session id '{session_id}'")
+
+        async for chunk in agent.process_streaming(
+                user_message=chat_data.content,
+                puzzle_json=puzzle_json,
+                puzzle_id=puzzle_id,
+        ):
+            yield chunk
 
         # close html div (bubble)
-        pass
+        yield f'</div>'
 
+        # postprocessing to trigger refresh sidebar and puzzle editor.
+
+        triggers = []
+
+        # Refresh Puzzle always check for new puzzle
+        # todo: check for changes to ONLY refrech when puzzle context have changed
+        current_puzzle_id = services.get_puzzle_id(session_id)
+        if current_puzzle_id:
+            triggers.append("refreshPuzzle")
+
+        # Sidebar Refresh (New Session OR Topic Change)
+        topic_changed = False
+        if current_puzzle_id:
+            # Check if title needs updating (Agent might have renamed puzzle)
+            topic_changed = await services.update_session_title(
+                puzzle_id=current_puzzle_id,
+                session_id=session_id,
+            )
+
+        if is_new_session or topic_changed:
+            triggers.append("refreshSidebar")
+
+        # loop through triggers and yield a script tag for each
+        for trigger in triggers:
+            yield f'<script>htmx.trigger("body", "{trigger}");</script>'
+
+    return StreamingResponse(response_generator(), media_type="text/html")
 
 
 

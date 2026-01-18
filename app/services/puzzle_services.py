@@ -1,10 +1,11 @@
 from app import models
+from langchain.chat_models import init_chat_model
 from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4, UUID
 import logging
-from utils.logger_config import configure_logging
+
 
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
 from app.llm import get_llm
@@ -281,7 +282,11 @@ class PuzzleServices:
                     serialized_examples.append(serialized)
 
 
-            llm = get_llm(puzzle_config.model)
+            llm = init_chat_model(
+                puzzle_config.model,
+                model_provider="google_genai" if puzzle_config.model.startswith("gemini") else None
+            )
+
             prompts = await get_puzzle_generation_prompt(
                 example_puzzles=serialized_examples,
                 db=self.db,
@@ -293,7 +298,13 @@ class PuzzleServices:
                 description=puzzle_config.description,
             )
 
-            puzzle_generated = await llm.structured(prompts, PuzzleLLMResponse)
+            messages = [
+                {"role": "system", "content": prompts["system_prompt"]},
+                {"role": "user", "content": prompts["user_prompt"]},
+            ]
+
+            structured_llm = llm.with_structured_output(PuzzleLLMResponse)
+            puzzle_generated = structured_llm.ainvoke(messages)
 
             if not puzzle_generated:
                 logger.error(f"Failed to generate puzzle.", puzzle_generated.description)  # debugging

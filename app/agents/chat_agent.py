@@ -718,7 +718,7 @@ class ChatAgent:
 
     async def process_streaming(self, user_message: str, puzzle_json: str, puzzle_id: UUID) -> tuple[str, UUID | None]:
         """ Process user message and return response """
-        current_tool = "ChatAgent.process:"
+        current_tool = "process_streaming:"
         logger.info(f"\n{current_tool} Process user message: {user_message}")
 
 
@@ -750,27 +750,88 @@ class ChatAgent:
                 "tool_result": [],
                 "puzzle": [current_puzzle] if current_puzzle else [],
                 "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
-                 },
+                 }
 
             # Stream Events
             logger.info(f"{current_tool} start streaming...")
+            yield """<details class="reasoning-block" open style="background: #f9f9f9; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-size: 0.9em; color: #555;">
+                <summary style="cursor: pointer; font-weight: bold; margin-bottom: 5px;">Thinking Process...</summary>
+                <div class="reasoning-content" style="margin-left: 10px;">"""
+
+            is_answering = False # False as long node is not final node
+            final_nodes = ["chat", "format_response"]
+
             async for event in graph.astream_events(inputs, config, version="v2"): # 'v2' ensures compatibility with newer LangGraph versions
                 # todo: check what events will be streamd from agent tools/ chat agent
                 kind = event["event"]
+                node_name = event.get("metadata").get("langgraph_node_name")
+                logger.info(f"node_name: {node_name}")
+                # example event
+                # {
+                #     "event": "on_chat_model_stream",
+                #     "name": "ChatOpenAI",
+                #     "run_id": "84378f4b-2d7c-4734-8c12-34567890abcdef",
+                #     "tags": ["seq:step:1"],
+                #     "metadata": {
+                #         "langgraph_step": 1,
+                #         "langgraph_node": "chat",
+                #         "langgraph_triggers": ["start:intent"],
+                #         "ls_provider": "openai",
+                #         "ls_model_name": "gpt-4o-mini"
+                #     },
+                #     "data": {
+                #         "chunk": {
+                #             "content": "Hello",
+                #             "additional_kwargs": {},
+                #             "response_metadata": {},
+                #             "type": "AIMessageChunk",
+                #             "id": "run-84378f4b-..."
+                #         }
+                #     },
+                #     "parent_ids": ["..."]
+                # }
 
-                # Give back Node Transitions (Reasoning Steps)
+                node_name = event.get("metadata", {}).get("langgraph_node", "")
+
+                # 2. Status Updates (Reasoning)
+                # We yield these INSIDE the <details> block
                 if kind == "on_chain_start" and event["name"] == "LangGraph":
                     yield '<div class="agent-status">Thinking...</div>'
 
-                elif kind == "on_tool_start":
-                    yield f'<div class="agent-status">🛠️ Using tool: {event["name"]}...</div>'
+                elif kind == "on_node_start" and node_name and node_name != "LangGraph":
+                    # Show which step of the agent is running
+                    yield f'<div class="agent-status">Step: {node_name}...</div>'
 
-                # Streaming Tokens
+                elif kind == "on_tool_start":
+                    yield f'<div class="agent-status" style="color: #007bff;">🛠️ Using tool: {event["name"]}...</div>'
+
+                # 3. Stream Tokens (Text)
                 elif kind == "on_chat_model_stream":
                     content = event["data"]["chunk"].content
                     if content:
-                        # Yield raw text tokens formatted for HTML (replace newlines)
-                        yield content.replace("\n", "<br>")
+                        # CRITICAL CHECK: Is this token part of the FINAL ANSWER?
+                        # Or is it just internal JSON generation (which we want to hide)?
+                        if node_name in final_nodes:
+                            # If this is the FIRST token of the final answer:
+                            if not is_answering:
+                                # Close the reasoning block and start the answer block
+                                yield '</div></details><div class="final-answer" style="margin-top: 10px;">'
+                                is_answering = True
+
+                            # Stream the token
+                            yield content.replace("\n", "<br>")
+                        else:
+                            # This is internal generation (e.g., 'intent', 'collect_info', 'create_puzzle')
+                            # We ignore these tokens so they don't leak into the chat.
+                            pass
+
+                # 4. Cleanup
+            if not is_answering:
+                # If we never started answering (e.g. error or empty response), close the details block
+                yield '</div></details>'
+            else:
+                # Close the final answer div
+                yield '</div>'
 
 
 

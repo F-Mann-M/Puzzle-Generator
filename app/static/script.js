@@ -134,48 +134,67 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-// handel Streaming Updates ///
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chat-form');
+
+    // Attach the listener here instead of in HTML
+    if (chatForm) {
+        chatForm.addEventListener('submit', handleChatSubmit);
+    }
+});
+
+
+
+
 async function handleChatSubmit(event) {
-    event.preventDefault();
+    event.preventDefault(); // 1. Stop standard form submit immediately
+
     const form = event.target;
+    const formData = new FormData(form);
+    const chatContainer = document.getElementById("chat-container");
+    const input = document.getElementById("user-input");
 
-    // 1. DYNAMIC TARGET: Read the selector from the HTML attribute
-    const targetSelector = form.getAttribute("data-target");
-    const chatContainer = document.querySelector(targetSelector);
-
-    if (!chatContainer) {
-        console.error(`Target element ${targetSelector} not found`);
-        return;
+    // --- FIX: Prevent Empty Requests ---
+    const content = formData.get("content");
+    if (!content || content.trim() === "") {
+        console.log("Empty message prevented");
+        return; // Stop here if there is no text
     }
 
-    const formData = new FormData(form);
-    const input = form.querySelector("#user-input"); // Find input inside this specific form
     const jsonBody = JSON.stringify(Object.fromEntries(formData));
 
-    // Clear input
-    if (input) input.value = "";
+    // 2. Clear input immediately so user can type again
+    input.value = "";
 
     try {
         const response = await fetch("/puzzles/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json"
+            },
             body: jsonBody
         });
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
+        // 3. Loop to read the stream
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
+
+            // Decode chunk and append to chat
             const chunk = decoder.decode(value, { stream: true });
 
-            // 2. Stream to the dynamic target
+            // Insert HTML chunk directly into the chat window
             chatContainer.insertAdjacentHTML('beforeend', chunk);
+
+            // 4. Auto-scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
     } catch (error) {
         console.error("Stream error:", error);
+        chatContainer.insertAdjacentHTML('beforeend', '<div class="error">Error generating response</div>');
     }
 }
