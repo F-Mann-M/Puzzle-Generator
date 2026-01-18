@@ -246,43 +246,47 @@ class AgentTools:
 
             logger.info(f"{current_tool} Extracted changes: {puzzle_changes}")
 
+            return {"tool_result": [f"Puzzle updated successfully. Changes:\n{puzzle_changes}"]}
+
         except Exception as e:
             logger.error(f"{current_tool} Failed to extract changes: {e}")
             return {"tool_result": [f"{current_tool} Failed to extract changes: {e}"]}
 
-        logger.info(f"{current_tool} Generating tool response...")
-        try:
-            system_prompt_summary = f"""
-            
-            ### OLD PUZZLE CONTEXT ###
-                {puzzle_json}
-                
-            ### PUZZLE RULES ###
-                {BASIC_RULES}
-             
-            You are an assistant who compares the old puzzle data from above with this changes. 
-            Use the puzzle rules to understand what has changed and how this effects the puzzle.
-            List in brief bullet points what has been changed and how it affects the puzzle.
-            """
-            summary_prompt = [
-                {"role": "system", "content": system_prompt_summary},
-                {"role": "system", "content": puzzle_changes}
-            ]
 
-            tool_summary = await llm.ainvoke(summary_prompt)
-            if not tool_summary:
-                raise Exception(f"{current_tool} Failed to generate summary data: ")
 
-            logger.info(f"{current_tool} Generated tool response: \n{tool_summary}")
-            message = [{"role": "assistant", "content": tool_summary}]
-            return Command(
-                update={"messages":  message},
-                goto=END
-            )
-
-        except Exception as e:
-            logger.error(f"{current_tool} Failed to generate tool response: {e}")
-            return {"tool_result": [f"{current_tool}: Failed to generate tool response: {e}"]}
+        # logger.info(f"{current_tool} Generating tool response...")
+        # try:
+        #     system_prompt_summary = f"""
+        #
+        #     ### OLD PUZZLE CONTEXT ###
+        #         {puzzle_json}
+        #
+        #     ### PUZZLE RULES ###
+        #         {BASIC_RULES}
+        #
+        #     You are an assistant who compares the old puzzle data from above with this changes.
+        #     Use the puzzle rules to understand what has changed and how this effects the puzzle.
+        #     List in brief bullet points what has been changed and how it affects the puzzle.
+        #     """
+        #     summary_prompt = [
+        #         {"role": "system", "content": system_prompt_summary},
+        #         {"role": "system", "content": puzzle_changes}
+        #     ]
+        #
+        #     tool_summary = await llm.ainvoke(summary_prompt)
+        #     if not tool_summary:
+        #         raise Exception(f"{current_tool} Failed to generate summary data: ")
+        #
+        #     logger.info(f"{current_tool} Generated tool response: \n{tool_summary}")
+        #     message = [{"role": "assistant", "content": tool_summary}]
+        #     return Command(
+        #         update={"messages":  message},
+        #         goto=END
+        #     )
+        #
+        # except Exception as e:
+        #     logger.error(f"{current_tool} Failed to generate tool response: {e}")
+        #     return {"tool_result": [f"{current_tool}: Failed to generate tool response: {e}"]}
 
 
     def ensure_uuid(self, val):

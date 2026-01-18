@@ -771,3 +771,88 @@ select option {
 #sendBtn.htmx-request .loading-icon {
     display: inline-block !important;
 }
+
+/* --- Reasoning / Thinking Block --- */
+.reasoning-block {
+    background-color: #2b2b2b;
+    border: 1px solid #444;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    overflow: hidden;
+    font-size: 0.9rem;
+}
+
+.reasoning-summary {
+    background-color: #333;
+    color: #e0e0e0;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-weight: 600;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.reasoning-summary:hover {
+    background-color: #3e3e3e;
+}
+
+.reasoning-content {
+    padding: 15px;
+    color: #cccccc;
+    font-family: 'Consolas', 'Monaco', monospace; /* Code-like font */
+    font-size: 0.85em;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #222;
+}
+
+/* --- Internal Agent Steps (Inside Reasoning) --- */
+.agent-step {
+    color: #64B5F6; /* Light Blue */
+    margin-top: 8px;
+    font-weight: bold;
+}
+
+.agent-tool {
+    color: #FFD54F; /* Amber */
+    margin-left: 5px;
+}
+
+.tool-result {
+    color: #aaa;
+    font-style: italic;
+    margin-left: 15px;
+    border-left: 3px solid #555;
+    padding-left: 10px;
+    margin-top: 4px;
+    white-space: pre-wrap; /* Preserve formatting in JSON/Logs */
+}
+
+.internal-thought {
+    opacity: 0.7;
+    color: #fff;
+}
+
+/* --- Final Answer (The Chat Message) --- */
+.final-answer {
+    margin-top: 15px;
+    color: #fff; /* Or black, depending on your theme */
+    font-family: sans-serif;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+/* Markdown Styling for Final Answer */
+.final-answer p { margin-bottom: 10px; }
+.final-answer ul, .final-answer ol { margin-left: 20px; margin-bottom: 10px; }
+.final-answer li { margin-bottom: 5px; }
+.final-answer strong { color: #fff; font-weight: 700; }
+.final-answer code {
+    background: #333;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+}

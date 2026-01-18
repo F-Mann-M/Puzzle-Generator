@@ -7,6 +7,7 @@ import json
 import logging
 from langchain.chat_models import init_chat_model
 from dotenv import load_dotenv
+import uuid
 import re
 import markdown
 
@@ -730,6 +731,10 @@ class ChatAgent:
             logger.info("Invoke agent graph")
             config = {"configurable": {"thread_id": str(self.session_id)}}
 
+
+            # generate id for reasoning
+            reasoning_id = f"reasoning-{uuid.uuid4()}"
+
             # get latest state SnapShot
             logger.info("get puzzle current state")
             current_puzzle = ""
@@ -754,59 +759,82 @@ class ChatAgent:
                 "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
                  }
 
-            # Stream Events
-            logger.info(f"{current_tool} start streaming...")
-            yield """<details class="reasoning-block" open style="background: transparent; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-size: 0.9em; color: white;">
-                <summary style="cursor: pointer; font-weight: bold; margin-bottom: 5px;">
-                Thinking Process <img src="../static/llm_loading.gif" height="15" width="45"></summary>
-                <div class="reasoning-content" style="margin-left: 10px;">"""
+            # --- 1. Clean HTML Structure with CSS Classes ---
+            yield f"""
+                        <details class="reasoning-block" open>
+                            <summary class="reasoning-summary">
+                             Thinking Process (Click to toggle)
+                            </summary>
+                            <div id="{reasoning_id}" class="reasoning-content"></div>
+                        </details>
+                        <div id="final-answer-container" class="final-answer">
+                        """
 
-            is_answering = False # False as long node is not final node
+            is_answering = False
             final_nodes = ["chat", "format_response"]
 
-            async for event in graph.astream_events(inputs, config, version="v2"): # 'v2' ensures compatibility with newer LangGraph versions
-                # todo: check what events will be streamd from agent tools/ chat agent
+            async for event in graph.astream_events(inputs, config, version="v2"):
                 kind = event["event"]
-                node_name = event.get("metadata", {}).get("langgraph_node", "")
+                meta = event.get("metadata", {})
+                node_name = meta.get("langgraph_node", "")
 
-                # status Updates (Reasoning)
+                append_html = ""
+
+                # --- Status Updates (Reasoning) ---
                 if kind == "on_chain_start" and event["name"] == "LangGraph":
-                    yield '<div class="agent-status">Thinking...</div>'
+                    append_html = '<div class="agent-step">▶ Starting Agent...</div>'
 
                 elif kind == "on_node_start" and node_name and node_name != "LangGraph":
-                    # Show which step of the agent is running
-                    yield f'<div class="agent-status">Step: {node_name}...</div>'
+                    append_html = f'<div class="agent-step">Step: {node_name}</div>'
 
                 elif kind == "on_tool_start":
-                    yield f'<div class="agent-status" style="color: #007bff;">Using tool: {event["name"]}...</div>'
+                    append_html = f'<div class="agent-tool">🛠️ Using tool: {event["name"]}</div>'
 
-                #  Stream Tokens
+                elif kind == "on_tool_end":
+                    output = str(event.get("data", {}).get("output"))
+                    if len(output) > 200: output = output[:200] + "..."
+                    safe_output = output.replace('"', '&quot;').replace("'", "&#39;")
+                    append_html = f'<div class="tool-result">Result: {safe_output}</div>'
+
+                # --- Inject Reasoning HTML via Script ---
+                if append_html:
+                    safe_html = append_html.replace("`", "\\`")
+                    yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{safe_html}`);</script>'
+
+                # --- Streaming Final Answer ---
                 elif kind == "on_chat_model_stream":
                     content = event["data"]["chunk"].content
-                    corrected_content = re.sub(r'^[ \t]{1,3}-', '    -', content, flags=re.MULTILINE)
-                    html_content = markdown.markdown(corrected_content, extensions=['extra', 'sane_lists'])
 
                     if content:
                         if node_name in final_nodes:
-                            if not is_answering:
-                                # Close the reasoning block and start the answer block
-                                yield '</div></details><div class="final-answer" style="margin-top: 10px;">'
-                                is_answering = True
-
-                            # Stream the token
-                            yield html_content.replace("\n", "<br>")
+                            is_answering = True
+                            # Simple formatting for stream: just newlines
+                            yield content.replace("\n", "<br>")
                         else:
-                            # This is internal generation (e.g., 'intent', 'collect_info', 'create_puzzle')
-                            pass
+                            # Internal thoughts -> Reasoning
+                            safe_content = content.replace("`", "\\`")
+                            span_html = f'<span class="internal-thought">{safe_content}</span>'
+                            yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{span_html}`);</script>'
 
+            # --- Final Fallback with Full Markdown ---
             if not is_answering:
-                # If never started answering close the details block
-                yield '</div></details>'
-            else:
-                # Close the final answer div
-                yield '</div>'
+                final_state = await graph.aget_state(config)
+                last_msg = None
+                if final_state.values and "messages" in final_state.values:
+                    last_msg = final_state.values["messages"][-1]
 
+                content = ""
+                if last_msg:
+                    content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content")
 
+                if content:
+                    # RENDER MARKDOWN HERE for better look
+                    html_content = markdown.markdown(content, extensions=['extra', 'sane_lists'])
+                    yield html_content
+                else:
+                    yield '<div class="error">No response generated.</div>'
+
+            yield '</div>'  # Close container
 
 
     async def format_response(self, state: AgentState) -> AgentState:
@@ -837,9 +865,10 @@ class ChatAgent:
 
         system_prompt = f"""
         You are an assistant who summerized and explains the tool results to the user.
-        If there is a demand for more information just ask the user for the information.
-        If there is an error explain the user what just happened.
-        use the tool description just for your own understanding to explain an error better.
+        - if there a puzzle modifications explain what is changed and how it effects the puzzle
+        - If there is a demand for more information just ask the user for the information.
+        - If there is an error explain the user what just happened.
+        - use the tool description just for your own understanding to explain an error better.
         
         ### TOOL DESCRIPTION ###
         {TOOL_DESCRIPTION}

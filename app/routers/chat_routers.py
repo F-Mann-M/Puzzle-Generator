@@ -232,9 +232,12 @@ async def chat(
 
 
     # check if current session has a puzzle and puzzle context
-
+    puzzle_id = services.get_puzzle_id(session_id=session_id)
+    logger.info(f"puzzle_id: {puzzle_id}")
+    if not puzzle_id:
+        logger.debug(f"No puzzle found for session id '{session_id}'")
     puzzle_json = None
-    if session_id:
+    if session_id and puzzle_id:
         puzzle_json = await services.get_serialized_puzzle_json(
             session_id=session_id,
             model=chat_data.model)
@@ -259,10 +262,7 @@ async def chat(
         yield f'<div class="ai_response">' # open streaming div
 
         # Stream Agent reasoning in chunks
-        puzzle_id = services.get_puzzle_id(session_id=session_id)
-        logger.info(f"puzzle_id: {puzzle_id}")
-        if not puzzle_id:
-            logger.debug(f"No puzzle found for session id '{session_id}'")
+
 
         async for chunk in agent.process_streaming(
                 user_message=chat_data.content,
@@ -279,7 +279,7 @@ async def chat(
         triggers = []
 
         # Refresh Puzzle always check for new puzzle
-        # todo: check for changes to ONLY refrech when puzzle context have changed
+        # todo: check for changes to ONLY refresh when puzzle context have changed
         current_puzzle_id = services.get_puzzle_id(session_id)
         if current_puzzle_id:
             triggers.append("refreshPuzzle")
