@@ -333,7 +333,7 @@ class ChatAgent:
         serialized_examples = []
 
         for puzzle in example_puzzles:
-            puzzle_json = self.tools.serialize_puzzle_obj_for_llm(puzzle, self.model)
+            puzzle_json = await self.tools.serialize_puzzle_obj_for_llm(puzzle, self.model)
             serialized_examples.append(puzzle_json)
 
         system_prompt = f"""
@@ -764,8 +764,7 @@ class ChatAgent:
             async for event in graph.astream_events(inputs, config, version="v2"): # 'v2' ensures compatibility with newer LangGraph versions
                 # todo: check what events will be streamd from agent tools/ chat agent
                 kind = event["event"]
-                node_name = event.get("metadata").get("langgraph_node_name")
-                logger.info(f"node_name: {node_name}")
+
                 # example event
                 # {
                 #     "event": "on_chat_model_stream",
