@@ -172,7 +172,16 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
     for message in state_history:
         # Access by key because LangGraph history uses dicts or message objects
         role = message.get("role") if isinstance(message, dict) else message.type
-        content = message.get("content") if isinstance(message, dict) else message.content
+        raw_content = message.get("content") if isinstance(message, dict) else message.content
+
+
+        if hasattr(raw_content, "content"):
+            # If it's an AIMessage object, get the text
+            content = raw_content.content
+        else:
+            # Otherwise treat as string
+            content = str(raw_content) if raw_content else ""
+
 
         if role == "user":
             message_html += f'<div class="user_message">{content}</div>'
@@ -189,7 +198,7 @@ async def get_session(session_id: UUID, db: Session = Depends(get_db), response:
 
 
 # Chat
-@router.post("/chat", response_class=HTMLResponse)
+@router.post("/chat")
 async def chat(
     chat_data: ChatFromRequest = Body(...),  # parse from JSON body
     db: Session = Depends(get_db),
@@ -274,6 +283,8 @@ async def chat(
         current_puzzle_id = services.get_puzzle_id(session_id)
         if current_puzzle_id:
             triggers.append("refreshPuzzle")
+        if not current_puzzle_id:
+            logger.info(f"No puzzle found for session id '{session_id}'")
 
         # Sidebar Refresh (New Session OR Topic Change)
         topic_changed = False
@@ -292,61 +303,6 @@ async def chat(
             yield f'<script>htmx.trigger("body", "{trigger}");</script>'
 
     return StreamingResponse(response_generator(), media_type="text/html")
-
-
-
-    # # Process message through agent and get response message
-    # llm_response, current_puzzle_id = await agent.process(
-    #     user_message=chat_data.content,
-    #     puzzle_json=puzzle_json,
-    #     puzzle_id=puzzle_id,
-    # )
-    #
-    #
-    # if llm_response:
-    #     logger.debug(f"Received response from agent graph and pass it to database")
-    #
-    # # check for puzzle updates and update visualization to trigger HTMX
-    # topic_changed = False
-    # if current_puzzle_id:
-    #     logger.debug(f"Current puzzle id: ", current_puzzle_id)
-    #     triggers.append("refreshPuzzle")
-    #     logger.debug(f"refresh puzzle editor")
-    #     topic_changed = await services.update_session_title(
-    #         puzzle_id=current_puzzle_id,
-    #         session_id=session_id,
-    #     )
-    #
-    # # If a new session is created refresh sidebar to add new session to list of sessions
-    # is_new_session = not chat_data.session_id or str(chat_data.session_id).strip() == "" # means: new session was just created
-    # logger.debug(f"is_new_session: ", is_new_session)
-    # if topic_changed or is_new_session:
-    #     triggers.append("refreshSidebar")
-    #     logger.debug(f"efresh sidebar")
-    # else:
-    #     logger.debug(f"No new session")
-    #
-    #
-    # # fire the events (HTMX)
-    # logger.debug(f"fire triggers: ", triggers)
-    # response.headers["HX-Trigger"] = ", ".join(triggers)
-    #
-    # # format llm response to proper html output
-    # logger.debug(f"Format the LLM response into a readable HTML format")
-    # corrected_text = re.sub(r'^[ \t]{1,3}-', '    -', llm_response, flags=re.MULTILINE)
-    # llm_response_html = markdown.markdown(corrected_text, extensions=['extra', 'sane_lists'])
-    #
-    # # create and send HTML response
-    # logger.debug(f"ass content to front-end...")
-    # user_msg = f'<div class="user_message">{chat_data.content}</div>'
-    # ai_msg = f'<div class="ai_response">{llm_response_html}</div>'
-    #
-    # # Update session_id in the hidden input
-    # session_script = f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
-    #
-    # html_response = HTMLResponse(content=user_msg + ai_msg + session_script)
-    # html_response.headers["HX-Trigger"] = "refreshPuzzle"
-    # return html_response
 
 
 # delete session

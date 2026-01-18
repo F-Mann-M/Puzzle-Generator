@@ -42,7 +42,7 @@ document.body.addEventListener('htmx:afterSettle', function(event) {
         const sessionInput = document.getElementById('session_id_input');
 
         if (chatContainer) {
-            chatContainer.innerHTML = '<div class="ai_response"><strong>Rudolfo:</strong> Hello! How can I help you?</div>';
+            chatContainer.innerHTML = '<div class="ai_response"> Hello! How can I help you?</div>';
         }
 
         if (sessionInput) {
@@ -147,49 +147,58 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 async function handleChatSubmit(event) {
-    event.preventDefault(); // 1. Stop standard form submit immediately
+    event.preventDefault();
 
     const form = event.target;
     const formData = new FormData(form);
     const chatContainer = document.getElementById("chat-container");
     const input = document.getElementById("user-input");
 
-    // --- FIX: Prevent Empty Requests ---
     const content = formData.get("content");
     if (!content || content.trim() === "") {
-        console.log("Empty message prevented");
-        return; // Stop here if there is no text
+        return;
     }
 
     const jsonBody = JSON.stringify(Object.fromEntries(formData));
-
-    // 2. Clear input immediately so user can type again
     input.value = "";
 
     try {
         const response = await fetch("/puzzles/chat", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: jsonBody
         });
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
-        // 3. Loop to read the stream
+        // Regex to find <script> tags in the stream
+        const scriptRegex = /<script>(.*?)<\/script>/g;
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            // Decode chunk and append to chat
-            const chunk = decoder.decode(value, { stream: true });
+            let chunk = decoder.decode(value, { stream: true });
 
-            // Insert HTML chunk directly into the chat window
+            // 1. Extract and Execute Scripts (Fixes triggers & session_id)
+            let match;
+            while ((match = scriptRegex.exec(chunk)) !== null) {
+                try {
+                    // Execute the script content (e.g., htmx.trigger)
+                    // We use (1, eval) to execute in global scope
+                    (1, eval)(match[1]);
+                    console.log("Executed stream script:", match[1]);
+                } catch (e) {
+                    console.error("Error executing script from stream:", e);
+                }
+            }
+
+            // 2. Remove scripts from HTML (to avoid clutter/re-execution issues)
+            chunk = chunk.replace(scriptRegex, "");
+
+            // 3. Insert the rest of the HTML (The Chat Message)
             chatContainer.insertAdjacentHTML('beforeend', chunk);
-
-            // 4. Auto-scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 

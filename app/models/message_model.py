@@ -9,7 +9,7 @@ class Message(Base):
     __tablename__ = "messages"
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(UUID, ForeignKey("sessions.id"), nullable=False)
-    role = Column(String, nullable=False) # Goetz (user), Rudolfo (assistant), Adelheid (assistant)
+    role = Column(String, nullable=False)
     content = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 

@@ -7,6 +7,8 @@ import json
 import logging
 from langchain.chat_models import init_chat_model
 from dotenv import load_dotenv
+import re
+import markdown
 
 # MemorySave works only for sync environment
 # therefor I use AsyncSqliteSaver to async store checkpoints
@@ -283,7 +285,7 @@ class ChatAgent:
             final_response = ""
             if llm_response:
                 logger.info("loading ai response successfully")
-                final_response = llm_response
+                final_response = llm_response.content
             else:
                 final_response = f"Ups! Something went wrong 😅 <br> Could not load the AI response from {state.get('model')}"
 
@@ -716,7 +718,7 @@ class ChatAgent:
                 return f"process: Error while graph processing: {e}", None
 
 
-    async def process_streaming(self, user_message: str, puzzle_json: str, puzzle_id: UUID) -> tuple[str, UUID | None]:
+    async def process_streaming(self, user_message: str, puzzle_json: str, puzzle_id: UUID):
         """ Process user message and return response """
         current_tool = "process_streaming:"
         logger.info(f"\n{current_tool} Process user message: {user_message}")
@@ -754,8 +756,9 @@ class ChatAgent:
 
             # Stream Events
             logger.info(f"{current_tool} start streaming...")
-            yield """<details class="reasoning-block" open style="background: #f9f9f9; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-size: 0.9em; color: #555;">
-                <summary style="cursor: pointer; font-weight: bold; margin-bottom: 5px;">Thinking Process...</summary>
+            yield """<details class="reasoning-block" open style="background: transparent; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-size: 0.9em; color: white;">
+                <summary style="cursor: pointer; font-weight: bold; margin-bottom: 5px;">
+                Thinking Process <img src="../static/llm_loading.gif" height="15" width="45"></summary>
                 <div class="reasoning-content" style="margin-left: 10px;">"""
 
             is_answering = False # False as long node is not final node
@@ -764,36 +767,9 @@ class ChatAgent:
             async for event in graph.astream_events(inputs, config, version="v2"): # 'v2' ensures compatibility with newer LangGraph versions
                 # todo: check what events will be streamd from agent tools/ chat agent
                 kind = event["event"]
-
-                # example event
-                # {
-                #     "event": "on_chat_model_stream",
-                #     "name": "ChatOpenAI",
-                #     "run_id": "84378f4b-2d7c-4734-8c12-34567890abcdef",
-                #     "tags": ["seq:step:1"],
-                #     "metadata": {
-                #         "langgraph_step": 1,
-                #         "langgraph_node": "chat",
-                #         "langgraph_triggers": ["start:intent"],
-                #         "ls_provider": "openai",
-                #         "ls_model_name": "gpt-4o-mini"
-                #     },
-                #     "data": {
-                #         "chunk": {
-                #             "content": "Hello",
-                #             "additional_kwargs": {},
-                #             "response_metadata": {},
-                #             "type": "AIMessageChunk",
-                #             "id": "run-84378f4b-..."
-                #         }
-                #     },
-                #     "parent_ids": ["..."]
-                # }
-
                 node_name = event.get("metadata", {}).get("langgraph_node", "")
 
-                # 2. Status Updates (Reasoning)
-                # We yield these INSIDE the <details> block
+                # status Updates (Reasoning)
                 if kind == "on_chain_start" and event["name"] == "LangGraph":
                     yield '<div class="agent-status">Thinking...</div>'
 
@@ -802,31 +778,29 @@ class ChatAgent:
                     yield f'<div class="agent-status">Step: {node_name}...</div>'
 
                 elif kind == "on_tool_start":
-                    yield f'<div class="agent-status" style="color: #007bff;">🛠️ Using tool: {event["name"]}...</div>'
+                    yield f'<div class="agent-status" style="color: #007bff;">Using tool: {event["name"]}...</div>'
 
-                # 3. Stream Tokens (Text)
+                #  Stream Tokens
                 elif kind == "on_chat_model_stream":
                     content = event["data"]["chunk"].content
+                    corrected_content = re.sub(r'^[ \t]{1,3}-', '    -', content, flags=re.MULTILINE)
+                    html_content = markdown.markdown(corrected_content, extensions=['extra', 'sane_lists'])
+
                     if content:
-                        # CRITICAL CHECK: Is this token part of the FINAL ANSWER?
-                        # Or is it just internal JSON generation (which we want to hide)?
                         if node_name in final_nodes:
-                            # If this is the FIRST token of the final answer:
                             if not is_answering:
                                 # Close the reasoning block and start the answer block
                                 yield '</div></details><div class="final-answer" style="margin-top: 10px;">'
                                 is_answering = True
 
                             # Stream the token
-                            yield content.replace("\n", "<br>")
+                            yield html_content.replace("\n", "<br>")
                         else:
                             # This is internal generation (e.g., 'intent', 'collect_info', 'create_puzzle')
-                            # We ignore these tokens so they don't leak into the chat.
                             pass
 
-                # 4. Cleanup
             if not is_answering:
-                # If we never started answering (e.g. error or empty response), close the details block
+                # If never started answering close the details block
                 yield '</div></details>'
             else:
                 # Close the final answer div
@@ -895,9 +869,9 @@ class ChatAgent:
             final_response = await llm.ainvoke(prompt)
 
             if final_response:
-                logger.info(f"Return final tool result: {final_response}")
+                logger.info(f"Return final tool result: {final_response.content}")
 
-                messages = [{"role": "assistant", "content": final_response}]
+                messages = [{"role": "assistant", "content": final_response.content}]
                 return {
                     "messages": messages,
                     "tool_result": [], # reset tool results
