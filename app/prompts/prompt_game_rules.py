@@ -66,9 +66,26 @@ state 'exhausted': 0 points
 state 'normal': 1 point
 state 'exhausted': 0 points
 
-##Mob
-infinite points
-formed when two or more player units share the same path segment simultaneously
+
+## Mob (Cooperative Movement)
+
+### 1. Definition
+A "Mob" is a special unit state formed when **two or more player units** travel along the **same path edge** simultaneously during a round.
+
+### 2. Formation Logic & Timing
+* **Meeting on a Node:** If units arrive at the same node from different directions, they remain **separate**. No Mob is formed, and no extra cost is paid.
+* **Moving Together:** A Mob is formed **only at the start of the next round**, specifically when multiple units leave a shared node to travel the same path edge together.
+
+### 3. Costs
+* **Activation Cost:** **1 Coin per round**.
+* **Duration:** This cost applies automatically at the start of every round where the units continue to move as a Mob.
+
+### 4. Status & Effects
+* **Infinite Stamina:** A Mob is **never exhausted**. It ignores all standard exhaustion rules while formed.
+* **Disbanding:** The Mob persists until the units' paths diverge to different nodes.
+* **Exit State:** When a unit leaves a Mob (diverges), it returns to **Normal Status**. It does **NOT** become exhausted upon leaving.
+
+Exit Status: When a unit leaves the Mob (diverges), it returns to normal status. It does NOT become exhausted upon leaving.
 
 ##Exhaustion
 After winning a battle, surviving units become 'exhausted' for one turn.
