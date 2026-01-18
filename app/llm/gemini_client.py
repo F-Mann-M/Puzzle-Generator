@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-API_KEY = settings.GEMINI_KEY
+API_KEY = settings.GOOGLE_API_KEY
 
 class GeminiClient:
     def __init__(self, model_name="gemini-2.5-flash"):
