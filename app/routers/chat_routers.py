@@ -251,19 +251,14 @@ async def chat(
 
     async def response_generator():
         logger.info(f"Chat response generator starting...")
-        # UI/Chat update
-        # Yield user message
+
+        # 1. Yield user message
         yield f'<div class="user_message">{chat_data.content}</div>'
 
-        # if it's a new session update hidden input on chat.html 'session_id_input'
+        # 2. Update session ID
         yield f'<script>document.getElementById("session_id_input").value = "{session_id}";</script>'
 
-        # Yield AI Message
-        yield f'<div class="ai_response">' # open streaming div
-
-        # Stream Agent reasoning in chunks
-
-
+        # 3. Stream Agent Response (REMOVED the .ai_response wrapper here)
         async for chunk in agent.process_streaming(
                 user_message=chat_data.content,
                 puzzle_json=puzzle_json,
@@ -271,11 +266,7 @@ async def chat(
         ):
             yield chunk
 
-        # close html div (bubble)
-        yield f'</div>'
-
-        # postprocessing to trigger refresh sidebar and puzzle editor.
-
+        # 4. Triggers (Keep as is)
         triggers = []
 
         # Refresh Puzzle always check for new puzzle

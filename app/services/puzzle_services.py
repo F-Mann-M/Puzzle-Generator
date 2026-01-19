@@ -8,7 +8,6 @@ import logging
 
 
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
-from app.llm import get_llm
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
 
 logger = logging.getLogger(__name__)
@@ -304,7 +303,7 @@ class PuzzleServices:
             ]
 
             structured_llm = llm.with_structured_output(PuzzleLLMResponse)
-            puzzle_generated = structured_llm.ainvoke(messages)
+            puzzle_generated = await structured_llm.ainvoke(messages)
 
             if not puzzle_generated:
                 logger.error(f"Failed to generate puzzle.", puzzle_generated.description)  # debugging

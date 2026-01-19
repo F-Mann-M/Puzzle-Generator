@@ -28,8 +28,8 @@ class PuzzleCreate(BaseModel):
 # Data sent from user to LLM
 class PuzzleGenerate(BaseModel):
     name: str
-    model: str
-    game_mode: str
+    model: Optional[str]
+    game_mode: Optional[str]
     node_count: Optional[int]
     edge_count: Optional[int]
     turns: Optional[int]

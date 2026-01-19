@@ -187,7 +187,7 @@ a:hover {
     background-color: #1a1a1a;
     color: #e0e0e0;
     line-height: 25px;
-    border-radius: 5px;
+    border: none;
 }
 
 .user_message {
@@ -809,7 +809,7 @@ select option {
     background-color: #222;
 }
 
-/* --- Internal Agent Steps (Inside Reasoning) --- */
+/*Internal Agent Steps (Inside Reasoning) */
 .agent-step {
     color: #64B5F6; /* Light Blue */
     margin-top: 8px;

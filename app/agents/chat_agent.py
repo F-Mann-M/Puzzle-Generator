@@ -734,107 +734,114 @@ class ChatAgent:
 
             # generate id for reasoning
             reasoning_id = f"reasoning-{uuid.uuid4()}"
+            final_content_id = f"final-{uuid.uuid4()}"
 
-            # get latest state SnapShot
-            logger.info("get puzzle current state")
-            current_puzzle = ""
+            # Setup Graph
+            async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
+                graph = self.workflow.compile(checkpointer=checkpointer)
+                config = {"configurable": {"thread_id": str(self.session_id)}}
 
-            state = await graph.aget_state(config)
-            logger.info("state_history loaded")
+                # load states
+                state = await graph.aget_state(config)
+                current_puzzle = ""
+                if state.values and "puzzle" in state.values:
+                    if puzzle_json and puzzle_json != state.values["puzzle"]:
+                        current_puzzle = state.values["puzzle"]
+                    else:
+                        current_puzzle = puzzle_json
 
-            if state.values and "puzzle" in state.values:
-                if puzzle_json and puzzle_json != state.values["puzzle"]:
-                    current_puzzle = state.values["puzzle"]
-                else:
-                    logger.info(f"puzzle state updated.")
-                    current_puzzle = puzzle_json
+                inputs = {
+                    "messages": [{"role": "user", "content": user_message}],
+                    "model": self.model,
+                    "session_id": str(self.session_id),
+                    "tool_result": [],
+                    "puzzle": [current_puzzle] if current_puzzle else [],
+                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
+                }
 
-            # state input
-            inputs = {
-                "messages": [{"role": "user", "content": user_message}],
-                "model": self.model,
-                "session_id": str(self.session_id),
-                "tool_result": [],
-                "puzzle": [current_puzzle] if current_puzzle else [],
-                "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
-                 }
-
-            # --- 1. Clean HTML Structure with CSS Classes ---
-            yield f"""
-                        <details class="reasoning-block" open>
-                            <summary class="reasoning-summary">
-                             Thinking Process (Click to toggle)
-                            </summary>
-                            <div id="{reasoning_id}" class="reasoning-content"></div>
-                        </details>
-                        <div id="final-answer-container" class="final-answer">
+                # steam html chunks
+                yield f"""
+                        <div class="ai_response">
+                            <details class="reasoning-block" open>
+                                <summary class="reasoning-summary">
+                                    Thinking Process (Click to toggle)
+                                </summary>
+                                <div id="{reasoning_id}" class="reasoning-content"></div>
+                            </details>
+                            <div id="{final_content_id}" class="final-answer"></div>
+                        </div>
                         """
 
-            is_answering = False
-            final_nodes = ["chat", "format_response"]
+                is_answering = False
+                final_nodes = ["chat", "format_response"]
 
-            async for event in graph.astream_events(inputs, config, version="v2"):
-                kind = event["event"]
-                meta = event.get("metadata", {})
-                node_name = meta.get("langgraph_node", "")
+                async for event in graph.astream_events(inputs, config, version="v2"):
+                    kind = event["event"]
+                    meta = event.get("metadata", {})
+                    node_name = meta.get("langgraph_node", "")
 
-                append_html = ""
+                    append_html = ""
 
-                # --- Status Updates (Reasoning) ---
-                if kind == "on_chain_start" and event["name"] == "LangGraph":
-                    append_html = '<div class="agent-step">▶ Starting Agent...</div>'
+                    # status update
+                    if kind == "on_chain_start" and event["name"] == "LangGraph":
+                        append_html = '<div class="agent-step">▶ Starting Agent...</div>'
 
-                elif kind == "on_node_start" and node_name and node_name != "LangGraph":
-                    append_html = f'<div class="agent-step">Step: {node_name}</div>'
+                    ## show current node
+                    elif kind == "on_node_start" and node_name and node_name != "LangGraph":
+                        append_html = f'<div class="agent-step">Step: {node_name}</div>'
 
-                elif kind == "on_tool_start":
-                    append_html = f'<div class="agent-tool">🛠️ Using tool: {event["name"]}</div>'
+                    ## show event
+                    elif kind == "on_tool_start":
+                        append_html = f'<div class="agent-tool">Using tool: {event["name"]}</div>'
 
-                elif kind == "on_tool_end":
-                    output = str(event.get("data", {}).get("output"))
-                    if len(output) > 200: output = output[:200] + "..."
-                    safe_output = output.replace('"', '&quot;').replace("'", "&#39;")
-                    append_html = f'<div class="tool-result">Result: {safe_output}</div>'
 
-                # --- Inject Reasoning HTML via Script ---
-                if append_html:
-                    safe_html = append_html.replace("`", "\\`")
-                    yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{safe_html}`);</script>'
+                    elif kind == "on_tool_end":
+                        output = str(event.get("data", {}).get("output"))
+                        if len(output) > 200: output = output[:200] + "..."
+                        safe_output = output.replace('"', '&quot;').replace("'", "&#39;")
+                        append_html = f'<div class="tool-result">Result: {safe_output}</div>'
 
-                # --- Streaming Final Answer ---
-                elif kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
+                    ## status reasoning
+                    if append_html:
+                        safe_html = append_html.replace("`", "\\`")
+                        yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{safe_html}`);</script>'
+
+                    ## streaming content
+                    elif kind == "on_chat_model_stream":
+                        content = event["data"]["chunk"].content
+
+                        if content:
+                            safe_content = content.replace("`", "\\`").replace("${", "\\${")
+
+                            if node_name in final_nodes:
+                                is_answering = True
+
+                                # Stream directly into Final Answer div via Script
+                                formatted_content = safe_content.replace("\n", "<br>")
+                                yield f'<script>document.getElementById("{final_content_id}").insertAdjacentHTML("beforeend", `{formatted_content}`);</script>'
+                            else:
+                                # Internal thoughts -> Reasoning Block
+                                span_html = f'<span class="internal-thought">{safe_content}</span>'
+                                yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{span_html}`);</script>'
+
+                # final block (formated)
+                if not is_answering:
+                    final_state = await graph.aget_state(config)
+                    last_msg = None
+                    if final_state.values and "messages" in final_state.values:
+                        last_msg = final_state.values["messages"][-1]
+
+                    content = ""
+                    if last_msg:
+                        content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content")
 
                     if content:
-                        if node_name in final_nodes:
-                            is_answering = True
-                            # Simple formatting for stream: just newlines
-                            yield content.replace("\n", "<br>")
-                        else:
-                            # Internal thoughts -> Reasoning
-                            safe_content = content.replace("`", "\\`")
-                            span_html = f'<span class="internal-thought">{safe_content}</span>'
-                            yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{span_html}`);</script>'
-
-            # --- Final Fallback with Full Markdown ---
-            if not is_answering:
-                final_state = await graph.aget_state(config)
-                last_msg = None
-                if final_state.values and "messages" in final_state.values:
-                    last_msg = final_state.values["messages"][-1]
-
-                content = ""
-                if last_msg:
-                    content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content")
-
-                if content:
-                    # RENDER MARKDOWN HERE for better look
-                    html_content = markdown.markdown(content, extensions=['extra', 'sane_lists'])
-                    yield html_content
-                else:
-                    yield '<div class="error">No response generated.</div>'
-
-            yield '</div>'  # Close container
+                        # Render nice markdown for the final result
+                        html_content = markdown.markdown(content, extensions=['extra', 'sane_lists'])
+                        safe_html = html_content.replace("`", "\\`")
+                        yield f'<script>document.getElementById("{final_content_id}").innerHTML = `{safe_html}`;</script>'
+                    else:
+                        yield f'<script>document.getElementById("{final_content_id}").innerHTML = `<div class="error">No response generated.</div>`;</script>'
 
 
     async def format_response(self, state: AgentState) -> AgentState:
