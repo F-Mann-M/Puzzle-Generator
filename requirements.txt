@@ -1,20 +1,27 @@
+# Web
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 jinja2>=3.1.2
 
+# Database
 sqlalchemy>=2.0.0
+aiosqlite>=0.19.0
 
-
+# Validation & config
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
+# LLM providers
 openai>=1.12.0
 google-genai>=0.2.0
 
+# LangChain / LangGraph
 langchain>=0.1.0
 langchain-core>=0.1.0
 langchain-community>=0.0.20
 langgraph>=0.0.20
 
+# Utilities
 python-dotenv>=1.0.0
 markdown>=3.5.0
+deepdiff>=6.0.0
