@@ -5,12 +5,16 @@ from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
 from uuid import uuid4, UUID
 import logging
+import json
 
-
+# from app.agents.chat_agent import TEMPERATUR
+from app.models.puzzle_model import Puzzle
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
+from app.services.puzzle_validator import PuzzleValidator
 
 logger = logging.getLogger(__name__)
+TEMPERATURE = 0.3
 
 class PuzzleServices:
     """ Handles all puzzle related DB operation"""
@@ -103,6 +107,11 @@ class PuzzleServices:
 
         self.db.commit()
         logger.info(f"Created new puzzle with id: {puzzle.id}")
+
+        # puzzle_json = self.serialize_puzzle_obj_to_json(puzzle, model="")
+        # is_valid = self.validate_puzzle_logic(puzzle_json)
+        # logger.info(f"\n Puzzle Logic: {is_valid}")
+
         return puzzle
 
     # get all puzzle
@@ -257,6 +266,11 @@ class PuzzleServices:
                     self.db.flush()
 
         self.db.commit()
+
+        # puzzle_json = self.serialize_puzzle_obj_to_json(puzzle, model="")
+        # is_valid = self.validate_puzzle_logic(puzzle_json)
+        # logger.info(f"\n Puzzle Logic: {is_valid}")
+
         return puzzle
 
 
@@ -283,7 +297,8 @@ class PuzzleServices:
 
             llm = init_chat_model(
                 puzzle_config.model,
-                model_provider="google_genai" if puzzle_config.model.startswith("gemini") else None
+                model_provider="google_genai" if puzzle_config.model.startswith("gemini") else None,
+                temperature=TEMPERATURE,
             )
 
             prompts = await get_puzzle_generation_prompt(
@@ -384,4 +399,75 @@ class PuzzleServices:
         return puzzle_data
 
 
+    def validate_puzzle_logic(self, puzzle_json: dict):
+        """Validates Puzzle Logic. Returns a validation dict."""
+        validator = PuzzleValidator(puzzle_json)
+        result = validator.validate()
+
+        if result['is_valid']:
+            return f"Puzzle Validated! Coins used: {result['coins_used']}. Log: {result['log'][-1]}"
+        else:
+            return f"Puzzle Failed: {result['failure_reason']}"
+
+
+    async def serialize_puzzle_obj_to_json(self, puzzle: Puzzle, model) -> json:
+        """Serialize a Puzzle object to LLM readable json"""
+        current_tool = "agent_tools.serialize_puzzle_obj_for_llm:"
+
+        current_puzzle = Puzzle
+        logger.debug(f"{current_tool} serialise puzzle...")
+        try:
+            current_puzzle = {
+                "name": puzzle.name,
+                "model": model,
+                "game_mode": puzzle.game_mode,
+                "coins": puzzle.coins,
+                "nodes": [
+                    {
+                        "index": node.node_index,
+                        "x": node.x_position,
+                        "y": node.y_position,
+                    }
+                    for node in sorted(puzzle.nodes, key=lambda n: n.node_index)
+                ],
+                "edges": [
+                    {
+                        "index": edge.edge_index,
+                        # go through node UUIDs of the current puzzle and compare with start_node_id/ end_node_id
+                        # to get the index of the node
+                        "start": await self._get_node_index(str(edge.start_node_id), puzzle),
+                        "end": await self._get_node_index(str(edge.end_node_id), puzzle),
+                    }
+                    for edge in sorted(puzzle.edges, key=lambda e: e.edge_index)
+                ],
+                "units": [
+                    {
+                        "type": unit.unit_type,
+                        "faction": unit.faction,
+                        "path": (
+                            [
+                                # get node index for nodes of the path
+                                # and sort them to keep it in the right order
+                                path_node.node_index for path_node in
+                                sorted(unit.path.path_node, key=lambda pn: pn.order_index)
+                            ]),
+                    }
+                    for unit in puzzle.units
+                ],
+                "description": puzzle.description,
+            }
+            #print(f"{current_tool} puzzle serialised")
+
+        except Exception as e:
+            logger.error(f"{current_tool} Error serialising puzzle: {e}")
+
+
+        # convert puzzle into JSON
+        try:
+            logger.info(f"{current_tool} convert to JSON...")
+            current_puzzle_json = json.dumps(current_puzzle)
+            return current_puzzle_json
+
+        except Exception as e:
+            logger.error(f"{current_tool} Error converting puzzle: {e}")
 

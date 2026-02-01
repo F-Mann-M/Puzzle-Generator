@@ -178,6 +178,7 @@ a:hover {
 #toolbar select {
     background-color: #2d2d2d;
     color: #e0e0e0;
+    border-radius: 10px;
 }
 
 /* Chat */
@@ -593,17 +594,22 @@ select {
     border: none;
     outline: none;
     padding: 6px 10px;
+    border-radius: 10px;
 }
 
 select:focus {
     outline: none;
     border-color: #555555;
     background-color: #2d2d2d;
+    border: none;
+    border-radius: 10px;
 }
 
 select option {
     background-color: #2d2d2d;
     color: #e0e0e0;
+    border-radius: 10px;
+    border: none;
 }
 
 /* Editor form specific */
@@ -709,6 +715,9 @@ select option {
     height: 30px;
 }
 
+.editor-buttons select {
+    border-radius: 0;
+}
 /* format LLM Chat content*/
 #chat-container ul ul, ol ul, ul ol, ol ol {
     margin-left: 20px; /* or padding-left: 20px */
@@ -775,19 +784,19 @@ select option {
 /* --- Reasoning / Thinking Block --- */
 .reasoning-block {
     background-color: #2b2b2b;
-    border: 1px solid #444;
-    border-radius: 8px;
+    border: none;
     margin-bottom: 15px;
     overflow: hidden;
     font-size: 0.9rem;
 }
 
 .reasoning-summary {
-    background-color: #333;
+    border: none;
+    background-color: #2d2d2d;
     color: #e0e0e0;
-    padding: 10px 15px;
+    padding: 5px 8px;
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 400;
     user-select: none;
     display: flex;
     align-items: center;
@@ -811,7 +820,7 @@ select option {
 
 /*Internal Agent Steps (Inside Reasoning) */
 .agent-step {
-    color: #64B5F6; /* Light Blue */
+    color: #838383; /* Light Blue */
     margin-top: 8px;
     font-weight: bold;
 }
@@ -853,6 +862,6 @@ select option {
 .final-answer code {
     background: #333;
     padding: 2px 5px;
-    border-radius: 4px;
+    border:none;
     font-family: monospace;
 }

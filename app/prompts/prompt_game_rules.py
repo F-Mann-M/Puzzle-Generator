@@ -15,7 +15,7 @@ index: integer starting from 0
 x, y: float coordinates for visualization
 Each node must connect to at least one other node
 Minimum coordinate distance between any two nodes is 200 on at least one axis
-(e.g., if a node is at x=100,y=100 then the next must differ by at least +200 in x or y)
+(e.g., if a node is at x=100,y=100 then the next must differ by at least +100 in x or y)
 
 EdgeGenerate:
 index: integer
@@ -51,8 +51,20 @@ Units move one node per turn.
 All units MUST move along there path each turn as long: 
     - there a coins left and they have NOT reached there final path node
     - No obstacle blocks the edge (like an active snake, oneway edge...)
+    - they MUST move even there are exhausted
 Units only move forward along their path.
-    - units are not allow to go the same edge backword unless they have been walking in a circle and are on their way back
+    - units are NOT allow to go the same edge backward unless they have been walking in a circle and are on their way back
+    - for example: if there is 5 nodes. node 1 is connected to node 2, node 2 is connected to node 3 and node 4, 
+    node 3 is connected to node 4. If the units path starts on node 1 and moves to node 2 in turn 1 
+    the unit is NOT allow to go back to node 1 in turn 2
+    but the unit can go in a circle to comeback to node 1:
+        - The unit starts on node 1, 
+        - moves to node 2 in turn 1. 
+        - In turn 2 the unit moves to node 3. 
+        - In turn 3 it moves to node 4. 
+        - In turn 4 it moves to node 2 
+        - In turn 5 it can move back to node 1
+    
 Enemy units may be static (path length 1) or moving (path length >1).
 
 #Player and Enemy Unit state Types
@@ -74,10 +86,11 @@ formed when two or more player units share the same path segment simultaneously
 After winning a battle, surviving units become 'exhausted' for one turn.
 Exhausted units return to normal after one full turn without combat.
 Mob state adds +1 extra coin cost per turn while active.
-When a mob breaks apart, units return to normal at the end of that turn.
+When a mob breaks apart, units return to state 'normal' at the end of that turn.
 
 # Battles and Outcomes
 Battles occur whenever units from opposing factions meet on a node or on an edge.
+If units from opposing factions meet they have to fight even when there a exhausted.
 
 # Combat Trigger
 A unit defeats an enemy by meeting it on a node or on an edge.

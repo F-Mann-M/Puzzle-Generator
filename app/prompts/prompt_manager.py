@@ -38,7 +38,9 @@ async def get_puzzle_generation_prompt(
         ### Instructions
         1. First, conceive a theme (e.g., "The Ambush", "The Bridge Defense").
         2. Explain the intended strategy for the player in the 'description' field.
-        3. FINALLY, generate the nodes and units to match that strategy.
+        3. Check if the generated puzzle follows the rules.
+        4. If you find any errors, correct them.
+        5. FINALLY, generate the nodes and units to match that strategy.
         
         ### Puzzle Rules
         {BASIC_RULES}

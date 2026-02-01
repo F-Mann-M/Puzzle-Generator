@@ -37,7 +37,7 @@ class PuzzleGenerate(BaseModel):
     description: Optional[str] = "" # used to give further instructions related to the puzzle
 
     # read SQLAlchemy object also like dicts
-    model_config = ConfigDict(
+    model_config = ConfigDict(  # object_name.name (objects, classes, instances readable)
         from_attributes=True,
         extra="forbid"
     )

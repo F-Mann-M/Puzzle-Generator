@@ -18,6 +18,7 @@ class GeminiClient:
         """
         Converts a Pydantic model to a Gemini-compatible JSON schema.
         Recursively removes 'additionalProperties' and 'title' fields.
+        Gemini can't handle "ignore" in pydantic schemas
         """
         schema = pydantic_model.model_json_schema()
 

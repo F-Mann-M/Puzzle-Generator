@@ -153,6 +153,7 @@ async function handleChatSubmit(event) {
     const formData = new FormData(form);
     const chatContainer = document.getElementById("chat-container");
     const input = document.getElementById("user-input");
+    const thinkingIndicator = document.getElementById("thinking-indicator");
 
     const content = formData.get("content");
     if (!content || content.trim() === "") {
@@ -163,6 +164,10 @@ async function handleChatSubmit(event) {
     input.value = "";
 
     try {
+        // This request uses fetch() (not HTMX), so we toggle the same CSS hooks manually
+        document.body.classList.add("htmx-request");
+        if (thinkingIndicator) thinkingIndicator.setAttribute("aria-hidden", "false");
+
         const response = await fetch("/puzzles/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -172,8 +177,8 @@ async function handleChatSubmit(event) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
-        // Regex to find <script> tags in the stream
-        const scriptRegex = /<script>(.*?)<\/script>/g;
+        // Regex to find <script> tags in the stream (supports newlines)
+        const scriptRegex = /<script>([\s\S]*?)<\/script>/g;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -205,5 +210,8 @@ async function handleChatSubmit(event) {
     } catch (error) {
         console.error("Stream error:", error);
         chatContainer.insertAdjacentHTML('beforeend', '<div class="error">Error generating response</div>');
+    } finally {
+        document.body.classList.remove("htmx-request");
+        if (thinkingIndicator) thinkingIndicator.setAttribute("aria-hidden", "true");
     }
 }

@@ -44,6 +44,7 @@ TOOL_DESCRIPTION = """
         collect_info: collects detailed information to create a puzzle. It keeps user asking until all information are collected.
         modify_puzzle: Takes in users message and updates an existing puzzle
         """
+TEMPERATUR = 0.3
 
 
 class AgentState(TypedDict):
@@ -147,7 +148,8 @@ class ChatAgent:
         # Get llm
         llm = init_chat_model(
             state["model"],
-            model_provider="google_genai" if state["model"].startswith("gemini") else None
+            model_provider="google_genai" if state["model"].startswith("gemini") else None,
+            temperature=TEMPERATUR
         )
 
         last_message = state["messages"][-1] if state["messages"] else ""
@@ -274,7 +276,8 @@ class ChatAgent:
         # Get llm
         llm = init_chat_model(
             state["model"],
-            model_provider="google_genai" if state["model"].startswith("gemini") else None
+            model_provider="google_genai" if state["model"].startswith("gemini") else None,
+            temperature=TEMPERATUR
         )
 
 
@@ -313,7 +316,8 @@ class ChatAgent:
         # Get LLM
         llm = init_chat_model(
             state["model"],
-            model_provider="google_genai" if state["model"].startswith("gemini") else None
+            model_provider="google_genai" if state["model"].startswith("gemini") else None,
+            temperature=TEMPERATUR
         )
 
         last_message = state["messages"][-1] if state["messages"] else ""
@@ -505,7 +509,8 @@ class ChatAgent:
 
         llm = init_chat_model(
             state["model"],
-            model_provider="google_genai" if state["model"].startswith("gemini") else None
+            model_provider="google_genai" if state["model"].startswith("gemini") else None,
+            temperature=TEMPERATUR
         )
 
         prompt = [
@@ -677,30 +682,39 @@ class ChatAgent:
 
             # get latest state SnapShot
             logger.info("get puzzle current state")
-            current_puzzle = ""
+            current_puzzle: str = ""
 
             state = await graph.aget_state(config)
             logger.info("state_history loaded")
 
-            if state.values and "puzzle" in state.values:
-                if puzzle_json and puzzle_json != state.values["puzzle"]:
-                    current_puzzle = state.values["puzzle"]
-                else:
-                    logger.info(f"puzzle state updated.")
-                    current_puzzle = puzzle_json
+            existing_puzzle = state.values.get("puzzle") if state.values else None
+            # Backwards-compat: older checkpoints may have stored puzzle as a list
+            if isinstance(existing_puzzle, list):
+                existing_puzzle = existing_puzzle[-1] if existing_puzzle else None
+
+            # Prefer fresh puzzle_json from DB (router). Otherwise keep existing state.
+            if puzzle_json:
+                current_puzzle = puzzle_json
+            elif isinstance(existing_puzzle, str) and existing_puzzle.strip():
+                current_puzzle = existing_puzzle
 
 
             try:
                 # merging new user message into LangGraph state history
                 logger.info(f"{current_tool} Invoke graph...")
-                result = await graph.ainvoke(
-                    {"messages": [{"role": "user", "content": user_message}],
+                invoke_input = {
+                    "messages": [{"role": "user", "content": user_message}],
                     "model": self.model,
                     "session_id": str(self.session_id),
                     "tool_result": [],
-                    "puzzle": [current_puzzle] if current_puzzle else [],
-                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
-                     },
+                }
+                if current_puzzle:
+                    invoke_input["puzzle"] = current_puzzle
+                if puzzle_id:
+                    invoke_input["current_puzzle_id"] = str(puzzle_id)
+
+                result = await graph.ainvoke(
+                    invoke_input,
                     config = config
                 )
 
@@ -725,123 +739,140 @@ class ChatAgent:
         logger.info(f"\n{current_tool} Process user message: {user_message}")
 
 
-        # Process with graph
+        # generate id for reasoning
+        reasoning_id = f"reasoning-{uuid.uuid4()}"
+        final_content_id = f"final-{uuid.uuid4()}"
+
+        # Setup Graph
         async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
             graph = self.workflow.compile(checkpointer=checkpointer)
             logger.info("Invoke agent graph")
             config = {"configurable": {"thread_id": str(self.session_id)}}
 
+            # load states
+            state = await graph.aget_state(config)
+            current_puzzle: str = ""
+            existing_puzzle = state.values.get("puzzle") if state.values else None
+            if isinstance(existing_puzzle, list):
+                existing_puzzle = existing_puzzle[-1] if existing_puzzle else None
 
-            # generate id for reasoning
-            reasoning_id = f"reasoning-{uuid.uuid4()}"
-            final_content_id = f"final-{uuid.uuid4()}"
+            # Prefer fresh puzzle_json from DB (router). Otherwise, keep existing state.
+            # todo: currently it just work. clean up function, remove
+            if puzzle_json:
+                current_puzzle = puzzle_json
+            elif isinstance(existing_puzzle, str) and existing_puzzle.strip():
+                current_puzzle = existing_puzzle
 
-            # Setup Graph
-            async with AsyncSqliteSaver.from_conn_string(settings.CHECKPOINTS_URL) as checkpointer:
-                graph = self.workflow.compile(checkpointer=checkpointer)
-                config = {"configurable": {"thread_id": str(self.session_id)}}
+            inputs = {
+                "messages": [{"role": "user", "content": user_message}],
+                "model": self.model,
+                "session_id": str(self.session_id),
+                "tool_result": [],
+            }
+            if current_puzzle:
+                inputs["puzzle"] = current_puzzle
+            if puzzle_id:
+                inputs["current_puzzle_id"] = str(puzzle_id)
 
-                # load states
-                state = await graph.aget_state(config)
-                current_puzzle = ""
-                if state.values and "puzzle" in state.values:
-                    if puzzle_json and puzzle_json != state.values["puzzle"]:
-                        current_puzzle = state.values["puzzle"]
-                    else:
-                        current_puzzle = puzzle_json
+            # steam html chunks
+            yield f"""
+                    <div class="ai_response">
+                        <details class="reasoning-block" open>
+                            <summary class="reasoning-summary">
+                                Thinking Process (Click to toggle)
+                            </summary>
+                            <div id="{reasoning_id}" class="reasoning-content"></div>
+                        </details>
+                        <div id="{final_content_id}" class="final-answer"></div>
+                    </div>
+                    """
 
-                inputs = {
-                    "messages": [{"role": "user", "content": user_message}],
-                    "model": self.model,
-                    "session_id": str(self.session_id),
-                    "tool_result": [],
-                    "puzzle": [current_puzzle] if current_puzzle else [],
-                    "current_puzzle_id": str(puzzle_id) if puzzle_id else None,
-                }
+            is_answering = False
+            final_nodes = ["chat", "format_response"]
+            final_text_buffer = ""
 
-                # steam html chunks
-                yield f"""
-                        <div class="ai_response">
-                            <details class="reasoning-block" open>
-                                <summary class="reasoning-summary">
-                                    Thinking Process (Click to toggle)
-                                </summary>
-                                <div id="{reasoning_id}" class="reasoning-content"></div>
-                            </details>
-                            <div id="{final_content_id}" class="final-answer"></div>
-                        </div>
-                        """
+            async for event in graph.astream_events(inputs, config, version="v2"):
+                kind = event["event"]
+                meta = event.get("metadata", {})
+                node_name = meta.get("langgraph_node", "")
 
-                is_answering = False
-                final_nodes = ["chat", "format_response"]
+                append_html = ""
 
-                async for event in graph.astream_events(inputs, config, version="v2"):
-                    kind = event["event"]
-                    meta = event.get("metadata", {})
-                    node_name = meta.get("langgraph_node", "")
+                # status update
+                if kind == "on_chain_start" and event["name"] == "LangGraph":
+                    append_html = '<div class="agent-step">▶ Starting Agent...</div>'
 
-                    append_html = ""
+                ## show current node
+                elif kind == "on_node_start" and node_name and node_name != "LangGraph":
+                    append_html = f'<div class="agent-step">Step: {node_name}</div>'
 
-                    # status update
-                    if kind == "on_chain_start" and event["name"] == "LangGraph":
-                        append_html = '<div class="agent-step">▶ Starting Agent...</div>'
-
-                    ## show current node
-                    elif kind == "on_node_start" and node_name and node_name != "LangGraph":
-                        append_html = f'<div class="agent-step">Step: {node_name}</div>'
-
-                    ## show event
-                    elif kind == "on_tool_start":
-                        append_html = f'<div class="agent-tool">Using tool: {event["name"]}</div>'
+                ## show event
+                elif kind == "on_tool_start":
+                    append_html = f'<div class="agent-tool">Using tool: {event["name"]}</div>'
 
 
-                    elif kind == "on_tool_end":
-                        output = str(event.get("data", {}).get("output"))
-                        if len(output) > 200: output = output[:200] + "..."
-                        safe_output = output.replace('"', '&quot;').replace("'", "&#39;")
-                        append_html = f'<div class="tool-result">Result: {safe_output}</div>'
+                elif kind == "on_tool_end":
+                    output = str(event.get("data", {}).get("output"))
+                    if len(output) > 200: output = output[:200] + "..."
+                    safe_output = output.replace('"', '&quot;').replace("'", "&#39;")
+                    append_html = f'<div class="tool-result">Result: {safe_output}</div>'
 
-                    ## status reasoning
-                    if append_html:
-                        safe_html = append_html.replace("`", "\\`")
-                        yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{safe_html}`);</script>'
+                ## status reasoning
+                if append_html:
+                    safe_html = append_html.replace("`", "\\`")
+                    yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{safe_html}`);</script>'
 
-                    ## streaming content
-                    elif kind == "on_chat_model_stream":
-                        content = event["data"]["chunk"].content
-
-                        if content:
-                            safe_content = content.replace("`", "\\`").replace("${", "\\${")
-
-                            if node_name in final_nodes:
-                                is_answering = True
-
-                                # Stream directly into Final Answer div via Script
-                                formatted_content = safe_content.replace("\n", "<br>")
-                                yield f'<script>document.getElementById("{final_content_id}").insertAdjacentHTML("beforeend", `{formatted_content}`);</script>'
-                            else:
-                                # Internal thoughts -> Reasoning Block
-                                span_html = f'<span class="internal-thought">{safe_content}</span>'
-                                yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{span_html}`);</script>'
-
-                # final block (formated)
-                if not is_answering:
-                    final_state = await graph.aget_state(config)
-                    last_msg = None
-                    if final_state.values and "messages" in final_state.values:
-                        last_msg = final_state.values["messages"][-1]
-
-                    content = ""
-                    if last_msg:
-                        content = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content")
+                ## streaming content
+                elif kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
 
                     if content:
-                        # Render nice markdown for the final result
-                        html_content = markdown.markdown(content, extensions=['extra', 'sane_lists'])
-                        safe_html = html_content.replace("`", "\\`")
-                        yield f'<script>document.getElementById("{final_content_id}").innerHTML = `{safe_html}`;</script>'
-                    else:
-                        yield f'<script>document.getElementById("{final_content_id}").innerHTML = `<div class="error">No response generated.</div>`;</script>'
+                        if node_name in final_nodes:
+                            is_answering = True
+                            # Buffer final answer
+                            final_text_buffer += content
+
+                            # Stream content - convert to safe HTML
+                            safe_content = (
+                                content
+                                .replace("&", "&amp;")
+                                .replace("<", "&lt;")
+                                .replace(">", "&gt;")
+                                .replace("`", "\\`")
+                                .replace("${", "\\${")
+                                .replace("\n", "<br>")
+                            )
+
+                            # Stream directly into Final Answer div via Script
+                            formatted_content = safe_content.replace("\n", "<br>")
+                            yield f'<script>document.getElementById("{final_content_id}").insertAdjacentHTML("beforeend", `{formatted_content}`);</script>'
+                        else:
+                            # Reasoning Block
+                            safe_content = content.replace("`", "\\`").replace("${", "\\${")
+                            span_html = f'<span class="internal-thought">{safe_content}</span>'
+                            yield f'<script>document.getElementById("{reasoning_id}").insertAdjacentHTML("beforeend", `{span_html}`);</script>'
+
+            # replace streamed raw text with rendered markdown
+            final_text = final_text_buffer
+
+            # if no final-node streaming happened, read last assistant message from state
+            if not final_text:
+                final_state = await graph.aget_state(config)
+                last_msg = None
+                if final_state.values and "messages" in final_state.values and final_state.values["messages"]:
+                    last_msg = final_state.values["messages"][-1]
+                if last_msg:
+                    final_text = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content") or ""
+
+            if final_text:
+                # Fix list formatting in raw text before markdown conversion
+                corrected_text = re.sub(r'^[ \t]{1,3}-', '    -', final_text, flags=re.MULTILINE)
+                html_content = markdown.markdown(corrected_text, extensions=['extra', 'sane_lists'])
+
+                # Use JSON encoding to keep the <script> one-line and safely quoted
+                yield f'<script>document.getElementById("{final_content_id}").innerHTML = {json.dumps(html_content)};</script>'
+            else:
+                yield f'<script>document.getElementById("{final_content_id}").innerHTML = "<div class=\\"error\\">No response generated.</div>";</script>'
 
 
     async def format_response(self, state: AgentState) -> AgentState:
@@ -867,7 +898,8 @@ class ChatAgent:
 
         llm = init_chat_model(
             state["model"],
-            model_provider="google_genai" if state["model"].startswith("gemini") else None
+            model_provider="google_genai" if state["model"].startswith("gemini") else None,
+            temperature=TEMPERATUR
         )
 
         system_prompt = f"""

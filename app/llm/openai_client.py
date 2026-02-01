@@ -27,7 +27,7 @@ class OpenAIClient:
         valid_keys = schema.model_fields.keys()
 
         # Create a new dict with ONLY the valid keys
-        clean_data = {k: v for k, v in data.items() if k in valid_keys}
+        clean_data = {key: value for key, value in data.items() if key in valid_keys}
 
         return clean_data
 
