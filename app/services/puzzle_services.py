@@ -11,7 +11,7 @@ import json
 from app.models.puzzle_model import Puzzle
 from app.schemas import PuzzleCreate, PuzzleGenerate, PuzzleLLMResponse
 from app.prompts.prompt_manager import get_puzzle_generation_prompt
-from app.services.puzzle_validator import PuzzleValidator
+# from app.services.puzzle_validator import PuzzleValidator
 
 logger = logging.getLogger(__name__)
 TEMPERATURE = 0.3
